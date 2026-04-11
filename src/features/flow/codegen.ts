@@ -168,7 +168,11 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
 }
 
 function renderDecision(node: FlowEditorNode, context: RenderContext) {
-  const loopBranch = findTopTestedLoopBranch(context.graph, node);
+  const loopBranch = findTopTestedLoopBranch(
+    context.graph,
+    node,
+    context.activePath,
+  );
 
   if (loopBranch) {
     renderTopTestedLoop(node, loopBranch, context);
@@ -374,6 +378,10 @@ function findBackwardLoops(
         continue;
       }
 
+      if (graph.nodeById.get(edge.target)?.type === "decision") {
+        continue;
+      }
+
       const excludedEdges = new Set([getEdgeKey(edge)]);
       const startToDecisionPath = findPath(graph, startNodeId, node.id, {
         excludedEdges,
@@ -407,7 +415,12 @@ function findBackwardLoops(
 function findTopTestedLoopBranch(
   graph: FlowGraph,
   decisionNode: FlowEditorNode,
+  activePath: Set<string>,
 ): DecisionBranchHandle | null {
+  const blockedNodeIds = new Set(activePath);
+
+  blockedNodeIds.delete(decisionNode.id);
+
   for (const branch of decisionBranches) {
     const edge = getDecisionBranchEdge(graph, decisionNode.id, branch);
 
@@ -419,7 +432,9 @@ function findTopTestedLoopBranch(
       return branch;
     }
 
-    const pathBackToDecision = findPath(graph, edge.target, decisionNode.id);
+    const pathBackToDecision = findPath(graph, edge.target, decisionNode.id, {
+      blockedNodeIds,
+    });
 
     if (pathBackToDecision.length > 0) {
       return branch;
@@ -504,7 +519,7 @@ function findPath(
   graph: FlowGraph,
   startNodeId: string,
   targetNodeId: string,
-  options?: { excludedEdges?: Set<string> },
+  options?: { blockedNodeIds?: Set<string>; excludedEdges?: Set<string> },
 ) {
   const visited = new Set<string>();
   const queue: Array<{ nodeId: string; path: string[] }> = [
@@ -515,6 +530,13 @@ function findPath(
     const current = queue.shift();
 
     if (!current || visited.has(current.nodeId)) {
+      continue;
+    }
+
+    if (
+      current.nodeId !== targetNodeId &&
+      options?.blockedNodeIds?.has(current.nodeId)
+    ) {
       continue;
     }
 

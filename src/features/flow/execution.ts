@@ -1,3 +1,9 @@
+import { parseExpression } from "@babel/parser";
+import type {
+  BinaryExpression,
+  Expression,
+  LogicalExpression,
+} from "@babel/types";
 import {
   createFlowGraph,
   getOutgoingEdges,
@@ -5,7 +11,7 @@ import {
 } from "@/features/flow/flow-graph";
 import type { FlowEditorEdge, FlowEditorNode, FlowNodeType } from "@/types/flow";
 
-export type ExecutionValue = number | string | boolean | undefined;
+export type ExecutionValue = number | string | boolean | null | undefined;
 export type ExecutionVariables = Record<string, ExecutionValue>;
 
 export type FlowExecutionHistoryItem = {
@@ -335,20 +341,176 @@ function evaluateCondition(
   condition: string,
   variables: ExecutionVariables,
 ): { ok: true; value: boolean } | { ok: false; message: string } {
-  const conditionMatch = condition
-    .trim()
-    .match(/^(.+?)\s*(===|!==|>=|<=|>|<|==|!=)\s*(.+)$/);
+  const conditionResult = evaluateExpression(condition, variables);
 
-  if (!conditionMatch) {
+  if (!conditionResult.ok) {
+    return conditionResult;
+  }
+
+  return {
+    ok: true,
+    value: Boolean(conditionResult.value),
+  };
+}
+
+function evaluateExpression(
+  expression: string,
+  variables: ExecutionVariables,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  try {
+    return evaluateExpressionNode(
+      parseExpression(expression, {
+        sourceType: "unambiguous",
+      }),
+      variables,
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      return {
+        ok: false,
+        message: `Expresión no soportada: "${expression}". ${error.message}`,
+      };
+    }
+
     return {
       ok: false,
-      message: `Condición no soportada: "${condition}". Usa comparaciones como x > 5 o x === 0.`,
+      message: `Expresión no soportada: "${expression}".`,
+    };
+  }
+}
+
+function evaluateExpressionNode(
+  expression: Expression,
+  variables: ExecutionVariables,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  if (expression.type === "Identifier") {
+    if (expression.name in variables) {
+      return {
+        ok: true,
+        value: variables[expression.name],
+      };
+    }
+
+    return {
+      ok: false,
+      message: `No se encontró la variable "${expression.name}".`,
     };
   }
 
-  const [, leftExpression, operator, rightExpression] = conditionMatch;
-  const leftResult = evaluateExpression(leftExpression, variables);
-  const rightResult = evaluateExpression(rightExpression, variables);
+  if (expression.type === "NumericLiteral") {
+    return { ok: true, value: expression.value };
+  }
+
+  if (expression.type === "StringLiteral") {
+    return { ok: true, value: expression.value };
+  }
+
+  if (expression.type === "BooleanLiteral") {
+    return { ok: true, value: expression.value };
+  }
+
+  if (expression.type === "NullLiteral") {
+    return { ok: true, value: null };
+  }
+
+  if (expression.type === "ParenthesizedExpression") {
+    return evaluateExpressionNode(expression.expression, variables);
+  }
+
+  if (expression.type === "UnaryExpression") {
+    return evaluateUnaryExpression(expression, variables);
+  }
+
+  if (expression.type === "LogicalExpression") {
+    return evaluateLogicalExpression(expression, variables);
+  }
+
+  if (expression.type === "BinaryExpression") {
+    return evaluateBinaryExpression(expression, variables);
+  }
+
+  return {
+    ok: false,
+    message: `La expresión "${expression.type}" todavía no está soportada.`,
+  };
+}
+
+function evaluateUnaryExpression(
+  expression: Extract<Expression, { type: "UnaryExpression" }>,
+  variables: ExecutionVariables,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  const argumentResult = evaluateExpressionNode(expression.argument, variables);
+
+  if (!argumentResult.ok) {
+    return argumentResult;
+  }
+
+  switch (expression.operator) {
+    case "!":
+      return { ok: true, value: !argumentResult.value };
+    case "+":
+      return applyUnaryNumberOperator(argumentResult.value, "+");
+    case "-":
+      return applyUnaryNumberOperator(argumentResult.value, "-");
+    default:
+      return {
+        ok: false,
+        message: `Operador unario no soportado: "${expression.operator}".`,
+      };
+  }
+}
+
+function evaluateLogicalExpression(
+  expression: LogicalExpression,
+  variables: ExecutionVariables,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  const leftResult = evaluateExpressionNode(expression.left, variables);
+
+  if (!leftResult.ok) {
+    return leftResult;
+  }
+
+  if (expression.operator === "&&" && !leftResult.value) {
+    return {
+      ok: true,
+      value: leftResult.value,
+    };
+  }
+
+  if (expression.operator === "||" && leftResult.value) {
+    return {
+      ok: true,
+      value: leftResult.value,
+    };
+  }
+
+  if (
+    expression.operator === "??" &&
+    leftResult.value !== null &&
+    leftResult.value !== undefined
+  ) {
+    return {
+      ok: true,
+      value: leftResult.value,
+    };
+  }
+
+  return evaluateExpressionNode(expression.right, variables);
+}
+
+function evaluateBinaryExpression(
+  expression: BinaryExpression,
+  variables: ExecutionVariables,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  if (expression.left.type === "PrivateName") {
+    return {
+      ok: false,
+      message: "Los campos privados no están soportados en expresiones.",
+    };
+  }
+
+  const leftResult = evaluateExpressionNode(expression.left, variables);
+  const rightResult = evaluateExpressionNode(expression.right, variables);
 
   if (!leftResult.ok) {
     return leftResult;
@@ -358,14 +520,90 @@ function evaluateCondition(
     return rightResult;
   }
 
-  const leftValue = leftResult.value;
-  const rightValue = rightResult.value;
+  if (isArithmeticOperator(expression.operator)) {
+    return applyArithmeticOperator(
+      leftResult.value,
+      expression.operator,
+      rightResult.value,
+    );
+  }
 
-  if (isRelationalOperator(operator)) {
-    if (leftValue === undefined || rightValue === undefined) {
+  if (isComparisonOperator(expression.operator)) {
+    return applyComparisonOperator(
+      leftResult.value,
+      expression.operator,
+      rightResult.value,
+    );
+  }
+
+  return {
+    ok: false,
+    message: `Operador no soportado: "${expression.operator}".`,
+  };
+}
+
+function applyUnaryNumberOperator(value: ExecutionValue, operator: "+" | "-") {
+  if (typeof value !== "number") {
+    return {
+      ok: false,
+      message: `El operador "${operator}" solo soporta números en esta versión.`,
+    } as const;
+  }
+
+  return {
+    ok: true,
+    value: operator === "-" ? -value : value,
+  } as const;
+}
+
+function applyArithmeticOperator(
+  leftValue: ExecutionValue,
+  operator: string,
+  rightValue: ExecutionValue,
+): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  if (
+    operator === "+" &&
+    (typeof leftValue === "string" || typeof rightValue === "string")
+  ) {
+    return { ok: true, value: `${leftValue}${rightValue}` };
+  }
+
+  if (typeof leftValue !== "number" || typeof rightValue !== "number") {
+    return {
+      ok: false,
+      message: `El operador "${operator}" solo soporta números en esta versión.`,
+    };
+  }
+
+  switch (operator) {
+    case "+":
+      return { ok: true, value: leftValue + rightValue };
+    case "-":
+      return { ok: true, value: leftValue - rightValue };
+    case "*":
+      return { ok: true, value: leftValue * rightValue };
+    case "/":
+      return { ok: true, value: leftValue / rightValue };
+    case "%":
+      return { ok: true, value: leftValue % rightValue };
+    default:
       return {
         ok: false,
-        message: `No se puede comparar "${condition}" porque una variable no tiene valor asignado.`,
+        message: `Operador no soportado: "${operator}".`,
+      };
+  }
+}
+
+function applyComparisonOperator(
+  leftValue: ExecutionValue,
+  operator: string,
+  rightValue: ExecutionValue,
+): { ok: true; value: boolean } | { ok: false; message: string } {
+  if (isRelationalOperator(operator)) {
+    if (!isComparableValue(leftValue) || !isComparableValue(rightValue)) {
+      return {
+        ok: false,
+        message: `El operador "${operator}" necesita números o textos comparables.`,
       };
     }
 
@@ -398,30 +636,24 @@ function evaluateCondition(
   }
 }
 
-function evaluateExpression(
-  expression: string,
-  variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
-  const trimmedExpression = expression.trim();
-  const binaryMatch = trimmedExpression.match(/^(.+?)\s*([+\-*/])\s*(.+)$/);
+function isArithmeticOperator(operator: string) {
+  return (
+    operator === "+" ||
+    operator === "-" ||
+    operator === "*" ||
+    operator === "/" ||
+    operator === "%"
+  );
+}
 
-  if (binaryMatch) {
-    const [, leftExpression, operator, rightExpression] = binaryMatch;
-    const leftResult = evaluateValue(leftExpression, variables);
-    const rightResult = evaluateValue(rightExpression, variables);
-
-    if (!leftResult.ok) {
-      return leftResult;
-    }
-
-    if (!rightResult.ok) {
-      return rightResult;
-    }
-
-    return applyBinaryOperator(leftResult.value, operator, rightResult.value);
-  }
-
-  return evaluateValue(trimmedExpression, variables);
+function isComparisonOperator(operator: string) {
+  return (
+    isRelationalOperator(operator) ||
+    operator === "===" ||
+    operator === "!==" ||
+    operator === "==" ||
+    operator === "!="
+  );
 }
 
 function isRelationalOperator(operator: string) {
@@ -433,68 +665,8 @@ function isRelationalOperator(operator: string) {
   );
 }
 
-function evaluateValue(
-  value: string,
-  variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
-  const trimmedValue = value.trim();
-
-  if (/^-?\d+(\.\d+)?$/.test(trimmedValue)) {
-    return { ok: true, value: Number(trimmedValue) };
-  }
-
-  if (trimmedValue === "true" || trimmedValue === "false") {
-    return { ok: true, value: trimmedValue === "true" };
-  }
-
-  const quotedStringMatch = trimmedValue.match(/^["'](.*)["']$/);
-
-  if (quotedStringMatch) {
-    return { ok: true, value: quotedStringMatch[1] };
-  }
-
-  if (trimmedValue in variables) {
-    return { ok: true, value: variables[trimmedValue] };
-  }
-
-  return {
-    ok: false,
-    message: `No se encontró la variable o valor "${trimmedValue}".`,
-  };
-}
-
-function applyBinaryOperator(
-  leftValue: ExecutionValue,
-  operator: string,
-  rightValue: ExecutionValue,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
-  if (
-    operator === "+" &&
-    (typeof leftValue === "string" || typeof rightValue === "string")
-  ) {
-    return { ok: true, value: `${leftValue}${rightValue}` };
-  }
-
-  if (typeof leftValue !== "number" || typeof rightValue !== "number") {
-    return {
-      ok: false,
-      message: `El operador "${operator}" solo soporta números en esta versión.`,
-    };
-  }
-
-  switch (operator) {
-    case "+":
-      return { ok: true, value: leftValue + rightValue };
-    case "-":
-      return { ok: true, value: leftValue - rightValue };
-    case "*":
-      return { ok: true, value: leftValue * rightValue };
-    case "/":
-      return { ok: true, value: leftValue / rightValue };
-    default:
-      return {
-        ok: false,
-        message: `Operador no soportado: "${operator}".`,
-      };
-  }
+function isComparableValue(
+  value: ExecutionValue,
+): value is number | string {
+  return typeof value === "number" || typeof value === "string";
 }
