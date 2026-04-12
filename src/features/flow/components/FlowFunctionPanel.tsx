@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FlowFunctionDefinition } from "@/types/flow";
 
 type FlowFunctionPanelProps = {
@@ -9,6 +10,7 @@ type FlowFunctionPanelProps = {
     functionId: string,
     changes: Pick<FlowFunctionDefinition, "name" | "parameters">,
   ) => void;
+  onDeleteFunction: (functionId: string) => void;
 };
 
 export function FlowFunctionPanel({
@@ -17,10 +19,41 @@ export function FlowFunctionPanel({
   onSelectDiagram,
   onCreateFunction,
   onUpdateFunction,
+  onDeleteFunction,
 }: FlowFunctionPanelProps) {
+  const [parameterDrafts, setParameterDrafts] = useState<
+    Record<string, string>
+  >({});
   const activeFunction = functions.find(
     (flowFunction) => flowFunction.id === activeDiagramId,
   );
+  const activeParameterValue = activeFunction
+    ? (parameterDrafts[activeFunction.id] ??
+      activeFunction.parameters.join(", "))
+    : "";
+
+  function handleParameterChange(
+    flowFunction: FlowFunctionDefinition,
+    value: string,
+  ) {
+    setParameterDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [flowFunction.id]: value,
+    }));
+    onUpdateFunction(flowFunction.id, {
+      name: flowFunction.name,
+      parameters: splitParameters(value),
+    });
+  }
+
+  function handleDeleteFunction(functionId: string) {
+    setParameterDrafts((currentDrafts) => {
+      const nextDrafts = { ...currentDrafts };
+      delete nextDrafts[functionId];
+      return nextDrafts;
+    });
+    onDeleteFunction(functionId);
+  }
 
   return (
     <section className="rounded-lg border border-neutral-300 bg-white p-4 shadow-sm">
@@ -41,16 +74,26 @@ export function FlowFunctionPanel({
         </button>
 
         {functions.map((flowFunction) => (
-          <button
-            key={flowFunction.id}
-            type="button"
-            onClick={() => onSelectDiagram(flowFunction.id)}
-            className={getDiagramButtonClassName(
-              activeDiagramId === flowFunction.id,
-            )}
-          >
-            {flowFunction.name}
-          </button>
+          <div key={flowFunction.id} className="flex items-stretch gap-1">
+            <button
+              type="button"
+              onClick={() => onSelectDiagram(flowFunction.id)}
+              className={`${getDiagramButtonClassName(
+                activeDiagramId === flowFunction.id,
+              )} min-w-0 flex-1 truncate`}
+            >
+              {flowFunction.name}
+            </button>
+            <button
+              type="button"
+              aria-label={`Eliminar funcion ${flowFunction.name}`}
+              title="Eliminar funcion"
+              onClick={() => handleDeleteFunction(flowFunction.id)}
+              className="flex w-9 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              x
+            </button>
+          </div>
         ))}
 
         <button
@@ -81,12 +124,9 @@ export function FlowFunctionPanel({
             Parametros
             <input
               className="mt-1 w-full rounded border border-violet-200 bg-white px-2 py-1 text-sm font-mono text-violet-950 outline-none focus:border-violet-500"
-              value={activeFunction.parameters.join(", ")}
+              value={activeParameterValue}
               onChange={(event) =>
-                onUpdateFunction(activeFunction.id, {
-                  name: activeFunction.name,
-                  parameters: splitParameters(event.target.value),
-                })
+                handleParameterChange(activeFunction, event.target.value)
               }
               placeholder="a, b"
             />

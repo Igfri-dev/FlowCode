@@ -7,7 +7,7 @@ import type { FlowEditorNode, InputNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
 const fieldClassName =
-  "nodrag nopan nowheel w-full rounded border border-sky-200 bg-white/90 px-2 py-1 text-xs text-sky-950 outline-none focus:border-sky-500";
+  "nodrag nopan nowheel h-6 w-full rounded border border-sky-200 bg-white/90 px-1.5 py-0.5 text-[11px] text-sky-950 outline-none focus:border-sky-500";
 
 export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   const config = getInputConfig(data.config);
@@ -32,7 +32,7 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
 
   return (
     <div
-      className={`relative min-w-48 cursor-grab select-none rounded-md border-2 border-sky-600 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-950 shadow-sm [transform:skew(-8deg)] active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
+      className={`relative w-44 cursor-grab select-none rounded-md border-2 border-sky-600 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-950 shadow-sm [transform:skew(-8deg)] active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
     >
       <Handle
         id="in"
@@ -41,14 +41,14 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         className="!h-3 !w-3 !border-2 !border-white !bg-sky-700"
       />
       <div className="[transform:skew(8deg)]">
-        <p className="mb-2 text-center text-xs font-semibold uppercase text-sky-700">
+        <p className="mb-1 text-center text-[11px] font-semibold uppercase text-sky-700">
           Entrada
         </p>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <textarea
             aria-label="Texto de la pregunta"
-            className={`${fieldClassName} resize-none`}
-            rows={2}
+            className={`${fieldClassName} resize-none overflow-hidden`}
+            rows={1}
             value={config.prompt}
             onChange={(event) =>
               data.onConfigChange(id, {

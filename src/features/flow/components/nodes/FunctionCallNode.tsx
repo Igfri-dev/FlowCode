@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Handle, type NodeProps } from "@xyflow/react";
 import {
   getFlowHandlePosition,
@@ -7,7 +8,7 @@ import type { FlowEditorNode, FunctionCallNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
 const fieldClassName =
-  "nodrag nopan nowheel w-full rounded border border-violet-200 bg-white/90 px-2 py-1 text-xs text-violet-950 outline-none focus:border-violet-500";
+  "nodrag nopan nowheel h-6 w-full rounded border border-violet-200 bg-white/90 px-1.5 py-0.5 text-[11px] text-violet-950 outline-none focus:border-violet-500";
 
 export function FunctionCallNode({
   data,
@@ -15,6 +16,7 @@ export function FunctionCallNode({
   selected,
 }: NodeProps<FlowEditorNode>) {
   const config = getFunctionCallConfig(data.config);
+  const [argumentDraft, setArgumentDraft] = useState<string | null>(null);
   const selectedFunction = data.availableFunctions?.find(
     (flowFunction) => flowFunction.id === config.functionId,
   );
@@ -39,7 +41,7 @@ export function FunctionCallNode({
 
   return (
     <div
-      className={`relative min-w-52 cursor-grab select-none rounded-md border-2 border-violet-600 bg-violet-50 px-4 py-3 text-sm font-medium text-violet-950 shadow-sm active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
+      className={`relative w-48 cursor-grab select-none rounded-md border-2 border-violet-600 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-950 shadow-sm active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
     >
       <Handle
         id="in"
@@ -47,10 +49,10 @@ export function FunctionCallNode({
         position={toReactFlowPosition(inputPosition)}
         className="!h-3 !w-3 !border-2 !border-white !bg-violet-700"
       />
-      <p className="mb-2 text-center text-xs font-semibold uppercase text-violet-700">
+      <p className="mb-1 text-center text-[11px] font-semibold uppercase text-violet-700">
         Llamada
       </p>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <select
           aria-label="Funcion a llamar"
           className={fieldClassName}
@@ -72,13 +74,14 @@ export function FunctionCallNode({
         <input
           aria-label="Argumentos de la llamada"
           className={`${fieldClassName} font-mono`}
-          value={config.args.join(", ")}
-          onChange={(event) =>
+          value={argumentDraft ?? config.args.join(", ")}
+          onChange={(event) => {
+            setArgumentDraft(event.target.value);
             data.onConfigChange(id, {
               ...config,
               args: splitArguments(event.target.value),
-            })
-          }
+            });
+          }}
           placeholder={
             selectedFunction
               ? selectedFunction.parameters.join(", ")

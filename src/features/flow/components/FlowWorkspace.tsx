@@ -43,6 +43,7 @@ import type {
   FlowEditorEdge,
   FlowEditorNode,
   FlowFunctionDefinition,
+  FunctionCallNodeConfig,
   FlowProgram,
   FlowNodeConfig,
   FlowNodeHandlePositions,
@@ -558,6 +559,49 @@ export function FlowWorkspace() {
     [activeDiagramId, edges, nodes],
   );
 
+  const handleDeleteFunction = useCallback(
+    (functionId: string) => {
+      const nextMainDiagram = {
+        ...currentProgram.main,
+        nodes: clearFunctionReferences(currentProgram.main.nodes, functionId),
+      };
+      const nextFunctions = currentProgram.functions
+        .filter((flowFunction) => flowFunction.id !== functionId)
+        .map((flowFunction) => ({
+          ...flowFunction,
+          nodes: clearFunctionReferences(flowFunction.nodes, functionId),
+        }));
+
+      setBlockedConnectionMessage(null);
+      setIsAutoRunning(false);
+      setMainDiagram(nextMainDiagram);
+      setFunctions(nextFunctions);
+
+      if (activeDiagramId === functionId || activeDiagramId === "main") {
+        setActiveDiagramId("main");
+        setNodes(nextMainDiagram.nodes);
+        setEdges(nextMainDiagram.edges);
+        setExecutionState(resetFlowExecution("main", "Principal"));
+        return;
+      }
+
+      const activeFunction = nextFunctions.find(
+        (flowFunction) => flowFunction.id === activeDiagramId,
+      );
+
+      if (!activeFunction) {
+        return;
+      }
+
+      setNodes(activeFunction.nodes);
+      setEdges(activeFunction.edges);
+      setExecutionState(
+        resetFlowExecution(activeFunction.id, `Funcion ${activeFunction.name}`),
+      );
+    },
+    [activeDiagramId, currentProgram, setEdges, setNodes],
+  );
+
   return (
     <section className="mx-auto grid min-h-[calc(100vh-7rem)] w-full max-w-[92rem] grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_280px]">
       <div className="flex min-w-0 flex-col gap-4">
@@ -567,6 +611,7 @@ export function FlowWorkspace() {
           onSelectDiagram={handleSelectDiagram}
           onCreateFunction={handleCreateFunction}
           onUpdateFunction={handleUpdateFunction}
+          onDeleteFunction={handleDeleteFunction}
         />
         <FlowSidebar onAddNode={handleAddNode} />
         <FlowValidationPanel
@@ -640,4 +685,37 @@ export function FlowWorkspace() {
       />
     </section>
   );
+}
+
+function clearFunctionReferences(
+  nodes: FlowEditorNode[],
+  functionId: string,
+): FlowEditorNode[] {
+  return nodes.map((node): FlowEditorNode => {
+    const config = node.data.config;
+
+    if (
+      !isFunctionCallConfig(config) ||
+      config.functionId !== functionId
+    ) {
+      return node;
+    }
+
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        config: {
+          ...config,
+          functionId: "",
+        },
+      },
+    };
+  });
+}
+
+function isFunctionCallConfig(
+  config: FlowNodeConfig,
+): config is FunctionCallNodeConfig {
+  return "functionId" in config && "args" in config;
 }

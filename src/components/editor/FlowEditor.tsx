@@ -111,7 +111,7 @@ export function FlowEditor({
 }: FlowEditorProps) {
   return (
     <ReactFlow<FlowEditorNode, FlowEditorEdge>
-      className="h-full min-h-[520px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing"
+      className="flow-editor-canvas h-full min-h-[520px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing"
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}

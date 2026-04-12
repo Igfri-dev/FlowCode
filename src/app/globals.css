@@ -24,3 +24,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Our custom input/output nodes share names with React Flow built-ins. */
+.flow-editor-canvas .react-flow__node-input,
+.flow-editor-canvas .react-flow__node-output {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.flow-editor-canvas .react-flow__node-input.selectable:hover,
+.flow-editor-canvas .react-flow__node-input.selectable.selected,
+.flow-editor-canvas .react-flow__node-input.selectable:focus,
+.flow-editor-canvas .react-flow__node-input.selectable:focus-visible,
+.flow-editor-canvas .react-flow__node-output.selectable:hover,
+.flow-editor-canvas .react-flow__node-output.selectable.selected,
+.flow-editor-canvas .react-flow__node-output.selectable:focus,
+.flow-editor-canvas .react-flow__node-output.selectable:focus-visible {
+  box-shadow: none;
+}
