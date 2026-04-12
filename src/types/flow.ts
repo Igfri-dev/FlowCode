@@ -105,4 +105,4 @@ export type FlowEditorNodeByType<TType extends FlowNodeType> = Node<
 
 export type FlowEditorNode = Node<FlowEditorNodeData, FlowNodeType>;
 
-export type FlowEditorEdge = Edge<Record<string, unknown>, "smoothstep">;
+export type FlowEditorEdge = Edge<Record<string, unknown>, "flow">;

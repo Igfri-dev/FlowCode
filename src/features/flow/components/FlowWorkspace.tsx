@@ -9,6 +9,7 @@ import {
   type OnConnect,
 } from "@xyflow/react";
 import { FlowEditor } from "@/components/editor/FlowEditor";
+import { flowEdgeComponents } from "@/components/editor/edges";
 import {
   generateJavaScriptFromFlow,
   type FlowCodeGenerationResult,
@@ -344,7 +345,7 @@ export function FlowWorkspace() {
   );
 
   return (
-    <section className="mx-auto grid min-h-[calc(100vh-7rem)] w-full max-w-7xl grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+    <section className="mx-auto grid min-h-[calc(100vh-7rem)] w-full max-w-[92rem] grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_280px]">
       <div className="flex min-w-0 flex-col gap-4">
         <FlowSidebar onAddNode={handleAddNode} />
         <FlowValidationPanel
@@ -360,8 +361,6 @@ export function FlowWorkspace() {
           onPause={handlePauseExecution}
           onReset={handleResetExecution}
         />
-        <FlowVariablesPanel variables={executionState.variables} />
-        <FlowExecutionHistoryPanel history={executionState.history} />
       </div>
 
       <div className="flex min-w-0 flex-col gap-4">
@@ -385,6 +384,7 @@ export function FlowWorkspace() {
               nodes={renderedNodes}
               edges={renderedEdges}
               nodeTypes={flowNodeComponents}
+              edgeTypes={flowEdgeComponents}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={handleConnect}
@@ -407,6 +407,11 @@ export function FlowWorkspace() {
           onImportCode={handleImportCode}
         />
       </div>
+
+      <aside className="flex min-w-0 flex-col gap-4 lg:col-span-2 xl:col-span-1 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <FlowVariablesPanel variables={executionState.variables} />
+        <FlowExecutionHistoryPanel history={executionState.history} />
+      </aside>
     </section>
   );
 }

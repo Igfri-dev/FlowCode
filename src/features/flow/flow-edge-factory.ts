@@ -10,8 +10,9 @@ export function createFlowEditorEdge(connection: Connection): FlowEditorEdge {
   return {
     ...connection,
     id: createFlowEdgeId(connection),
-    type: "smoothstep",
+    type: "flow",
     label: getFlowEdgeLabel(connection.sourceHandle),
+    interactionWidth: 34,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: "#525252",

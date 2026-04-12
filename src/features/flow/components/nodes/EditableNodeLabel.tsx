@@ -16,7 +16,7 @@ export function EditableNodeLabel({
   return (
     <textarea
       aria-label={ariaLabel}
-      className={`nodrag nopan w-full resize-none overflow-hidden border-0 bg-transparent text-center outline-none ${className}`}
+      className={`nodrag nopan nowheel w-full resize-none overflow-hidden border-0 bg-transparent text-center outline-none select-text ${className}`}
       rows={rows}
       value={value}
       onChange={(event) => onValueChange(event.target.value)}

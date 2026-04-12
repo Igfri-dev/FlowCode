@@ -2,7 +2,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FlowEditorNode } from "@/types/flow";
 import { EditableNodeLabel } from "./EditableNodeLabel";
 
-export function DecisionNode({ data, id }: NodeProps<FlowEditorNode>) {
+export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   const activeBranch = data.execution?.activeBranch;
   const yesBranchClassName =
     activeBranch === "yes"
@@ -14,7 +14,10 @@ export function DecisionNode({ data, id }: NodeProps<FlowEditorNode>) {
       : "border-cyan-200 bg-cyan-50 text-cyan-800";
 
   return (
-    <div className="relative flex min-h-36 min-w-48 items-center justify-center px-14 py-12">
+    <div className="relative flex min-h-36 min-w-48 cursor-grab select-none items-center justify-center px-14 py-12 active:cursor-grabbing">
+      {selected ? (
+        <div className="absolute -inset-4 bg-blue-500 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />
+      ) : null}
       {data.execution?.isCurrent ? (
         <div className="absolute -inset-2 bg-yellow-300 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />
       ) : null}
