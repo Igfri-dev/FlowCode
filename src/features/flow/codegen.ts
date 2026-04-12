@@ -773,10 +773,16 @@ function formatFunctionCallInstruction(
 function formatReturnInstruction(node: FlowEditorNode) {
   const expression =
     "expression" in node.data.config && !("outputMode" in node.data.config)
-      ? node.data.config.expression.trim()
+      ? getReturnExpression(node.data.config.expression)
       : "";
 
   return expression ? `return ${expression};` : "return;";
+}
+
+function getReturnExpression(expression: string) {
+  const trimmedExpression = expression.trim().replace(/;$/, "").trim();
+
+  return trimmedExpression.replace(/^return\b\s*/, "");
 }
 
 function getRuntimeHelperLines(

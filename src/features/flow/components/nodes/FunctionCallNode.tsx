@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Handle, type NodeProps } from "@xyflow/react";
 import {
   getFlowHandlePosition,
@@ -16,7 +15,7 @@ export function FunctionCallNode({
   selected,
 }: NodeProps<FlowEditorNode>) {
   const config = getFunctionCallConfig(data.config);
-  const [argumentDraft, setArgumentDraft] = useState<string | null>(null);
+  const argumentText = config.argsText ?? config.args.join(", ");
   const selectedFunction = data.availableFunctions?.find(
     (flowFunction) => flowFunction.id === config.functionId,
   );
@@ -74,11 +73,11 @@ export function FunctionCallNode({
         <input
           aria-label="Argumentos de la llamada"
           className={`${fieldClassName} font-mono`}
-          value={argumentDraft ?? config.args.join(", ")}
+          value={argumentText}
           onChange={(event) => {
-            setArgumentDraft(event.target.value);
             data.onConfigChange(id, {
               ...config,
+              argsText: event.target.value,
               args: splitArguments(event.target.value),
             });
           }}

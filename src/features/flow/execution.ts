@@ -1,8 +1,10 @@
 import { parseExpression } from "@babel/parser";
 import type {
+  AssignmentExpression,
   BinaryExpression,
   Expression,
   LogicalExpression,
+  UpdateExpression,
 } from "@babel/types";
 import {
   createFlowGraph,
@@ -22,6 +24,17 @@ import type {
 
 export type ExecutionValue = number | string | boolean | null | undefined;
 export type ExecutionVariables = Record<string, ExecutionValue>;
+
+type ExpressionEvaluationResult =
+  | {
+      ok: true;
+      value: ExecutionValue;
+      variables: ExecutionVariables;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 export type FlowExecutionHistoryItem = {
   id: string;
@@ -56,6 +69,7 @@ export type FlowExecutionCallFrame = {
   diagramName: string;
   currentNodeId: string | null;
   variables: ExecutionVariables;
+  inheritedVariableNames: string[];
   returnEdgeId?: string;
   assignTo?: string;
 };
@@ -266,7 +280,7 @@ export function stepFlowExecution({
     return recordStep({
       state: ensureExecutionDiagram(state, diagram),
       node: currentNode,
-      variables: state.variables,
+      variables: conditionResult.variables,
       message: `Condicion "${condition}" = ${branchLabel}.`,
       nextNodeId: nextEdge.target,
       edgeId: nextEdge.id,
@@ -435,8 +449,12 @@ function executeOutputNode({
   const config = getOutputNodeConfig(node);
   const outputResult =
     config.outputMode === "text"
-      ? { ok: true as const, value: config.expression }
-      : evaluateExpression(config.expression, state.variables);
+      ? {
+          ok: true as const,
+          value: config.expression,
+          variables: state.variables,
+        }
+      : evaluateExpressionWithVariables(config.expression, state.variables);
 
   if (!outputResult.ok) {
     return {
@@ -463,7 +481,7 @@ function executeOutputNode({
       ],
     },
     node,
-    variables: state.variables,
+    variables: outputResult.variables,
     message: `Salida: ${content}`,
   });
 }
@@ -501,9 +519,13 @@ function executeFunctionCallNode({
   }
 
   const argumentValues: ExecutionValue[] = [];
+  let argumentVariables = state.variables;
 
   for (const argument of config.args) {
-    const argumentResult = evaluateExpression(argument, state.variables);
+    const argumentResult = evaluateExpressionWithVariables(
+      argument,
+      argumentVariables,
+    );
 
     if (!argumentResult.ok) {
       return {
@@ -514,6 +536,7 @@ function executeFunctionCallNode({
     }
 
     argumentValues.push(argumentResult.value);
+    argumentVariables = argumentResult.variables;
   }
 
   const functionStartNode = flowFunction.nodes.find(
@@ -529,12 +552,20 @@ function executeFunctionCallNode({
   }
 
   const nextEdge = getSingleNextEdge(graphEdges, node.id);
-  const localVariables = Object.fromEntries(
+  const parameterVariables = Object.fromEntries(
     flowFunction.parameters.map((parameter, index) => [
       parameter,
       argumentValues[index],
     ]),
   );
+  const parameterNames = new Set(flowFunction.parameters);
+  const inheritedVariableNames = Object.keys(argumentVariables).filter(
+    (variableName) => !parameterNames.has(variableName),
+  );
+  const localVariables = {
+    ...argumentVariables,
+    ...parameterVariables,
+  };
 
   return recordStep({
     state,
@@ -551,7 +582,8 @@ function executeFunctionCallNode({
         diagramId: state.currentDiagramId,
         diagramName: state.currentDiagramName,
         currentNodeId: nextEdge?.target ?? null,
-        variables: state.variables,
+        variables: argumentVariables,
+        inheritedVariableNames,
         returnEdgeId: nextEdge?.id,
         assignTo: config.assignTo?.trim() || undefined,
       },
@@ -568,10 +600,14 @@ function executeReturnNode({
   node: FlowEditorNode;
 }) {
   const config = getReturnNodeConfig(node);
-  const expression = config.expression.trim();
+  const expression = getReturnExpression(config.expression);
   const returnValueResult = expression
-    ? evaluateExpression(expression, state.variables)
-    : { ok: true as const, value: undefined };
+    ? evaluateExpressionWithVariables(expression, state.variables)
+    : {
+        ok: true as const,
+        value: undefined,
+        variables: state.variables,
+      };
 
   if (!returnValueResult.ok) {
     return {
@@ -585,6 +621,7 @@ function executeReturnNode({
     state,
     node,
     value: returnValueResult.value,
+    variables: returnValueResult.variables,
   });
 }
 
@@ -592,10 +629,12 @@ function returnToCaller({
   state,
   node,
   value,
+  variables = state.variables,
 }: {
   state: FlowExecutionState;
   node: FlowEditorNode;
   value: ExecutionValue;
+  variables?: ExecutionVariables;
 }) {
   const callerFrame = state.callStack.at(-1);
 
@@ -603,7 +642,7 @@ function returnToCaller({
     return recordStep({
       state,
       node,
-      variables: state.variables,
+      variables,
       message:
         node.type === "return"
           ? "Retorno ejecutado en el flujo principal."
@@ -613,12 +652,17 @@ function returnToCaller({
   }
 
   const nextCallStack = state.callStack.slice(0, -1);
+  const callerVariablesWithInheritedChanges = mergeInheritedVariables(
+    callerFrame.variables,
+    variables,
+    callerFrame.inheritedVariableNames,
+  );
   const nextVariables = callerFrame.assignTo
     ? {
-        ...callerFrame.variables,
+        ...callerVariablesWithInheritedChanges,
         [callerFrame.assignTo]: value,
       }
-    : callerFrame.variables;
+    : callerVariablesWithInheritedChanges;
 
   return recordStep({
     state,
@@ -635,6 +679,23 @@ function returnToCaller({
     callStack: nextCallStack,
     activeDecision: null,
   });
+}
+
+function mergeInheritedVariables(
+  callerVariables: ExecutionVariables,
+  functionVariables: ExecutionVariables,
+  inheritedVariableNames: string[],
+) {
+  return inheritedVariableNames.reduce<ExecutionVariables>(
+    (nextVariables, variableName) =>
+      variableName in functionVariables
+        ? {
+            ...nextVariables,
+            [variableName]: functionVariables[variableName],
+          }
+        : nextVariables,
+    callerVariables,
+  );
 }
 
 function recordStep({
@@ -800,50 +861,97 @@ function executeInstruction(
 ):
   | { ok: true; variables: ExecutionVariables }
   | { ok: false; message: string } {
-  const trimmedInstruction = instruction.trim();
-  const assignmentMatch = trimmedInstruction.match(
-    /^(?:(let|const|var)\s+)?([A-Za-z_$][\w$]*)(?:\s*=\s*(.+))?$/,
+  const trimmedInstruction = trimExpressionText(instruction);
+  const declarationMatch = trimmedInstruction.match(
+    /^(let|const|var)\s+([A-Za-z_$][\w$]*)(?:\s*=\s*(.+))?$/,
   );
 
-  if (!assignmentMatch || (!assignmentMatch[1] && !assignmentMatch[3])) {
+  if (!trimmedInstruction) {
     return {
       ok: false,
-      message: `Instruccion no soportada: "${instruction}". Usa asignaciones o declaraciones como x = 5, let x = 5 o x = x + 1.`,
+      message:
+        "Instruccion vacia. Usa asignaciones, actualizaciones o declaraciones como x = 5, x++, x += 1 o let x = 5.",
     };
   }
 
-  const [, , variableName, expression] = assignmentMatch;
+  if (declarationMatch) {
+    const [, , variableName, expression] = declarationMatch;
 
-  if (!expression) {
+    if (!expression) {
+      return {
+        ok: true,
+        variables: {
+          ...variables,
+          [variableName]: undefined,
+        },
+      };
+    }
+
+    const expressionResult = evaluateExpressionWithVariables(
+      expression,
+      variables,
+    );
+
+    if (!expressionResult.ok) {
+      return expressionResult;
+    }
+
     return {
       ok: true,
       variables: {
-        ...variables,
-        [variableName]: undefined,
+        ...expressionResult.variables,
+        [variableName]: expressionResult.value,
       },
     };
   }
 
-  const expressionResult = evaluateExpression(expression, variables);
+  try {
+    const expression = parseExpression(trimmedInstruction, {
+      sourceType: "unambiguous",
+    });
 
-  if (!expressionResult.ok) {
-    return expressionResult;
+    if (
+      expression.type !== "AssignmentExpression" &&
+      expression.type !== "UpdateExpression"
+    ) {
+      return {
+        ok: false,
+        message: `Instruccion no soportada: "${instruction}". Usa asignaciones, actualizaciones o declaraciones como x = 5, x++, x += 1 o let x = 5.`,
+      };
+    }
+
+    const expressionResult = evaluateExpressionNode(expression, variables);
+
+    if (!expressionResult.ok) {
+      return expressionResult;
+    }
+
+    return {
+      ok: true,
+      variables: expressionResult.variables,
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      return {
+        ok: false,
+        message: `Instruccion no soportada: "${instruction}". ${error.message}`,
+      };
+    }
+
+    return {
+      ok: false,
+      message: `Instruccion no soportada: "${instruction}".`,
+    };
   }
-
-  return {
-    ok: true,
-    variables: {
-      ...variables,
-      [variableName]: expressionResult.value,
-    },
-  };
 }
 
 function evaluateCondition(
   condition: string,
   variables: ExecutionVariables,
-): { ok: true; value: boolean } | { ok: false; message: string } {
-  const conditionResult = evaluateExpression(condition, variables);
+):
+  | { ok: true; value: boolean; variables: ExecutionVariables }
+  | { ok: false; message: string } {
+  const conditionResult = evaluateExpressionWithVariables(condition, variables);
 
   if (!conditionResult.ok) {
     return conditionResult;
@@ -852,6 +960,7 @@ function evaluateCondition(
   return {
     ok: true,
     value: Boolean(conditionResult.value),
+    variables: conditionResult.variables,
   };
 }
 
@@ -859,9 +968,27 @@ export function evaluateExpression(
   expression: string,
   variables: ExecutionVariables,
 ): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  const result = evaluateExpressionWithVariables(expression, variables);
+
+  if (!result.ok) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    value: result.value,
+  };
+}
+
+function evaluateExpressionWithVariables(
+  expression: string,
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
+  const trimmedExpression = trimExpressionText(expression);
+
   try {
     return evaluateExpressionNode(
-      parseExpression(expression, {
+      parseExpression(trimmedExpression, {
         sourceType: "unambiguous",
       }),
       variables,
@@ -881,16 +1008,23 @@ export function evaluateExpression(
   }
 }
 
+function trimExpressionText(expression: string) {
+  return expression.trim().replace(/;$/, "").trim();
+}
+
+function getReturnExpression(expression: string) {
+  const trimmedExpression = trimExpressionText(expression);
+
+  return trimmedExpression.replace(/^return\b\s*/, "");
+}
+
 function evaluateExpressionNode(
   expression: Expression,
   variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+): ExpressionEvaluationResult {
   if (expression.type === "Identifier") {
     if (expression.name in variables) {
-      return {
-        ok: true,
-        value: variables[expression.name],
-      };
+      return createExpressionValue(variables[expression.name], variables);
     }
 
     return {
@@ -900,19 +1034,19 @@ function evaluateExpressionNode(
   }
 
   if (expression.type === "NumericLiteral") {
-    return { ok: true, value: expression.value };
+    return createExpressionValue(expression.value, variables);
   }
 
   if (expression.type === "StringLiteral") {
-    return { ok: true, value: expression.value };
+    return createExpressionValue(expression.value, variables);
   }
 
   if (expression.type === "BooleanLiteral") {
-    return { ok: true, value: expression.value };
+    return createExpressionValue(expression.value, variables);
   }
 
   if (expression.type === "NullLiteral") {
-    return { ok: true, value: null };
+    return createExpressionValue(null, variables);
   }
 
   if (expression.type === "ParenthesizedExpression") {
@@ -931,6 +1065,14 @@ function evaluateExpressionNode(
     return evaluateBinaryExpression(expression, variables);
   }
 
+  if (expression.type === "AssignmentExpression") {
+    return evaluateAssignmentExpression(expression, variables);
+  }
+
+  if (expression.type === "UpdateExpression") {
+    return evaluateUpdateExpression(expression, variables);
+  }
+
   return {
     ok: false,
     message: `La expresion "${expression.type}" todavia no esta soportada.`,
@@ -940,7 +1082,7 @@ function evaluateExpressionNode(
 function evaluateUnaryExpression(
   expression: Extract<Expression, { type: "UnaryExpression" }>,
   variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+): ExpressionEvaluationResult {
   const argumentResult = evaluateExpressionNode(expression.argument, variables);
 
   if (!argumentResult.ok) {
@@ -949,11 +1091,22 @@ function evaluateUnaryExpression(
 
   switch (expression.operator) {
     case "!":
-      return { ok: true, value: !argumentResult.value };
+      return createExpressionValue(
+        !argumentResult.value,
+        argumentResult.variables,
+      );
     case "+":
-      return applyUnaryNumberOperator(argumentResult.value, "+");
+      return applyUnaryNumberOperator(
+        argumentResult.value,
+        "+",
+        argumentResult.variables,
+      );
     case "-":
-      return applyUnaryNumberOperator(argumentResult.value, "-");
+      return applyUnaryNumberOperator(
+        argumentResult.value,
+        "-",
+        argumentResult.variables,
+      );
     default:
       return {
         ok: false,
@@ -965,7 +1118,7 @@ function evaluateUnaryExpression(
 function evaluateLogicalExpression(
   expression: LogicalExpression,
   variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+): ExpressionEvaluationResult {
   const leftResult = evaluateExpressionNode(expression.left, variables);
 
   if (!leftResult.ok) {
@@ -973,17 +1126,11 @@ function evaluateLogicalExpression(
   }
 
   if (expression.operator === "&&" && !leftResult.value) {
-    return {
-      ok: true,
-      value: leftResult.value,
-    };
+    return createExpressionValue(leftResult.value, leftResult.variables);
   }
 
   if (expression.operator === "||" && leftResult.value) {
-    return {
-      ok: true,
-      value: leftResult.value,
-    };
+    return createExpressionValue(leftResult.value, leftResult.variables);
   }
 
   if (
@@ -991,19 +1138,16 @@ function evaluateLogicalExpression(
     leftResult.value !== null &&
     leftResult.value !== undefined
   ) {
-    return {
-      ok: true,
-      value: leftResult.value,
-    };
+    return createExpressionValue(leftResult.value, leftResult.variables);
   }
 
-  return evaluateExpressionNode(expression.right, variables);
+  return evaluateExpressionNode(expression.right, leftResult.variables);
 }
 
 function evaluateBinaryExpression(
   expression: BinaryExpression,
   variables: ExecutionVariables,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+): ExpressionEvaluationResult {
   if (expression.left.type === "PrivateName") {
     return {
       ok: false,
@@ -1012,11 +1156,15 @@ function evaluateBinaryExpression(
   }
 
   const leftResult = evaluateExpressionNode(expression.left, variables);
-  const rightResult = evaluateExpressionNode(expression.right, variables);
 
   if (!leftResult.ok) {
     return leftResult;
   }
+
+  const rightResult = evaluateExpressionNode(
+    expression.right,
+    leftResult.variables,
+  );
 
   if (!rightResult.ok) {
     return rightResult;
@@ -1027,6 +1175,7 @@ function evaluateBinaryExpression(
       leftResult.value,
       expression.operator,
       rightResult.value,
+      rightResult.variables,
     );
   }
 
@@ -1035,6 +1184,7 @@ function evaluateBinaryExpression(
       leftResult.value,
       expression.operator,
       rightResult.value,
+      rightResult.variables,
     );
   }
 
@@ -1044,7 +1194,93 @@ function evaluateBinaryExpression(
   };
 }
 
-function applyUnaryNumberOperator(value: ExecutionValue, operator: "+" | "-") {
+function evaluateAssignmentExpression(
+  expression: AssignmentExpression,
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
+  if (expression.left.type !== "Identifier") {
+    return {
+      ok: false,
+      message: "Solo se pueden asignar variables simples como x = 5.",
+    };
+  }
+
+  const variableName = expression.left.name;
+  const previousValue = variables[variableName];
+  const rightResult = evaluateExpressionNode(expression.right, variables);
+
+  if (!rightResult.ok) {
+    return rightResult;
+  }
+
+  if (expression.operator === "=") {
+    return createExpressionValue(rightResult.value, {
+      ...rightResult.variables,
+      [variableName]: rightResult.value,
+    });
+  }
+
+  const arithmeticOperator = expression.operator.slice(0, -1);
+  const assignmentResult = applyArithmeticOperator(
+    previousValue,
+    arithmeticOperator,
+    rightResult.value,
+    rightResult.variables,
+  );
+
+  if (!assignmentResult.ok) {
+    return assignmentResult;
+  }
+
+  return createExpressionValue(assignmentResult.value, {
+    ...assignmentResult.variables,
+    [variableName]: assignmentResult.value,
+  });
+}
+
+function evaluateUpdateExpression(
+  expression: UpdateExpression,
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
+  if (expression.argument.type !== "Identifier") {
+    return {
+      ok: false,
+      message: "Los operadores ++ y -- solo soportan variables simples.",
+    };
+  }
+
+  const variableName = expression.argument.name;
+
+  if (!(variableName in variables)) {
+    return {
+      ok: false,
+      message: `No se encontro la variable "${variableName}".`,
+    };
+  }
+
+  const currentValue = variables[variableName];
+
+  if (typeof currentValue !== "number") {
+    return {
+      ok: false,
+      message: `El operador "${expression.operator}" solo soporta numeros en esta version.`,
+    };
+  }
+
+  const nextValue =
+    expression.operator === "++" ? currentValue + 1 : currentValue - 1;
+
+  return createExpressionValue(nextValue, {
+    ...variables,
+    [variableName]: nextValue,
+  });
+}
+
+function applyUnaryNumberOperator(
+  value: ExecutionValue,
+  operator: "+" | "-",
+  variables: ExecutionVariables,
+) {
   if (typeof value !== "number") {
     return {
       ok: false,
@@ -1055,6 +1291,7 @@ function applyUnaryNumberOperator(value: ExecutionValue, operator: "+" | "-") {
   return {
     ok: true,
     value: operator === "-" ? -value : value,
+    variables,
   } as const;
 }
 
@@ -1062,12 +1299,13 @@ function applyArithmeticOperator(
   leftValue: ExecutionValue,
   operator: string,
   rightValue: ExecutionValue,
-): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
   if (
     operator === "+" &&
     (typeof leftValue === "string" || typeof rightValue === "string")
   ) {
-    return { ok: true, value: `${leftValue}${rightValue}` };
+    return createExpressionValue(`${leftValue}${rightValue}`, variables);
   }
 
   if (typeof leftValue !== "number" || typeof rightValue !== "number") {
@@ -1079,15 +1317,15 @@ function applyArithmeticOperator(
 
   switch (operator) {
     case "+":
-      return { ok: true, value: leftValue + rightValue };
+      return createExpressionValue(leftValue + rightValue, variables);
     case "-":
-      return { ok: true, value: leftValue - rightValue };
+      return createExpressionValue(leftValue - rightValue, variables);
     case "*":
-      return { ok: true, value: leftValue * rightValue };
+      return createExpressionValue(leftValue * rightValue, variables);
     case "/":
-      return { ok: true, value: leftValue / rightValue };
+      return createExpressionValue(leftValue / rightValue, variables);
     case "%":
-      return { ok: true, value: leftValue % rightValue };
+      return createExpressionValue(leftValue % rightValue, variables);
     default:
       return {
         ok: false,
@@ -1100,7 +1338,8 @@ function applyComparisonOperator(
   leftValue: ExecutionValue,
   operator: string,
   rightValue: ExecutionValue,
-): { ok: true; value: boolean } | { ok: false; message: string } {
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
   if (isRelationalOperator(operator)) {
     if (!isComparableValue(leftValue) || !isComparableValue(rightValue)) {
       return {
@@ -1111,31 +1350,42 @@ function applyComparisonOperator(
 
     switch (operator) {
       case ">":
-        return { ok: true, value: leftValue > rightValue };
+        return createExpressionValue(leftValue > rightValue, variables);
       case "<":
-        return { ok: true, value: leftValue < rightValue };
+        return createExpressionValue(leftValue < rightValue, variables);
       case ">=":
-        return { ok: true, value: leftValue >= rightValue };
+        return createExpressionValue(leftValue >= rightValue, variables);
       case "<=":
-        return { ok: true, value: leftValue <= rightValue };
+        return createExpressionValue(leftValue <= rightValue, variables);
     }
   }
 
   switch (operator) {
     case "===":
-      return { ok: true, value: leftValue === rightValue };
+      return createExpressionValue(leftValue === rightValue, variables);
     case "!==":
-      return { ok: true, value: leftValue !== rightValue };
+      return createExpressionValue(leftValue !== rightValue, variables);
     case "==":
-      return { ok: true, value: leftValue == rightValue };
+      return createExpressionValue(leftValue == rightValue, variables);
     case "!=":
-      return { ok: true, value: leftValue != rightValue };
+      return createExpressionValue(leftValue != rightValue, variables);
     default:
       return {
         ok: false,
         message: `Operador no soportado: "${operator}".`,
       };
   }
+}
+
+function createExpressionValue(
+  value: ExecutionValue,
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult {
+  return {
+    ok: true,
+    value,
+    variables,
+  };
 }
 
 function isArithmeticOperator(operator: string) {

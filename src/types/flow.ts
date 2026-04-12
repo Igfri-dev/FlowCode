@@ -46,6 +46,7 @@ export type OutputNodeConfig = {
 export type FunctionCallNodeConfig = {
   functionId: string;
   args: string[];
+  argsText?: string;
   assignTo?: string;
 };
 
