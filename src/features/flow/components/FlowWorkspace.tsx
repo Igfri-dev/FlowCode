@@ -15,6 +15,7 @@ import {
   type FlowCodeGenerationResult,
 } from "@/features/flow/codegen";
 import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
+import { getDefaultFlowNodeHandlePositions } from "@/features/flow/handle-positions";
 import {
   initialFlowExecutionState,
   resetFlowExecution,
@@ -41,6 +42,7 @@ import type {
   FlowEditorEdge,
   FlowEditorNode,
   FlowNodeConfig,
+  FlowNodeHandlePositions,
   FlowNodeType,
 } from "@/types/flow";
 import { FlowCodePanel } from "./FlowCodePanel";
@@ -220,17 +222,45 @@ export function FlowWorkspace() {
     [setNodes],
   );
 
+  const handleNodeHandlePositionsChange = useCallback(
+    (nodeId: string, handlePositions: FlowNodeHandlePositions) => {
+      setNodes((currentNodes) =>
+        currentNodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  handlePositions,
+                },
+              }
+            : node,
+        ),
+      );
+    },
+    [setNodes],
+  );
+
   const createEditorNodeFromImport = useCallback(
     (node: ImportedFlowNode): FlowEditorNode =>
       ({
         ...node,
         data: {
           ...node.data,
+          handlePositions: {
+            ...getDefaultFlowNodeHandlePositions(node.type),
+            ...node.data.handlePositions,
+          },
           onLabelChange: handleNodeLabelChange,
           onConfigChange: handleNodeConfigChange,
+          onHandlePositionsChange: handleNodeHandlePositionsChange,
         },
       }) as FlowEditorNode,
-    [handleNodeConfigChange, handleNodeLabelChange],
+    [
+      handleNodeConfigChange,
+      handleNodeHandlePositionsChange,
+      handleNodeLabelChange,
+    ],
   );
 
   const handleAddNode = useCallback(
@@ -247,12 +277,18 @@ export function FlowWorkspace() {
           index: currentNodes.length,
           onLabelChange: handleNodeLabelChange,
           onConfigChange: handleNodeConfigChange,
+          onHandlePositionsChange: handleNodeHandlePositionsChange,
         });
 
         return [...currentNodes, node];
       });
     },
-    [handleNodeConfigChange, handleNodeLabelChange, setNodes],
+    [
+      handleNodeConfigChange,
+      handleNodeHandlePositionsChange,
+      handleNodeLabelChange,
+      setNodes,
+    ],
   );
 
   const handleStepExecution = useCallback(() => {

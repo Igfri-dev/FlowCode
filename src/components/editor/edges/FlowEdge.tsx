@@ -8,15 +8,14 @@ import {
 } from "@xyflow/react";
 import type { FlowEditorEdge } from "@/types/flow";
 import {
-  areBridgePointsEqual,
-  findEdgeBridgePoints,
-  type EdgeBridgePoint,
+  areBridgeRenderDataEqual,
+  getEdgeBridgeRenderData,
+  type EdgeBridgeRenderData,
 } from "./edge-bridges";
 
 const defaultEdgeStroke = "#525252";
 const selectedEdgeStroke = "#2563eb";
 const selectedEdgeHalo = "#bfdbfe";
-const bridgeStroke = "#f5f5f5";
 
 export function FlowEdge({
   id,
@@ -59,7 +58,6 @@ export function FlowEdge({
         .join("|"),
     ].join("::"),
   );
-  const [bridgePoints, setBridgePoints] = useState<EdgeBridgePoint[]>([]);
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -68,6 +66,11 @@ export function FlowEdge({
     targetY,
     targetPosition,
   });
+  const [bridgeRenderData, setBridgeRenderData] =
+    useState<EdgeBridgeRenderData>({
+      bridgePoints: [],
+      displayPath: edgePath,
+    });
   const stroke =
     typeof style?.stroke === "string"
       ? style.stroke
@@ -76,17 +79,25 @@ export function FlowEdge({
         : defaultEdgeStroke;
   const strokeWidth =
     typeof style?.strokeWidth === "number" ? style.strokeWidth : 2;
+  const displayPath =
+    bridgeRenderData.bridgePoints.length > 0
+      ? bridgeRenderData.displayPath
+      : edgePath;
 
   useEffect(() => {
     const animationFrameId = window.requestAnimationFrame(() => {
-      const nextBridgePoints = findEdgeBridgePoints({
+      const nextBridgeRenderData = getEdgeBridgeRenderData({
         currentEdgeId: id,
+        fallbackPath: edgePath,
       });
 
-      setBridgePoints((previousBridgePoints) =>
-        areBridgePointsEqual(previousBridgePoints, nextBridgePoints)
-          ? previousBridgePoints
-          : nextBridgePoints,
+      setBridgeRenderData((previousBridgeRenderData) =>
+        areBridgeRenderDataEqual(
+          previousBridgeRenderData,
+          nextBridgeRenderData,
+        )
+          ? previousBridgeRenderData
+          : nextBridgeRenderData,
       );
     });
 
@@ -97,7 +108,7 @@ export function FlowEdge({
     <>
       {selected ? (
         <path
-          d={edgePath}
+          d={displayPath}
           fill="none"
           stroke={selectedEdgeHalo}
           strokeLinecap="round"
@@ -112,45 +123,27 @@ export function FlowEdge({
         data-flow-edge-path={id}
         data-flow-edge-source={source}
         data-flow-edge-target={target}
-        markerStart={markerStart}
-        markerEnd={markerEnd}
         interactionWidth={34}
         style={{
           ...style,
-          stroke,
-          strokeWidth: selected ? strokeWidth + 1.5 : strokeWidth,
+          stroke: "transparent",
+          strokeWidth: 1,
           strokeLinecap: "round",
           strokeLinejoin: "round",
         }}
       />
-      {bridgePoints.map((bridgePoint) => {
-        const bridgePath = getBridgePath(bridgePoint);
-
-        return (
-          <g
-            key={`${bridgePoint.x}-${bridgePoint.y}-${bridgePoint.direction}`}
-          >
-            <path
-              d={bridgePath}
-              fill="none"
-              stroke={bridgeStroke}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={selected ? 10 : 8}
-              pointerEvents="none"
-            />
-            <path
-              d={bridgePath}
-              fill="none"
-              stroke={stroke}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={selected ? 3 : 2.25}
-              pointerEvents="none"
-            />
-          </g>
-        );
-      })}
+      <path
+        className="react-flow__edge-path"
+        d={displayPath}
+        fill="none"
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        stroke={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={selected ? strokeWidth + 1.5 : strokeWidth}
+        pointerEvents="none"
+      />
       <EdgeText
         x={labelX}
         y={labelY}
@@ -172,19 +165,4 @@ export function FlowEdge({
       />
     </>
   );
-}
-
-function getBridgePath({ x, y, direction }: EdgeBridgePoint) {
-  const bridgeSize = 11;
-  const bridgeHeight = 9;
-
-  if (direction === "horizontal") {
-    return `M ${x - bridgeSize} ${y} Q ${x} ${
-      y - bridgeHeight
-    } ${x + bridgeSize} ${y}`;
-  }
-
-  return `M ${x} ${y - bridgeSize} Q ${x + bridgeHeight} ${y} ${x} ${
-    y + bridgeSize
-  }`;
 }

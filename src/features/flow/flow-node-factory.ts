@@ -1,9 +1,11 @@
 import type { XYPosition } from "@xyflow/react";
+import { getDefaultFlowNodeHandlePositions } from "@/features/flow/handle-positions";
 import type {
   FlowEditorNode,
   FlowNodeConfig,
   FlowNodeConfigChangeHandler,
   FlowNodeDataByType,
+  FlowNodeHandlePositionsChangeHandler,
   FlowNodeLabelChangeHandler,
   FlowNodeType,
 } from "@/types/flow";
@@ -14,22 +16,26 @@ const flowNodeData: {
   start: {
     label: "Inicio",
     config: {},
+    handlePositions: getDefaultFlowNodeHandlePositions("start"),
   },
   end: {
     label: "Fin",
     config: {},
+    handlePositions: getDefaultFlowNodeHandlePositions("end"),
   },
   process: {
     label: "x = x + 1",
     config: {
       instruction: "x = x + 1",
     },
+    handlePositions: getDefaultFlowNodeHandlePositions("process"),
   },
   decision: {
     label: "x > 5",
     config: {
       condition: "x > 5",
     },
+    handlePositions: getDefaultFlowNodeHandlePositions("decision"),
   },
 };
 
@@ -39,6 +45,7 @@ type CreateFlowNodeInput = {
   index: number;
   onLabelChange: FlowNodeLabelChangeHandler;
   onConfigChange: FlowNodeConfigChangeHandler;
+  onHandlePositionsChange: FlowNodeHandlePositionsChangeHandler;
 };
 
 export function createFlowEditorNode({
@@ -47,6 +54,7 @@ export function createFlowEditorNode({
   index,
   onLabelChange,
   onConfigChange,
+  onHandlePositionsChange,
 }: CreateFlowNodeInput): FlowEditorNode {
   return {
     id,
@@ -56,6 +64,7 @@ export function createFlowEditorNode({
       ...flowNodeData[type],
       onLabelChange,
       onConfigChange,
+      onHandlePositionsChange,
     },
   } as FlowEditorNode;
 }

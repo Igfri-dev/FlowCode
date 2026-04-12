@@ -1,9 +1,29 @@
-import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { FlowEditorNode } from "@/types/flow";
+import { Handle, type NodeProps } from "@xyflow/react";
+import {
+  getFlowHandlePosition,
+  toReactFlowPosition,
+} from "@/features/flow/handle-positions";
+import type { FlowEditorNode, FlowHandlePosition } from "@/types/flow";
 import { EditableNodeLabel } from "./EditableNodeLabel";
+import { NodePortControls } from "./NodePortControls";
 
 export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   const activeBranch = data.execution?.activeBranch;
+  const inputPosition = getFlowHandlePosition({
+    fallback: "top",
+    handleId: "in",
+    handlePositions: data.handlePositions,
+  });
+  const yesPosition = getFlowHandlePosition({
+    fallback: "left",
+    handleId: "yes",
+    handlePositions: data.handlePositions,
+  });
+  const noPosition = getFlowHandlePosition({
+    fallback: "right",
+    handleId: "no",
+    handlePositions: data.handlePositions,
+  });
   const yesBranchClassName =
     activeBranch === "yes"
       ? "border-yellow-300 bg-yellow-100 text-yellow-950 shadow-sm"
@@ -29,11 +49,11 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
       <Handle
         id="in"
         type="target"
-        position={Position.Top}
-        className="!top-0 !z-20 !h-4 !w-4 !border-2 !border-white !bg-cyan-700"
+        position={toReactFlowPosition(inputPosition)}
+        className="!z-20 !h-4 !w-4 !border-2 !border-white !bg-cyan-700"
       />
       <EditableNodeLabel
-        ariaLabel="Condición del bloque de decisión"
+        ariaLabel="Condici\u00f3n del bloque de decisi\u00f3n"
         className="relative z-10 max-w-24 text-sm font-semibold leading-5 text-cyan-950"
         value={"condition" in data.config ? data.config.condition : data.label}
         onValueChange={(condition) =>
@@ -46,25 +66,74 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
       <Handle
         id="yes"
         type="source"
-        position={Position.Left}
-        className={`!left-1 !z-20 !h-4 !w-4 !border-2 !border-white ${activeBranch === "yes" ? "!bg-yellow-500" : "!bg-cyan-700"}`}
+        position={toReactFlowPosition(yesPosition)}
+        className={`!z-20 !h-4 !w-4 !border-2 !border-white ${activeBranch === "yes" ? "!bg-yellow-500" : "!bg-cyan-700"}`}
       />
       <span
-        className={`absolute left-5 top-1/2 z-10 -translate-y-8 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${yesBranchClassName}`}
+        className={`absolute z-10 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${getBranchLabelClassName(yesPosition, "yes")} ${yesBranchClassName}`}
       >
-        Sí
+        {"S\u00ed"}
       </span>
       <span
-        className={`absolute right-5 top-1/2 z-10 -translate-y-8 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${noBranchClassName}`}
+        className={`absolute z-10 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${getBranchLabelClassName(noPosition, "no")} ${noBranchClassName}`}
       >
         No
       </span>
       <Handle
         id="no"
         type="source"
-        position={Position.Right}
-        className={`!right-1 !z-20 !h-4 !w-4 !border-2 !border-white ${activeBranch === "no" ? "!bg-yellow-500" : "!bg-cyan-700"}`}
+        position={toReactFlowPosition(noPosition)}
+        className={`!z-20 !h-4 !w-4 !border-2 !border-white ${activeBranch === "no" ? "!bg-yellow-500" : "!bg-cyan-700"}`}
+      />
+      <NodePortControls
+        nodeId={id}
+        selected={selected}
+        handlePositions={data.handlePositions}
+        controls={[
+          {
+            id: "in",
+            label: "Entrada",
+            fallback: "top",
+          },
+          {
+            id: "yes",
+            label: "S\u00ed",
+            fallback: "left",
+          },
+          {
+            id: "no",
+            label: "No",
+            fallback: "right",
+          },
+        ]}
+        onHandlePositionsChange={data.onHandlePositionsChange}
       />
     </div>
   );
+}
+
+function getBranchLabelClassName(
+  position: FlowHandlePosition,
+  branch: "yes" | "no",
+) {
+  const branchOffset =
+    branch === "yes" ? "-translate-x-10" : "translate-x-10";
+
+  if (position === "top") {
+    return `left-1/2 top-5 -translate-y-1/2 ${branchOffset}`;
+  }
+
+  if (position === "bottom") {
+    return `bottom-5 left-1/2 translate-y-1/2 ${branchOffset}`;
+  }
+
+  if (position === "right") {
+    return branch === "yes"
+      ? "right-5 top-1/2 -translate-y-8"
+      : "right-5 top-1/2 translate-y-2";
+  }
+
+  return branch === "yes"
+    ? "left-5 top-1/2 -translate-y-8"
+    : "left-5 top-1/2 translate-y-2";
 }

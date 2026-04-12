@@ -4,6 +4,14 @@ export const flowNodeTypes = ["start", "end", "process", "decision"] as const;
 
 export type FlowNodeType = (typeof flowNodeTypes)[number];
 
+export type FlowHandlePosition = "top" | "right" | "bottom" | "left";
+
+export type FlowNodeHandleId = "in" | "out" | "yes" | "no";
+
+export type FlowNodeHandlePositions = Partial<
+  Record<FlowNodeHandleId, FlowHandlePosition>
+>;
+
 export type StartNodeConfig = Record<string, never>;
 export type EndNodeConfig = Record<string, never>;
 
@@ -25,18 +33,22 @@ export type FlowNodeDataByType = {
   start: {
     label: string;
     config: StartNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
   };
   end: {
     label: string;
     config: EndNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
   };
   process: {
     label: string;
     config: ProcessNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
   };
   decision: {
     label: string;
     config: DecisionNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
   };
 };
 
@@ -65,18 +77,26 @@ export type FlowNodeConfigChangeHandler = (
   config: FlowNodeConfig,
 ) => void;
 
+export type FlowNodeHandlePositionsChangeHandler = (
+  nodeId: string,
+  handlePositions: FlowNodeHandlePositions,
+) => void;
+
 export type FlowEditorNodeDataByType = {
   [TType in FlowNodeType]: FlowNodeDataByType[TType] & {
     onLabelChange: FlowNodeLabelChangeHandler;
     onConfigChange: FlowNodeConfigChangeHandler;
+    onHandlePositionsChange: FlowNodeHandlePositionsChangeHandler;
   };
 };
 
 export type FlowEditorNodeData = {
   label: string;
   config: FlowNodeConfig;
+  handlePositions?: FlowNodeHandlePositions;
   onLabelChange: FlowNodeLabelChangeHandler;
   onConfigChange: FlowNodeConfigChangeHandler;
+  onHandlePositionsChange: FlowNodeHandlePositionsChangeHandler;
   execution?: {
     isCurrent: boolean;
     isVisited: boolean;

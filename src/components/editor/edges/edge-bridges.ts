@@ -3,7 +3,13 @@ export type EdgeBridgeDirection = "horizontal" | "vertical";
 export type EdgeBridgePoint = {
   x: number;
   y: number;
+  distance: number;
   direction: EdgeBridgeDirection;
+};
+
+export type EdgeBridgeRenderData = {
+  bridgePoints: EdgeBridgePoint[];
+  displayPath: string;
 };
 
 type Point = {
@@ -24,14 +30,21 @@ const maxSampleCount = 240;
 const minEndpointDistance = 18;
 const minBridgeDistance = 24;
 const maxBridgePointsPerEdge = 8;
+const bridgeSize = 12;
+const bridgeHeight = 10;
 
-export function findEdgeBridgePoints({
+export function getEdgeBridgeRenderData({
   currentEdgeId,
+  fallbackPath,
 }: {
   currentEdgeId: string;
-}): EdgeBridgePoint[] {
+  fallbackPath: string;
+}): EdgeBridgeRenderData {
   if (typeof document === "undefined") {
-    return [];
+    return {
+      bridgePoints: [],
+      displayPath: fallbackPath,
+    };
   }
 
   const edgePaths = Array.from(
@@ -45,13 +58,19 @@ export function findEdgeBridgePoints({
   );
 
   if (!currentPath || currentPathIndex < 0) {
-    return [];
+    return {
+      bridgePoints: [],
+      displayPath: fallbackPath,
+    };
   }
 
   const currentPathData = samplePath(currentPath);
 
   if (!currentPathData) {
-    return [];
+    return {
+      bridgePoints: [],
+      displayPath: fallbackPath,
+    };
   }
 
   const bridgePoints: EdgeBridgePoint[] = [];
@@ -117,23 +136,40 @@ export function findEdgeBridgePoints({
 
         bridgePoints.push({
           ...intersection.point,
+          distance: currentDistance,
           direction: currentSegment.direction,
         });
 
         if (bridgePoints.length >= maxBridgePointsPerEdge) {
-          return bridgePoints;
+          return {
+            bridgePoints,
+            displayPath: buildPathWithBridges(currentPath, bridgePoints),
+          };
         }
       }
     }
   }
 
-  return bridgePoints;
+  return {
+    bridgePoints,
+    displayPath:
+      bridgePoints.length > 0
+        ? buildPathWithBridges(currentPath, bridgePoints)
+        : fallbackPath,
+  };
 }
 
-export function areBridgePointsEqual(
-  previousPoints: EdgeBridgePoint[],
-  nextPoints: EdgeBridgePoint[],
+export function areBridgeRenderDataEqual(
+  previousData: EdgeBridgeRenderData,
+  nextData: EdgeBridgeRenderData,
 ) {
+  if (previousData.displayPath !== nextData.displayPath) {
+    return false;
+  }
+
+  const previousPoints = previousData.bridgePoints;
+  const nextPoints = nextData.bridgePoints;
+
   if (previousPoints.length !== nextPoints.length) {
     return false;
   }
@@ -144,6 +180,7 @@ export function areBridgePointsEqual(
     return (
       nextPoint &&
       previousPoint.direction === nextPoint.direction &&
+      Math.abs(previousPoint.distance - nextPoint.distance) < 0.5 &&
       Math.abs(previousPoint.x - nextPoint.x) < 0.5 &&
       Math.abs(previousPoint.y - nextPoint.y) < 0.5
     );
@@ -201,6 +238,100 @@ function getPointAtLength(path: SVGPathElement, length: number): Point {
     x: point.x,
     y: point.y,
   };
+}
+
+function buildPathWithBridges(
+  path: SVGPathElement,
+  bridgePoints: EdgeBridgePoint[],
+) {
+  const totalLength = path.getTotalLength();
+  const sortedBridgePoints = [...bridgePoints].sort(
+    (first, second) => first.distance - second.distance,
+  );
+  let pathData = pointToMove(getPointAtLength(path, 0));
+  let cursorDistance = 0;
+
+  for (const bridgePoint of sortedBridgePoints) {
+    const bridgeStartDistance = Math.max(
+      cursorDistance,
+      bridgePoint.distance - bridgeSize,
+    );
+    const bridgeEndDistance = Math.min(
+      totalLength,
+      bridgePoint.distance + bridgeSize,
+    );
+
+    pathData += samplePathSection(path, cursorDistance, bridgeStartDistance);
+
+    const bridgeStart = getPointAtLength(path, bridgeStartDistance);
+    const bridgeEnd = getPointAtLength(path, bridgeEndDistance);
+    const controlPoint = getBridgeControlPoint(bridgePoint);
+
+    pathData += ` L ${formatPoint(bridgeStart)} Q ${formatPoint(
+      controlPoint,
+    )} ${formatPoint(bridgeEnd)}`;
+    cursorDistance = bridgeEndDistance;
+  }
+
+  pathData += samplePathSection(path, cursorDistance, totalLength);
+
+  return pathData;
+}
+
+function samplePathSection(
+  path: SVGPathElement,
+  startDistance: number,
+  endDistance: number,
+) {
+  const sectionLength = endDistance - startDistance;
+
+  if (sectionLength <= 0) {
+    return "";
+  }
+
+  const sectionSampleCount = Math.max(
+    1,
+    Math.ceil(sectionLength / sampleDistance),
+  );
+  let pathData = "";
+
+  for (let index = 1; index <= sectionSampleCount; index += 1) {
+    const distance =
+      startDistance + (sectionLength * index) / sectionSampleCount;
+    pathData += ` L ${formatPoint(getPointAtLength(path, distance))}`;
+  }
+
+  return pathData;
+}
+
+function getBridgeControlPoint({
+  x,
+  y,
+  direction,
+}: EdgeBridgePoint): Point {
+  if (direction === "horizontal") {
+    return {
+      x,
+      y: y - bridgeHeight,
+    };
+  }
+
+  return {
+    x: x + bridgeHeight,
+    y,
+  };
+}
+
+function pointToMove(point: Point) {
+  return `M ${formatPoint(point)}`;
+}
+
+function formatPoint({ x, y }: Point) {
+  return `${roundCoordinate(x)} ${roundCoordinate(y)}`;
+}
+
+function roundCoordinate(value: number) {
+  return Math.round(value * 10) / 10;
 }
 
 function getSegmentDirection(
