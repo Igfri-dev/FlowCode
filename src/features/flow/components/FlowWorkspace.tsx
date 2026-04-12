@@ -18,6 +18,7 @@ import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
 import { getDefaultFlowNodeHandlePositions } from "@/features/flow/handle-positions";
 import {
   initialFlowExecutionState,
+  resumeFlowExecutionWithInput,
   resetFlowExecution,
   stepFlowExecution,
 } from "@/features/flow/execution";
@@ -41,6 +42,8 @@ import {
 import type {
   FlowEditorEdge,
   FlowEditorNode,
+  FlowFunctionDefinition,
+  FlowProgram,
   FlowNodeConfig,
   FlowNodeHandlePositions,
   FlowNodeType,
@@ -48,7 +51,10 @@ import type {
 import { FlowCodePanel } from "./FlowCodePanel";
 import { FlowExecutionHistoryPanel } from "./FlowExecutionHistoryPanel";
 import { FlowExecutionPanel } from "./FlowExecutionPanel";
+import { FlowFunctionPanel } from "./FlowFunctionPanel";
 import { FlowImportPanel } from "./FlowImportPanel";
+import { FlowInputModal } from "./FlowInputModal";
+import { FlowOutputPanel } from "./FlowOutputPanel";
 import { FlowSidebar } from "./FlowSidebar";
 import { FlowValidationPanel } from "./FlowValidationPanel";
 import { FlowVariablesPanel } from "./FlowVariablesPanel";
@@ -63,6 +69,7 @@ type ImportStatus = "idle" | "success" | "error";
 
 export function FlowWorkspace() {
   const nextNodeId = useRef(initialFlowNodes.length);
+  const nextFunctionId = useRef(0);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
   >(null);
@@ -77,32 +84,88 @@ export function FlowWorkspace() {
   const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [activeDiagramId, setActiveDiagramId] = useState("main");
+  const [mainDiagram, setMainDiagram] = useState<FlowProgram["main"]>({
+    nodes: initialFlowNodes,
+    edges: initialFlowEdges,
+  });
+  const [functions, setFunctions] = useState<FlowFunctionDefinition[]>([]);
   const [nodes, setNodes, onNodesChange] =
     useNodesState<FlowEditorNode>(initialFlowNodes);
   const [edges, setEdges, onEdgesChange] =
     useEdgesState<FlowEditorEdge>(initialFlowEdges);
+  const currentProgram = useMemo<FlowProgram>(
+    () => ({
+      main:
+        activeDiagramId === "main"
+          ? {
+              nodes,
+              edges,
+            }
+          : mainDiagram,
+      functions: functions.map((flowFunction) =>
+        flowFunction.id === activeDiagramId
+          ? {
+              ...flowFunction,
+              nodes,
+              edges,
+            }
+          : flowFunction,
+      ),
+    }),
+    [activeDiagramId, edges, functions, mainDiagram, nodes],
+  );
+  const activeDiagramName =
+    activeDiagramId === "main"
+      ? "Principal"
+      : `Funcion ${
+          currentProgram.functions.find(
+            (flowFunction) => flowFunction.id === activeDiagramId,
+          )?.name ?? "sin nombre"
+        }`;
   const graph = useMemo(() => createFlowGraph(nodes, edges), [edges, nodes]);
   const validationIssues = useMemo(
-    () => validateFlowDiagram({ nodes, edges }),
-    [edges, nodes],
+    () =>
+      validateFlowDiagram({
+        nodes,
+        edges,
+        functions: currentProgram.functions,
+        currentDiagramId: activeDiagramId,
+      }),
+    [activeDiagramId, currentProgram.functions, edges, nodes],
   );
   const hasLoops = useMemo(() => hasFlowCycles(graph), [graph]);
   const canContinueExecution =
-    executionState.status !== "finished" && executionState.status !== "error";
+    executionState.status !== "finished" &&
+    executionState.status !== "error" &&
+    executionState.status !== "waitingInput";
   const isAutoExecutionActive = isAutoRunning && canContinueExecution;
   const renderedNodes = useMemo(() => {
     const visitedNodeIds = new Set(
       executionState.history.map((item) => item.nodeId),
     );
+    const availableFunctions = currentProgram.functions.map(
+      ({ id, name, parameters }) => ({
+        id,
+        name,
+        parameters,
+      }),
+    );
+    const isCurrentExecutionDiagram =
+      executionState.currentDiagramId === activeDiagramId;
 
     return nodes.map((node) => ({
       ...node,
       data: {
         ...node.data,
+        availableFunctions,
         execution: {
-          isCurrent: node.id === executionState.currentNodeId,
-          isVisited: visitedNodeIds.has(node.id),
+          isCurrent:
+            isCurrentExecutionDiagram &&
+            node.id === executionState.currentNodeId,
+          isVisited: isCurrentExecutionDiagram && visitedNodeIds.has(node.id),
           activeBranch:
+            isCurrentExecutionDiagram &&
             executionState.activeDecision?.nodeId === node.id
               ? executionState.activeDecision.branch
               : null,
@@ -110,7 +173,10 @@ export function FlowWorkspace() {
       },
     }));
   }, [
+    activeDiagramId,
+    currentProgram.functions,
     executionState.activeDecision,
+    executionState.currentDiagramId,
     executionState.currentNodeId,
     executionState.history,
     nodes,
@@ -121,10 +187,13 @@ export function FlowWorkspace() {
         item.edgeId ? [item.edgeId] : [],
       ),
     );
+    const isCurrentExecutionDiagram =
+      executionState.currentDiagramId === activeDiagramId;
 
     return edges.map((edge) => {
-      const isActive = edge.id === executionState.activeEdgeId;
-      const isVisited = visitedEdgeIds.has(edge.id);
+      const isActive =
+        isCurrentExecutionDiagram && edge.id === executionState.activeEdgeId;
+      const isVisited = isCurrentExecutionDiagram && visitedEdgeIds.has(edge.id);
 
       if (!isActive && !isVisited) {
         return edge;
@@ -154,7 +223,13 @@ export function FlowWorkspace() {
             : edge.markerEnd,
       };
     });
-  }, [edges, executionState.activeEdgeId, executionState.history]);
+  }, [
+    activeDiagramId,
+    edges,
+    executionState.activeEdgeId,
+    executionState.currentDiagramId,
+    executionState.history,
+  ]);
 
   useEffect(() => {
     if (!isAutoExecutionActive) {
@@ -164,8 +239,8 @@ export function FlowWorkspace() {
     const timeoutId = window.setTimeout(() => {
       setExecutionState((currentExecutionState) =>
         stepFlowExecution({
-          nodes,
-          edges,
+          program: currentProgram,
+          activeDiagramId,
           state: currentExecutionState,
         }),
       );
@@ -173,10 +248,10 @@ export function FlowWorkspace() {
 
     return () => window.clearTimeout(timeoutId);
   }, [
-    edges,
+    activeDiagramId,
+    currentProgram,
     executionState.stepCount,
     isAutoExecutionActive,
-    nodes,
   ]);
 
   const handleNodeLabelChange = useCallback(
@@ -267,7 +342,7 @@ export function FlowWorkspace() {
     (type: FlowNodeType) => {
       setBlockedConnectionMessage(null);
       setIsAutoRunning(false);
-      setExecutionState(resetFlowExecution());
+      setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
       setNodes((currentNodes) => {
         nextNodeId.current += 1;
 
@@ -284,6 +359,8 @@ export function FlowWorkspace() {
       });
     },
     [
+      activeDiagramId,
+      activeDiagramName,
       handleNodeConfigChange,
       handleNodeHandlePositionsChange,
       handleNodeLabelChange,
@@ -295,12 +372,12 @@ export function FlowWorkspace() {
     setIsAutoRunning(false);
     setExecutionState((currentExecutionState) =>
       stepFlowExecution({
-        nodes,
-        edges,
+        program: currentProgram,
+        activeDiagramId,
         state: currentExecutionState,
       }),
     );
-  }, [edges, nodes]);
+  }, [activeDiagramId, currentProgram]);
 
   const handleRunExecution = useCallback(() => {
     setIsAutoRunning(true);
@@ -312,17 +389,18 @@ export function FlowWorkspace() {
 
   const handleResetExecution = useCallback(() => {
     setIsAutoRunning(false);
-    setExecutionState(resetFlowExecution());
-  }, []);
+    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
+  }, [activeDiagramId, activeDiagramName]);
 
   const handleGenerateCode = useCallback(() => {
     setCodeGenerationResult(
       generateJavaScriptFromFlow({
-        nodes,
-        edges,
+        nodes: currentProgram.main.nodes,
+        edges: currentProgram.main.edges,
+        functions: currentProgram.functions,
       }),
     );
-  }, [edges, nodes]);
+  }, [currentProgram]);
 
   const handleImportCode = useCallback(() => {
     const importResult = importJavaScriptToFlow(importCode);
@@ -336,7 +414,7 @@ export function FlowWorkspace() {
 
     setBlockedConnectionMessage(null);
     setIsAutoRunning(false);
-    setExecutionState(resetFlowExecution());
+    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
     setCodeGenerationResult(initialCodeGenerationResult);
     setImportStatus("success");
     setImportMessage("Diagrama generado desde el código JavaScript.");
@@ -344,7 +422,14 @@ export function FlowWorkspace() {
     nextNodeId.current = importResult.nodes.length;
     setNodes(importResult.nodes.map(createEditorNodeFromImport));
     setEdges(importResult.edges);
-  }, [createEditorNodeFromImport, importCode, setEdges, setNodes]);
+  }, [
+    activeDiagramId,
+    activeDiagramName,
+    createEditorNodeFromImport,
+    importCode,
+    setEdges,
+    setNodes,
+  ]);
 
   const handleConnect = useCallback<OnConnect>(
     (connection) => {
@@ -361,13 +446,13 @@ export function FlowWorkspace() {
 
       setBlockedConnectionMessage(null);
       setIsAutoRunning(false);
-      setExecutionState(resetFlowExecution());
+      setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
 
       setEdges((currentEdges) =>
         addEdge(createFlowEditorEdge(connection), currentEdges),
       );
     },
-    [edges, nodes, setEdges],
+    [activeDiagramId, activeDiagramName, edges, nodes, setEdges],
   );
 
   const isValidConnection = useCallback<IsValidConnection<FlowEditorEdge>>(
@@ -380,9 +465,109 @@ export function FlowWorkspace() {
     [edges, nodes],
   );
 
+  const handleInputConfirm = useCallback(
+    (value: Parameters<typeof resumeFlowExecutionWithInput>[0]["value"]) => {
+      setExecutionState((currentExecutionState) =>
+        resumeFlowExecutionWithInput({
+          state: currentExecutionState,
+          value,
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleSelectDiagram = useCallback(
+    (diagramId: string) => {
+      const nextDiagram =
+        diagramId === "main"
+          ? currentProgram.main
+          : currentProgram.functions.find(
+              (flowFunction) => flowFunction.id === diagramId,
+            );
+
+      if (!nextDiagram) {
+        return;
+      }
+
+      setMainDiagram(currentProgram.main);
+      setFunctions(currentProgram.functions);
+      setActiveDiagramId(diagramId);
+      setNodes(nextDiagram.nodes);
+      setEdges(nextDiagram.edges);
+      setIsAutoRunning(false);
+      setExecutionState(
+        resetFlowExecution(
+          diagramId,
+          diagramId === "main"
+            ? "Principal"
+            : `Funcion ${
+                currentProgram.functions.find(
+                  (flowFunction) => flowFunction.id === diagramId,
+                )?.name ?? "sin nombre"
+              }`,
+        ),
+      );
+    },
+    [currentProgram, setEdges, setNodes],
+  );
+
+  const handleCreateFunction = useCallback(() => {
+    const functionIndex = currentProgram.functions.length + 1;
+    nextFunctionId.current += 1;
+
+    const flowFunction: FlowFunctionDefinition = {
+      id: `function-${nextFunctionId.current}`,
+      name: `funcion${functionIndex}`,
+      parameters: [],
+      nodes: [],
+      edges: [],
+    };
+
+    setMainDiagram(currentProgram.main);
+    setFunctions([...currentProgram.functions, flowFunction]);
+    setActiveDiagramId(flowFunction.id);
+    setNodes(flowFunction.nodes);
+    setEdges(flowFunction.edges);
+    setIsAutoRunning(false);
+    setExecutionState(
+      resetFlowExecution(flowFunction.id, `Funcion ${flowFunction.name}`),
+    );
+  }, [currentProgram, setEdges, setNodes]);
+
+  const handleUpdateFunction = useCallback(
+    (
+      functionId: string,
+      changes: Pick<FlowFunctionDefinition, "name" | "parameters">,
+    ) => {
+      setFunctions((currentFunctions) =>
+        currentFunctions.map((flowFunction) =>
+          flowFunction.id === functionId
+            ? {
+                ...flowFunction,
+                ...changes,
+                nodes:
+                  activeDiagramId === functionId ? nodes : flowFunction.nodes,
+                edges:
+                  activeDiagramId === functionId ? edges : flowFunction.edges,
+              }
+            : flowFunction,
+        ),
+      );
+    },
+    [activeDiagramId, edges, nodes],
+  );
+
   return (
     <section className="mx-auto grid min-h-[calc(100vh-7rem)] w-full max-w-[92rem] grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_280px]">
       <div className="flex min-w-0 flex-col gap-4">
+        <FlowFunctionPanel
+          activeDiagramId={activeDiagramId}
+          functions={currentProgram.functions}
+          onSelectDiagram={handleSelectDiagram}
+          onCreateFunction={handleCreateFunction}
+          onUpdateFunction={handleUpdateFunction}
+        />
         <FlowSidebar onAddNode={handleAddNode} />
         <FlowValidationPanel
           issues={validationIssues}
@@ -404,7 +589,7 @@ export function FlowWorkspace() {
           <div className="flex min-h-12 items-center justify-between border-b border-neutral-300 bg-white px-4">
             <div>
               <p className="text-sm font-semibold text-neutral-950">
-                Diagrama
+                Diagrama: {activeDiagramName}
               </p>
               <p className="text-xs text-neutral-500">
                 Agrega bloques desde la barra lateral
@@ -446,8 +631,13 @@ export function FlowWorkspace() {
 
       <aside className="flex min-w-0 flex-col gap-4 lg:col-span-2 xl:col-span-1 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
         <FlowVariablesPanel variables={executionState.variables} />
+        <FlowOutputPanel outputs={executionState.outputs} />
         <FlowExecutionHistoryPanel history={executionState.history} />
       </aside>
+      <FlowInputModal
+        pendingInput={executionState.pendingInput}
+        onConfirm={handleInputConfirm}
+      />
     </section>
   );
 }

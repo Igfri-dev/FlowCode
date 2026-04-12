@@ -1,6 +1,15 @@
 import type { Edge, Node } from "@xyflow/react";
 
-export const flowNodeTypes = ["start", "end", "process", "decision"] as const;
+export const flowNodeTypes = [
+  "start",
+  "end",
+  "process",
+  "decision",
+  "input",
+  "output",
+  "functionCall",
+  "return",
+] as const;
 
 export type FlowNodeType = (typeof flowNodeTypes)[number];
 
@@ -23,11 +32,36 @@ export type DecisionNodeConfig = {
   condition: string;
 };
 
+export type InputNodeConfig = {
+  prompt: string;
+  variableName: string;
+  inputType: "text" | "number" | "boolean";
+};
+
+export type OutputNodeConfig = {
+  expression: string;
+  outputMode: "text" | "expression";
+};
+
+export type FunctionCallNodeConfig = {
+  functionId: string;
+  args: string[];
+  assignTo?: string;
+};
+
+export type ReturnNodeConfig = {
+  expression: string;
+};
+
 export type FlowNodeConfig =
   | StartNodeConfig
   | EndNodeConfig
   | ProcessNodeConfig
-  | DecisionNodeConfig;
+  | DecisionNodeConfig
+  | InputNodeConfig
+  | OutputNodeConfig
+  | FunctionCallNodeConfig
+  | ReturnNodeConfig;
 
 export type FlowNodeDataByType = {
   start: {
@@ -50,6 +84,26 @@ export type FlowNodeDataByType = {
     config: DecisionNodeConfig;
     handlePositions?: FlowNodeHandlePositions;
   };
+  input: {
+    label: string;
+    config: InputNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
+  };
+  output: {
+    label: string;
+    config: OutputNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
+  };
+  functionCall: {
+    label: string;
+    config: FunctionCallNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
+  };
+  return: {
+    label: string;
+    config: ReturnNodeConfig;
+    handlePositions?: FlowNodeHandlePositions;
+  };
 };
 
 type BaseFlowNode<TType extends FlowNodeType> = {
@@ -62,8 +116,20 @@ export type StartNode = BaseFlowNode<"start">;
 export type EndNode = BaseFlowNode<"end">;
 export type ProcessNode = BaseFlowNode<"process">;
 export type DecisionNode = BaseFlowNode<"decision">;
+export type InputNode = BaseFlowNode<"input">;
+export type OutputNode = BaseFlowNode<"output">;
+export type FunctionCallNode = BaseFlowNode<"functionCall">;
+export type ReturnNode = BaseFlowNode<"return">;
 
-export type FlowNode = StartNode | EndNode | ProcessNode | DecisionNode;
+export type FlowNode =
+  | StartNode
+  | EndNode
+  | ProcessNode
+  | DecisionNode
+  | InputNode
+  | OutputNode
+  | FunctionCallNode
+  | ReturnNode;
 
 export type FlowNodeData = FlowNode["data"];
 
@@ -94,6 +160,7 @@ export type FlowEditorNodeData = {
   label: string;
   config: FlowNodeConfig;
   handlePositions?: FlowNodeHandlePositions;
+  availableFunctions?: FlowFunctionReference[];
   onLabelChange: FlowNodeLabelChangeHandler;
   onConfigChange: FlowNodeConfigChangeHandler;
   onHandlePositionsChange: FlowNodeHandlePositionsChangeHandler;
@@ -116,6 +183,27 @@ export type FlowEdge = {
 export type FlowDiagram = {
   nodes: FlowNode[];
   edges: FlowEdge[];
+};
+
+export type FlowEditorDiagram = {
+  nodes: FlowEditorNode[];
+  edges: FlowEditorEdge[];
+};
+
+export type FlowFunctionReference = {
+  id: string;
+  name: string;
+  parameters: string[];
+};
+
+export type FlowFunctionDefinition = FlowFunctionReference & {
+  nodes: FlowEditorNode[];
+  edges: FlowEditorEdge[];
+};
+
+export type FlowProgram = {
+  main: FlowEditorDiagram;
+  functions: FlowFunctionDefinition[];
 };
 
 export type FlowEditorNodeByType<TType extends FlowNodeType> = Node<

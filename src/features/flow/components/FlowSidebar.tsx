@@ -25,9 +25,29 @@ const blockActions: Array<{
     markerClassName: "bg-neutral-500",
   },
   {
-    label: "Agregar Decisión",
+    label: "Agregar Entrada",
+    type: "input",
+    markerClassName: "bg-sky-500",
+  },
+  {
+    label: "Agregar Salida",
+    type: "output",
+    markerClassName: "bg-amber-500",
+  },
+  {
+    label: "Agregar Decision",
     type: "decision",
     markerClassName: "bg-cyan-500",
+  },
+  {
+    label: "Agregar Llamada a funcion",
+    type: "functionCall",
+    markerClassName: "bg-violet-500",
+  },
+  {
+    label: "Agregar Retorno",
+    type: "return",
+    markerClassName: "bg-rose-500",
   },
 ];
 

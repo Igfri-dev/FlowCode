@@ -25,7 +25,7 @@ export function getDefaultFlowNodeHandlePositions(
     };
   }
 
-  if (type === "end") {
+  if (type === "end" || type === "return") {
     return {
       in: "top",
     };
@@ -36,6 +36,13 @@ export function getDefaultFlowNodeHandlePositions(
       in: "top",
       yes: "left",
       no: "right",
+    };
+  }
+
+  if (type === "input" || type === "output" || type === "functionCall") {
+    return {
+      in: "top",
+      out: "bottom",
     };
   }
 

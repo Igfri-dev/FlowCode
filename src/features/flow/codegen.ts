@@ -5,13 +5,18 @@ import {
   type FlowConnectionLike,
   type FlowGraph,
 } from "@/features/flow/flow-graph";
-import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
+import type {
+  FlowEditorEdge,
+  FlowEditorNode,
+  FlowFunctionDefinition,
+} from "@/types/flow";
 
 type DecisionBranchHandle = "yes" | "no";
 
 type GenerateJavaScriptInput = {
   nodes: FlowEditorNode[];
   edges: FlowEditorEdge[];
+  functions?: FlowFunctionDefinition[];
 };
 
 export type FlowCodeGenerationResult = {
@@ -37,6 +42,7 @@ type RenderContext = {
   indentLevel: number;
   stopNodeId?: string;
   disabledLoopTargetId?: string;
+  functionsById?: Map<string, FlowFunctionDefinition>;
 };
 
 const indent = "  ";
@@ -45,10 +51,12 @@ const decisionBranches: DecisionBranchHandle[] = ["yes", "no"];
 export function generateJavaScriptFromFlow({
   nodes,
   edges,
+  functions = [],
 }: GenerateJavaScriptInput): FlowCodeGenerationResult {
   const graph = createFlowGraph(nodes, edges);
   const startNodes = nodes.filter((node) => node.type === "start");
   const warnings: string[] = [];
+  const functionsById = new Map(functions.map((item) => [item.id, item]));
 
   if (startNodes.length !== 1) {
     warnings.push(
@@ -67,13 +75,25 @@ export function generateJavaScriptFromFlow({
     };
   }
 
-  const lines = ["// Código generado desde FlowCode"];
+  const lines = ["// Codigo generado desde FlowCode"];
+  lines.push(...getRuntimeHelperLines(nodes, functions));
+
+  for (const flowFunction of functions) {
+    renderFunctionDefinition(flowFunction, {
+      warnings,
+      lines,
+      functionsById,
+    });
+  }
+
+  lines.push("");
+  lines.push("async function main() {");
   const backwardLoopByTargetId = findBackwardLoops(graph, startNode.id);
   const startEdge = getFirstOutgoingEdge(graph, startNode.id);
 
   if (!startEdge) {
     warnings.push("El bloque Inicio no tiene una conexión de salida.");
-    lines.push("// El programa aún no tiene instrucciones conectadas.");
+    lines.push(`${indent}// El programa aun no tiene instrucciones conectadas.`);
   } else {
     renderSequence(startEdge.target, {
       graph,
@@ -82,9 +102,14 @@ export function generateJavaScriptFromFlow({
       activePath: new Set(),
       emittedNodeIds: new Set(),
       backwardLoopByTargetId,
-      indentLevel: 0,
+      indentLevel: 1,
+      functionsById,
     });
   }
+
+  lines.push("}");
+  lines.push("");
+  lines.push("main();");
 
   return {
     code: lines.join("\n"),
@@ -158,6 +183,42 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
       return;
     }
 
+    if (node.type === "input") {
+      context.emittedNodeIds.add(node.id);
+      addLine(context, formatInputInstruction(node));
+      renderSequence(getFirstOutgoingEdge(context.graph, node.id)?.target, {
+        ...context,
+        activePath: new Set(context.activePath),
+      });
+      return;
+    }
+
+    if (node.type === "output") {
+      context.emittedNodeIds.add(node.id);
+      addLine(context, formatOutputInstruction(node));
+      renderSequence(getFirstOutgoingEdge(context.graph, node.id)?.target, {
+        ...context,
+        activePath: new Set(context.activePath),
+      });
+      return;
+    }
+
+    if (node.type === "functionCall") {
+      context.emittedNodeIds.add(node.id);
+      addLine(context, formatFunctionCallInstruction(node, context));
+      renderSequence(getFirstOutgoingEdge(context.graph, node.id)?.target, {
+        ...context,
+        activePath: new Set(context.activePath),
+      });
+      return;
+    }
+
+    if (node.type === "return") {
+      context.emittedNodeIds.add(node.id);
+      addLine(context, formatReturnInstruction(node));
+      return;
+    }
+
     if (node.type === "decision") {
       context.emittedNodeIds.add(node.id);
       renderDecision(node, context);
@@ -165,6 +226,59 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
   } finally {
     context.activePath.delete(node.id);
   }
+}
+
+function renderFunctionDefinition(
+  flowFunction: FlowFunctionDefinition,
+  {
+    warnings,
+    lines,
+    functionsById,
+  }: {
+    warnings: string[];
+    lines: string[];
+    functionsById: Map<string, FlowFunctionDefinition>;
+  },
+) {
+  const graph = createFlowGraph(flowFunction.nodes, flowFunction.edges);
+  const startNode = flowFunction.nodes.find((node) => node.type === "start");
+  const functionName = toSafeIdentifier(flowFunction.name, "funcion");
+  const parameters = flowFunction.parameters
+    .map((parameter) => toSafeIdentifier(parameter, "parametro"))
+    .join(", ");
+
+  lines.push("");
+  lines.push(`async function ${functionName}(${parameters}) {`);
+
+  if (!startNode) {
+    warnings.push(`La funcion "${flowFunction.name}" no tiene bloque Inicio.`);
+    lines.push(`${indent}// Falta el bloque Inicio.`);
+    lines.push("}");
+    return;
+  }
+
+  const startEdge = getFirstOutgoingEdge(graph, startNode.id);
+
+  if (!startEdge) {
+    warnings.push(
+      `La funcion "${flowFunction.name}" no tiene instrucciones conectadas.`,
+    );
+    lines.push(`${indent}// La funcion aun no tiene instrucciones conectadas.`);
+    lines.push("}");
+    return;
+  }
+
+  renderSequence(startEdge.target, {
+    graph,
+    warnings,
+    lines,
+    activePath: new Set(),
+    emittedNodeIds: new Set(),
+    backwardLoopByTargetId: findBackwardLoops(graph, startNode.id),
+    indentLevel: 1,
+    functionsById,
+  });
+  lines.push("}");
 }
 
 function renderDecision(node: FlowEditorNode, context: RenderContext) {
@@ -598,6 +712,102 @@ function formatInstruction(instruction: string) {
   }
 
   return `${trimmedInstruction};`;
+}
+
+function formatInputInstruction(node: FlowEditorNode) {
+  const config =
+    "prompt" in node.data.config
+      ? node.data.config
+      : {
+          prompt: "Ingresa un valor",
+          variableName: "valor",
+          inputType: "text" as const,
+        };
+  const variableName = toSafeIdentifier(config.variableName, "valor");
+
+  return `let ${variableName} = await leerEntrada(${JSON.stringify(
+    config.prompt,
+  )}, ${JSON.stringify(config.inputType)});`;
+}
+
+function formatOutputInstruction(node: FlowEditorNode) {
+  const config =
+    "outputMode" in node.data.config
+      ? node.data.config
+      : {
+          expression: node.data.label,
+          outputMode: "text" as const,
+        };
+  const outputValue =
+    config.outputMode === "text"
+      ? JSON.stringify(config.expression)
+      : config.expression.trim() || '""';
+
+  return `console.log(${outputValue});`;
+}
+
+function formatFunctionCallInstruction(
+  node: FlowEditorNode,
+  context: RenderContext,
+) {
+  const config =
+    "functionId" in node.data.config
+      ? node.data.config
+      : {
+          functionId: "",
+          args: [],
+          assignTo: "",
+        };
+  const flowFunction = context.functionsById?.get(config.functionId);
+  const functionName = toSafeIdentifier(flowFunction?.name ?? "funcion", "funcion");
+  const callExpression = `await ${functionName}(${config.args.join(", ")})`;
+  const assignTo = config.assignTo?.trim();
+
+  if (assignTo) {
+    return `${toSafeIdentifier(assignTo, "resultado")} = ${callExpression};`;
+  }
+
+  return `${callExpression};`;
+}
+
+function formatReturnInstruction(node: FlowEditorNode) {
+  const expression =
+    "expression" in node.data.config && !("outputMode" in node.data.config)
+      ? node.data.config.expression.trim()
+      : "";
+
+  return expression ? `return ${expression};` : "return;";
+}
+
+function getRuntimeHelperLines(
+  nodes: FlowEditorNode[],
+  functions: FlowFunctionDefinition[],
+) {
+  const allNodes = [
+    ...nodes,
+    ...functions.flatMap((flowFunction) => flowFunction.nodes),
+  ];
+
+  if (!allNodes.some((node) => node.type === "input")) {
+    return [];
+  }
+
+  return [
+    "",
+    "async function leerEntrada(mensaje, tipo = \"text\") {",
+    "  const valor = prompt(mensaje);",
+    "  if (tipo === \"number\") return Number(valor);",
+    "  if (tipo === \"boolean\") return valor === \"true\" || valor === \"si\";",
+    "  return valor ?? \"\";",
+    "}",
+  ];
+}
+
+function toSafeIdentifier(value: string, fallback: string) {
+  const normalized = value.trim().replace(/[^A-Za-z0-9_$]/g, "_");
+  const identifier = normalized || fallback;
+
+  return /^[A-Za-z_$]/.test(identifier) ? identifier : `_${identifier}`;
 }
 
 function getProcessInstruction(node: FlowEditorNode) {

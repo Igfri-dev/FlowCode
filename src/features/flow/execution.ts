@@ -9,7 +9,16 @@ import {
   getOutgoingEdges,
   type FlowConnectionLike,
 } from "@/features/flow/flow-graph";
-import type { FlowEditorEdge, FlowEditorNode, FlowNodeType } from "@/types/flow";
+import type {
+  FlowEditorDiagram,
+  FlowEditorNode,
+  FlowProgram,
+  FlowNodeType,
+  FunctionCallNodeConfig,
+  InputNodeConfig,
+  OutputNodeConfig,
+  ReturnNodeConfig,
+} from "@/types/flow";
 
 export type ExecutionValue = number | string | boolean | null | undefined;
 export type ExecutionVariables = Record<string, ExecutionValue>;
@@ -19,18 +28,48 @@ export type FlowExecutionHistoryItem = {
   step: number;
   nodeId: string;
   nodeType: FlowNodeType;
+  diagramName: string;
   content: string;
   message: string;
   variables: ExecutionVariables;
   edgeId?: string;
-  branchLabel?: "Sí" | "No";
+  branchLabel?: "Si" | "No";
+};
+
+export type FlowExecutionOutputItem = {
+  id: string;
+  step: number;
+  content: string;
+};
+
+export type FlowExecutionPendingInput = {
+  nodeId: string;
+  prompt: string;
+  variableName: string;
+  inputType: InputNodeConfig["inputType"];
+  nextNodeId: string;
+  edgeId?: string;
+};
+
+export type FlowExecutionCallFrame = {
+  diagramId: string;
+  diagramName: string;
+  currentNodeId: string | null;
+  variables: ExecutionVariables;
+  returnEdgeId?: string;
+  assignTo?: string;
 };
 
 export type FlowExecutionState = {
   currentNodeId: string | null;
+  currentDiagramId: string;
+  currentDiagramName: string;
   variables: ExecutionVariables;
   history: FlowExecutionHistoryItem[];
-  status: "idle" | "running" | "finished" | "error";
+  outputs: FlowExecutionOutputItem[];
+  callStack: FlowExecutionCallFrame[];
+  pendingInput: FlowExecutionPendingInput | null;
+  status: "idle" | "running" | "waitingInput" | "finished" | "error";
   message: string;
   stepCount: number;
   maxSteps: number;
@@ -38,15 +77,20 @@ export type FlowExecutionState = {
   activeDecision: {
     nodeId: string;
     branch: "yes" | "no";
-    branchLabel: "Sí" | "No";
+    branchLabel: "Si" | "No";
     edgeId?: string;
   } | null;
 };
 
 export const initialFlowExecutionState: FlowExecutionState = {
   currentNodeId: null,
+  currentDiagramId: "main",
+  currentDiagramName: "Principal",
   variables: {},
   history: [],
+  outputs: [],
+  callStack: [],
+  pendingInput: null,
   status: "idle",
   message: "Listo para ejecutar.",
   stepCount: 0,
@@ -56,21 +100,32 @@ export const initialFlowExecutionState: FlowExecutionState = {
 };
 
 type StepFlowExecutionInput = {
-  nodes: FlowEditorNode[];
-  edges: FlowEditorEdge[];
+  program: FlowProgram;
+  activeDiagramId: string;
   state: FlowExecutionState;
 };
 
-export function resetFlowExecution(): FlowExecutionState {
-  return initialFlowExecutionState;
+export function resetFlowExecution(
+  diagramId = "main",
+  diagramName = "Principal",
+): FlowExecutionState {
+  return {
+    ...initialFlowExecutionState,
+    currentDiagramId: diagramId,
+    currentDiagramName: diagramName,
+  };
 }
 
 export function stepFlowExecution({
-  nodes,
-  edges,
+  program,
+  activeDiagramId,
   state,
 }: StepFlowExecutionInput): FlowExecutionState {
-  if (state.status === "finished" || state.status === "error") {
+  if (
+    state.status === "finished" ||
+    state.status === "error" ||
+    state.status === "waitingInput"
+  ) {
     return state;
   }
 
@@ -78,14 +133,25 @@ export function stepFlowExecution({
     return {
       ...state,
       status: "error",
-      message: `Se alcanzó el límite de ${state.maxSteps} pasos. Revisa si hay un bucle infinito.`,
+      message: `Se alcanzo el limite de ${state.maxSteps} pasos. Revisa si hay un bucle infinito.`,
     };
   }
 
-  const graph = createFlowGraph(nodes, edges);
+  const diagramId = state.status === "idle" ? activeDiagramId : state.currentDiagramId;
+  const diagram = getDiagramById(program, diagramId);
+
+  if (!diagram) {
+    return {
+      ...state,
+      status: "error",
+      message: "No se encontro el diagrama actual para ejecutar.",
+    };
+  }
+
+  const graph = createFlowGraph(diagram.nodes, diagram.edges);
   const currentNode = state.currentNodeId
     ? graph.nodeById.get(state.currentNodeId)
-    : nodes.find((node) => node.type === "start");
+    : diagram.nodes.find((node) => node.type === "start");
 
   if (!currentNode) {
     return {
@@ -93,16 +159,34 @@ export function stepFlowExecution({
       status: "error",
       message: state.currentNodeId
         ? "El bloque actual ya no existe en el diagrama."
-        : "No se encontró un bloque Inicio.",
+        : "No se encontro un bloque Inicio.",
     };
   }
 
-  if (currentNode.type === "end") {
-    return recordStep({
-      state,
+  if (currentNode.type === "start") {
+    return advanceToNextNode({
+      graphEdges: graph.edges,
+      state: ensureExecutionDiagram(state, diagram),
       node: currentNode,
       variables: state.variables,
-      message: "Ejecución finalizada.",
+      message: "Inicio.",
+    });
+  }
+
+  if (currentNode.type === "end") {
+    if (state.callStack.length > 0) {
+      return returnToCaller({
+        state: ensureExecutionDiagram(state, diagram),
+        node: currentNode,
+        value: undefined,
+      });
+    }
+
+    return recordStep({
+      state: ensureExecutionDiagram(state, diagram),
+      node: currentNode,
+      variables: state.variables,
+      message: "Ejecucion finalizada.",
       status: "finished",
     });
   }
@@ -125,29 +209,28 @@ export function stepFlowExecution({
       };
     }
 
-    const nextEdge = getSingleNextEdge(graph.edges, currentNode.id);
-
-    if (!nextEdge) {
-      return {
-        ...state,
-        status: "error",
-        message: `El bloque "${currentNode.data.label}" no tiene salida para continuar.`,
-      };
-    }
-
-    const nextNode = graph.nodeById.get(nextEdge.target);
-
-    return recordStep({
-      state,
+    return advanceToNextNode({
+      graphEdges: graph.edges,
+      state: ensureExecutionDiagram(state, diagram),
       node: currentNode,
       variables: instructionResult.variables,
-      message:
-        nextNode?.type === "end"
-          ? "Ejecución finalizada."
-          : `Proceso ejecutado: ${instruction}`,
-      nextNodeId: nextEdge.target,
-      edgeId: nextEdge.id,
-      status: nextNode?.type === "end" ? "finished" : "running",
+      message: `Proceso ejecutado: ${instruction}`,
+    });
+  }
+
+  if (currentNode.type === "input") {
+    return pauseForInput({
+      graphEdges: graph.edges,
+      state: ensureExecutionDiagram(state, diagram),
+      node: currentNode,
+    });
+  }
+
+  if (currentNode.type === "output") {
+    return executeOutputNode({
+      graphEdges: graph.edges,
+      state: ensureExecutionDiagram(state, diagram),
+      node: currentNode,
     });
   }
 
@@ -167,7 +250,7 @@ export function stepFlowExecution({
     }
 
     const branch = conditionResult.value ? "yes" : "no";
-    const branchLabel = conditionResult.value ? "Sí" : "No";
+    const branchLabel = conditionResult.value ? "Si" : "No";
     const nextEdge = getOutgoingEdges(graph, currentNode.id).find(
       (edge) => edge.sourceHandle === branch,
     );
@@ -176,20 +259,15 @@ export function stepFlowExecution({
       return {
         ...state,
         status: "error",
-        message: `La condición fue ${conditionResult.value ? "verdadera" : "falsa"}, pero no existe la rama ${branchLabel}.`,
+        message: `La condicion fue ${conditionResult.value ? "verdadera" : "falsa"}, pero no existe la rama ${branchLabel}.`,
       };
     }
 
-    const nextNode = graph.nodeById.get(nextEdge.target);
-
     return recordStep({
-      state,
+      state: ensureExecutionDiagram(state, diagram),
       node: currentNode,
       variables: state.variables,
-      message:
-        nextNode?.type === "end"
-          ? "Ejecución finalizada."
-          : `Condición "${condition}" = ${branchLabel}.`,
+      message: `Condicion "${condition}" = ${branchLabel}.`,
       nextNodeId: nextEdge.target,
       edgeId: nextEdge.id,
       branchLabel,
@@ -199,33 +277,363 @@ export function stepFlowExecution({
         branchLabel,
         edgeId: nextEdge.id,
       },
-      status: nextNode?.type === "end" ? "finished" : "running",
     });
   }
 
-  const nextEdge = getSingleNextEdge(graph.edges, currentNode.id);
+  if (currentNode.type === "functionCall") {
+    return executeFunctionCallNode({
+      graphEdges: graph.edges,
+      program,
+      state: ensureExecutionDiagram(state, diagram),
+      node: currentNode,
+    });
+  }
+
+  if (currentNode.type === "return") {
+    return executeReturnNode({
+      state: ensureExecutionDiagram(state, diagram),
+      node: currentNode,
+    });
+  }
+
+  return advanceToNextNode({
+    graphEdges: graph.edges,
+    state: ensureExecutionDiagram(state, diagram),
+    node: currentNode,
+    variables: state.variables,
+    message: `Avanzando desde "${currentNode.data.label}".`,
+  });
+}
+
+export function resumeFlowExecutionWithInput({
+  state,
+  value,
+}: {
+  state: FlowExecutionState;
+  value: ExecutionValue;
+}): FlowExecutionState {
+  if (!state.pendingInput) {
+    return state;
+  }
+
+  const variableName = state.pendingInput.variableName;
+
+  return {
+    ...state,
+    currentNodeId: state.pendingInput.nextNodeId,
+    variables: {
+      ...state.variables,
+      [variableName]: value,
+    },
+    status: "running",
+    message: `Entrada guardada en "${variableName}".`,
+    activeEdgeId: state.pendingInput.edgeId ?? null,
+    pendingInput: null,
+  };
+}
+
+function ensureExecutionDiagram(
+  state: FlowExecutionState,
+  diagram: FlowEditorDiagram & { id?: string; name?: string },
+): FlowExecutionState {
+  return {
+    ...state,
+    currentDiagramId: diagram.id ?? state.currentDiagramId,
+    currentDiagramName: diagram.name ?? state.currentDiagramName,
+  };
+}
+
+function advanceToNextNode({
+  graphEdges,
+  state,
+  node,
+  variables,
+  message,
+}: {
+  graphEdges: FlowConnectionLike[];
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+  variables: ExecutionVariables;
+  message: string;
+}) {
+  const nextEdge = getSingleNextEdge(graphEdges, node.id);
 
   if (!nextEdge) {
     return {
       ...state,
       status: "error",
-      message: `El bloque "${currentNode.data.label}" no tiene salida para continuar.`,
-    };
+      message: `El bloque "${node.data.label}" no tiene salida para continuar.`,
+    } satisfies FlowExecutionState;
   }
-
-  const nextNode = graph.nodeById.get(nextEdge.target);
 
   return recordStep({
     state,
-    node: currentNode,
-    variables: state.variables,
-    message:
-      nextNode?.type === "end"
-        ? "Ejecución finalizada."
-        : `Avanzando desde "${currentNode.data.label}".`,
+    node,
+    variables,
+    message,
     nextNodeId: nextEdge.target,
     edgeId: nextEdge.id,
-    status: nextNode?.type === "end" ? "finished" : "running",
+  });
+}
+
+function pauseForInput({
+  graphEdges,
+  state,
+  node,
+}: {
+  graphEdges: FlowConnectionLike[];
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+}) {
+  const config = getInputNodeConfig(node);
+  const variableName = config.variableName.trim();
+  const nextEdge = getSingleNextEdge(graphEdges, node.id);
+
+  if (!variableName) {
+    return {
+      ...state,
+      status: "error",
+      message: "El bloque Entrada necesita un nombre de variable.",
+    } satisfies FlowExecutionState;
+  }
+
+  if (!nextEdge) {
+    return {
+      ...state,
+      status: "error",
+      message: `El bloque "${node.data.label}" no tiene salida para continuar.`,
+    } satisfies FlowExecutionState;
+  }
+
+  return recordStep({
+    state,
+    node,
+    variables: state.variables,
+    message: `Esperando entrada para "${variableName}".`,
+    nextNodeId: node.id,
+    status: "waitingInput",
+    pendingInput: {
+      nodeId: node.id,
+      prompt: config.prompt || "Ingresa un valor",
+      variableName,
+      inputType: config.inputType,
+      nextNodeId: nextEdge.target,
+      edgeId: nextEdge.id,
+    },
+  });
+}
+
+function executeOutputNode({
+  graphEdges,
+  state,
+  node,
+}: {
+  graphEdges: FlowConnectionLike[];
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+}) {
+  const config = getOutputNodeConfig(node);
+  const outputResult =
+    config.outputMode === "text"
+      ? { ok: true as const, value: config.expression }
+      : evaluateExpression(config.expression, state.variables);
+
+  if (!outputResult.ok) {
+    return {
+      ...state,
+      status: "error",
+      message: outputResult.message,
+    } satisfies FlowExecutionState;
+  }
+
+  const content = String(outputResult.value ?? "");
+  const nextStep = state.stepCount + 1;
+
+  return advanceToNextNode({
+    graphEdges,
+    state: {
+      ...state,
+      outputs: [
+        ...state.outputs,
+        {
+          id: `${nextStep}-${node.id}-output`,
+          step: nextStep,
+          content,
+        },
+      ],
+    },
+    node,
+    variables: state.variables,
+    message: `Salida: ${content}`,
+  });
+}
+
+function executeFunctionCallNode({
+  graphEdges,
+  program,
+  state,
+  node,
+}: {
+  graphEdges: FlowConnectionLike[];
+  program: FlowProgram;
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+}) {
+  const config = getFunctionCallNodeConfig(node);
+  const flowFunction = program.functions.find(
+    (item) => item.id === config.functionId,
+  );
+
+  if (!flowFunction) {
+    return {
+      ...state,
+      status: "error",
+      message: "La llamada no referencia una funcion existente.",
+    } satisfies FlowExecutionState;
+  }
+
+  if (config.args.length !== flowFunction.parameters.length) {
+    return {
+      ...state,
+      status: "error",
+      message: `La funcion "${flowFunction.name}" espera ${flowFunction.parameters.length} argumento(s), pero la llamada tiene ${config.args.length}.`,
+    } satisfies FlowExecutionState;
+  }
+
+  const argumentValues: ExecutionValue[] = [];
+
+  for (const argument of config.args) {
+    const argumentResult = evaluateExpression(argument, state.variables);
+
+    if (!argumentResult.ok) {
+      return {
+        ...state,
+        status: "error",
+        message: argumentResult.message,
+      } satisfies FlowExecutionState;
+    }
+
+    argumentValues.push(argumentResult.value);
+  }
+
+  const functionStartNode = flowFunction.nodes.find(
+    (item) => item.type === "start",
+  );
+
+  if (!functionStartNode) {
+    return {
+      ...state,
+      status: "error",
+      message: `La funcion "${flowFunction.name}" no tiene bloque Inicio.`,
+    } satisfies FlowExecutionState;
+  }
+
+  const nextEdge = getSingleNextEdge(graphEdges, node.id);
+  const localVariables = Object.fromEntries(
+    flowFunction.parameters.map((parameter, index) => [
+      parameter,
+      argumentValues[index],
+    ]),
+  );
+
+  return recordStep({
+    state,
+    node,
+    variables: localVariables,
+    message: `Entrando a la funcion "${flowFunction.name}".`,
+    nextNodeId: functionStartNode.id,
+    edgeId: undefined,
+    currentDiagramId: flowFunction.id,
+    currentDiagramName: `Funcion ${flowFunction.name}`,
+    callStack: [
+      ...state.callStack,
+      {
+        diagramId: state.currentDiagramId,
+        diagramName: state.currentDiagramName,
+        currentNodeId: nextEdge?.target ?? null,
+        variables: state.variables,
+        returnEdgeId: nextEdge?.id,
+        assignTo: config.assignTo?.trim() || undefined,
+      },
+    ],
+    activeDecision: null,
+  });
+}
+
+function executeReturnNode({
+  state,
+  node,
+}: {
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+}) {
+  const config = getReturnNodeConfig(node);
+  const expression = config.expression.trim();
+  const returnValueResult = expression
+    ? evaluateExpression(expression, state.variables)
+    : { ok: true as const, value: undefined };
+
+  if (!returnValueResult.ok) {
+    return {
+      ...state,
+      status: "error",
+      message: returnValueResult.message,
+    } satisfies FlowExecutionState;
+  }
+
+  return returnToCaller({
+    state,
+    node,
+    value: returnValueResult.value,
+  });
+}
+
+function returnToCaller({
+  state,
+  node,
+  value,
+}: {
+  state: FlowExecutionState;
+  node: FlowEditorNode;
+  value: ExecutionValue;
+}) {
+  const callerFrame = state.callStack.at(-1);
+
+  if (!callerFrame) {
+    return recordStep({
+      state,
+      node,
+      variables: state.variables,
+      message:
+        node.type === "return"
+          ? "Retorno ejecutado en el flujo principal."
+          : "Ejecucion finalizada.",
+      status: "finished",
+    });
+  }
+
+  const nextCallStack = state.callStack.slice(0, -1);
+  const nextVariables = callerFrame.assignTo
+    ? {
+        ...callerFrame.variables,
+        [callerFrame.assignTo]: value,
+      }
+    : callerFrame.variables;
+
+  return recordStep({
+    state,
+    node,
+    variables: nextVariables,
+    message: callerFrame.assignTo
+      ? `Retorno guardado en "${callerFrame.assignTo}".`
+      : "Retorno completado.",
+    nextNodeId: callerFrame.currentNodeId,
+    edgeId: callerFrame.returnEdgeId,
+    status: callerFrame.currentNodeId ? "running" : "finished",
+    currentDiagramId: callerFrame.diagramId,
+    currentDiagramName: callerFrame.diagramName,
+    callStack: nextCallStack,
+    activeDecision: null,
   });
 }
 
@@ -239,16 +647,24 @@ function recordStep({
   branchLabel,
   activeDecision = null,
   status = "running",
+  currentDiagramId = state.currentDiagramId,
+  currentDiagramName = state.currentDiagramName,
+  callStack = state.callStack,
+  pendingInput = null,
 }: {
   state: FlowExecutionState;
   node: FlowEditorNode;
   variables: ExecutionVariables;
   message: string;
-  nextNodeId?: string;
+  nextNodeId?: string | null;
   edgeId?: string;
-  branchLabel?: "Sí" | "No";
+  branchLabel?: "Si" | "No";
   activeDecision?: FlowExecutionState["activeDecision"];
   status?: FlowExecutionState["status"];
+  currentDiagramId?: string;
+  currentDiagramName?: string;
+  callStack?: FlowExecutionCallFrame[];
+  pendingInput?: FlowExecutionPendingInput | null;
 }): FlowExecutionState {
   const nextStep = state.stepCount + 1;
   const historyItem: FlowExecutionHistoryItem = {
@@ -256,6 +672,7 @@ function recordStep({
     step: nextStep,
     nodeId: node.id,
     nodeType: node.type,
+    diagramName: state.currentDiagramName,
     content: getNodeExecutionContent(node),
     message,
     variables,
@@ -266,6 +683,8 @@ function recordStep({
   return {
     ...state,
     currentNodeId: nextNodeId,
+    currentDiagramId,
+    currentDiagramName,
     variables,
     history: [...state.history, historyItem],
     status,
@@ -273,6 +692,34 @@ function recordStep({
     stepCount: nextStep,
     activeEdgeId: edgeId ?? null,
     activeDecision,
+    callStack,
+    pendingInput,
+  };
+}
+
+function getDiagramById(
+  program: FlowProgram,
+  diagramId: string,
+): (FlowEditorDiagram & { id: string; name: string }) | null {
+  if (diagramId === "main") {
+    return {
+      ...program.main,
+      id: "main",
+      name: "Principal",
+    };
+  }
+
+  const flowFunction = program.functions.find((item) => item.id === diagramId);
+
+  if (!flowFunction) {
+    return null;
+  }
+
+  return {
+    id: flowFunction.id,
+    name: `Funcion ${flowFunction.name}`,
+    nodes: flowFunction.nodes,
+    edges: flowFunction.edges,
   };
 }
 
@@ -285,11 +732,66 @@ function getNodeExecutionContent(node: FlowEditorNode) {
     return node.data.config.condition;
   }
 
+  if (node.type === "input" && "variableName" in node.data.config) {
+    return `${node.data.config.variableName} <- entrada`;
+  }
+
+  if (node.type === "output" && "expression" in node.data.config) {
+    return node.data.config.expression;
+  }
+
+  if (node.type === "functionCall" && "functionId" in node.data.config) {
+    return `llamar funcion(${node.data.config.args.join(", ")})`;
+  }
+
+  if (node.type === "return" && "expression" in node.data.config) {
+    return `return ${node.data.config.expression}`;
+  }
+
   return node.data.label;
 }
 
 function getSingleNextEdge(edges: FlowConnectionLike[], nodeId: string) {
   return edges.find((edge) => edge.source === nodeId);
+}
+
+function getInputNodeConfig(node: FlowEditorNode): InputNodeConfig {
+  return "prompt" in node.data.config
+    ? (node.data.config as InputNodeConfig)
+    : {
+        prompt: "Ingresa un valor",
+        variableName: "valor",
+        inputType: "text",
+      };
+}
+
+function getOutputNodeConfig(node: FlowEditorNode): OutputNodeConfig {
+  return "outputMode" in node.data.config
+    ? (node.data.config as OutputNodeConfig)
+    : {
+        expression: node.data.label,
+        outputMode: "text",
+      };
+}
+
+function getFunctionCallNodeConfig(
+  node: FlowEditorNode,
+): FunctionCallNodeConfig {
+  return "functionId" in node.data.config
+    ? (node.data.config as FunctionCallNodeConfig)
+    : {
+        functionId: "",
+        args: [],
+        assignTo: "",
+      };
+}
+
+function getReturnNodeConfig(node: FlowEditorNode): ReturnNodeConfig {
+  return "expression" in node.data.config && !("outputMode" in node.data.config)
+    ? (node.data.config as ReturnNodeConfig)
+    : {
+        expression: "",
+      };
 }
 
 function executeInstruction(
@@ -306,7 +808,7 @@ function executeInstruction(
   if (!assignmentMatch || (!assignmentMatch[1] && !assignmentMatch[3])) {
     return {
       ok: false,
-      message: `Instrucción no soportada: "${instruction}". Usa asignaciones o declaraciones como x = 5, let x = 5 o x = x + 1.`,
+      message: `Instruccion no soportada: "${instruction}". Usa asignaciones o declaraciones como x = 5, let x = 5 o x = x + 1.`,
     };
   }
 
@@ -353,7 +855,7 @@ function evaluateCondition(
   };
 }
 
-function evaluateExpression(
+export function evaluateExpression(
   expression: string,
   variables: ExecutionVariables,
 ): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
@@ -368,13 +870,13 @@ function evaluateExpression(
     if (error instanceof Error) {
       return {
         ok: false,
-        message: `Expresión no soportada: "${expression}". ${error.message}`,
+        message: `Expresion no soportada: "${expression}". ${error.message}`,
       };
     }
 
     return {
       ok: false,
-      message: `Expresión no soportada: "${expression}".`,
+      message: `Expresion no soportada: "${expression}".`,
     };
   }
 }
@@ -393,7 +895,7 @@ function evaluateExpressionNode(
 
     return {
       ok: false,
-      message: `No se encontró la variable "${expression.name}".`,
+      message: `No se encontro la variable "${expression.name}".`,
     };
   }
 
@@ -431,7 +933,7 @@ function evaluateExpressionNode(
 
   return {
     ok: false,
-    message: `La expresión "${expression.type}" todavía no está soportada.`,
+    message: `La expresion "${expression.type}" todavia no esta soportada.`,
   };
 }
 
@@ -505,7 +1007,7 @@ function evaluateBinaryExpression(
   if (expression.left.type === "PrivateName") {
     return {
       ok: false,
-      message: "Los campos privados no están soportados en expresiones.",
+      message: "Los campos privados no estan soportados en expresiones.",
     };
   }
 
@@ -546,7 +1048,7 @@ function applyUnaryNumberOperator(value: ExecutionValue, operator: "+" | "-") {
   if (typeof value !== "number") {
     return {
       ok: false,
-      message: `El operador "${operator}" solo soporta números en esta versión.`,
+      message: `El operador "${operator}" solo soporta numeros en esta version.`,
     } as const;
   }
 
@@ -571,7 +1073,7 @@ function applyArithmeticOperator(
   if (typeof leftValue !== "number" || typeof rightValue !== "number") {
     return {
       ok: false,
-      message: `El operador "${operator}" solo soporta números en esta versión.`,
+      message: `El operador "${operator}" solo soporta numeros en esta version.`,
     };
   }
 
@@ -603,7 +1105,7 @@ function applyComparisonOperator(
     if (!isComparableValue(leftValue) || !isComparableValue(rightValue)) {
       return {
         ok: false,
-        message: `El operador "${operator}" necesita números o textos comparables.`,
+        message: `El operador "${operator}" necesita numeros o textos comparables.`,
       };
     }
 
@@ -665,8 +1167,6 @@ function isRelationalOperator(operator: string) {
   );
 }
 
-function isComparableValue(
-  value: ExecutionValue,
-): value is number | string {
+function isComparableValue(value: ExecutionValue): value is number | string {
   return typeof value === "number" || typeof value === "string";
 }

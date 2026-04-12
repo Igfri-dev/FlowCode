@@ -18,7 +18,9 @@ export function FlowExecutionPanel({
   onReset,
 }: FlowExecutionPanelProps) {
   const cannotContinue =
-    executionState.status === "finished" || executionState.status === "error";
+    executionState.status === "finished" ||
+    executionState.status === "error" ||
+    executionState.status === "waitingInput";
 
   return (
     <section className="rounded-lg border border-neutral-300 bg-white p-4 shadow-sm">

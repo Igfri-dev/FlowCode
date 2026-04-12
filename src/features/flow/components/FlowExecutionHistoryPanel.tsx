@@ -8,7 +8,11 @@ const nodeTypeLabels: Record<FlowExecutionHistoryItem["nodeType"], string> = {
   start: "Inicio",
   end: "Fin",
   process: "Proceso",
-  decision: "Decisión",
+  decision: "Decision",
+  input: "Entrada",
+  output: "Salida",
+  functionCall: "Llamada",
+  return: "Retorno",
 };
 
 export function FlowExecutionHistoryPanel({
@@ -39,6 +43,9 @@ export function FlowExecutionHistoryPanel({
                   </span>
                 ) : null}
               </div>
+              <p className="mt-1 text-xs font-medium text-neutral-500">
+                {item.diagramName}
+              </p>
               <p className="mt-1 font-mono text-xs text-neutral-700">
                 {item.content}
               </p>

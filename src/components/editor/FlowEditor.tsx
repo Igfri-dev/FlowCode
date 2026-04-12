@@ -37,6 +37,22 @@ function getMiniMapNodeColor(node: FlowEditorNode) {
     return "#a5f3fc";
   }
 
+  if (node.type === "input") {
+    return "#bae6fd";
+  }
+
+  if (node.type === "output") {
+    return "#fde68a";
+  }
+
+  if (node.type === "functionCall") {
+    return "#ddd6fe";
+  }
+
+  if (node.type === "return") {
+    return "#fecdd3";
+  }
+
   return "#f5f5f5";
 }
 
@@ -51,6 +67,22 @@ function getMiniMapNodeStrokeColor(node: FlowEditorNode) {
 
   if (node.type === "decision") {
     return "#0891b2";
+  }
+
+  if (node.type === "input") {
+    return "#0369a1";
+  }
+
+  if (node.type === "output") {
+    return "#b45309";
+  }
+
+  if (node.type === "functionCall") {
+    return "#7c3aed";
+  }
+
+  if (node.type === "return") {
+    return "#be123c";
   }
 
   return "#525252";

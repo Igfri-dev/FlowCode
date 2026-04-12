@@ -37,6 +37,39 @@ const flowNodeData: {
     },
     handlePositions: getDefaultFlowNodeHandlePositions("decision"),
   },
+  input: {
+    label: "Leer edad",
+    config: {
+      prompt: "Ingresa tu edad",
+      variableName: "edad",
+      inputType: "number",
+    },
+    handlePositions: getDefaultFlowNodeHandlePositions("input"),
+  },
+  output: {
+    label: "Mostrar resultado",
+    config: {
+      expression: '"Resultado: " + x',
+      outputMode: "expression",
+    },
+    handlePositions: getDefaultFlowNodeHandlePositions("output"),
+  },
+  functionCall: {
+    label: "Llamar funcion",
+    config: {
+      functionId: "",
+      args: [],
+      assignTo: "",
+    },
+    handlePositions: getDefaultFlowNodeHandlePositions("functionCall"),
+  },
+  return: {
+    label: "Retornar valor",
+    config: {
+      expression: "resultado",
+    },
+    handlePositions: getDefaultFlowNodeHandlePositions("return"),
+  },
 };
 
 type CreateFlowNodeInput = {
@@ -80,6 +113,22 @@ export function getFlowNodeLabelFromConfig(
 
   if (type === "decision" && "condition" in config) {
     return config.condition;
+  }
+
+  if (type === "input" && "variableName" in config) {
+    return `Leer ${config.variableName || "variable"}`;
+  }
+
+  if (type === "output" && "expression" in config) {
+    return `Mostrar ${config.expression || "salida"}`;
+  }
+
+  if (type === "functionCall" && "functionId" in config) {
+    return "Llamar funcion";
+  }
+
+  if (type === "return" && "expression" in config) {
+    return `Retornar ${config.expression || "valor"}`;
   }
 
   return fallbackLabel;

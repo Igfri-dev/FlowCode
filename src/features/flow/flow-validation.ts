@@ -5,7 +5,11 @@ import {
   type FlowConnectionLike,
   type FlowGraph,
 } from "@/features/flow/flow-graph";
-import type { FlowEditorNode, FlowNodeType } from "@/types/flow";
+import type {
+  FlowEditorNode,
+  FlowFunctionDefinition,
+  FlowNodeType,
+} from "@/types/flow";
 
 export type { FlowConnectionLike } from "@/features/flow/flow-graph";
 
@@ -17,6 +21,8 @@ export type FlowValidationIssue = {
 type FlowValidationInput = {
   nodes: FlowEditorNode[];
   edges: FlowConnectionLike[];
+  functions?: FlowFunctionDefinition[];
+  currentDiagramId?: string;
 };
 
 type FlowConnectionValidationInput = FlowValidationInput & {
@@ -27,12 +33,18 @@ const nodeTypeNames: Record<FlowNodeType, string> = {
   start: "Inicio",
   end: "Fin",
   process: "Proceso",
-  decision: "Decisión",
+  decision: "Decision",
+  input: "Entrada",
+  output: "Salida",
+  functionCall: "Llamada",
+  return: "Retorno",
 };
 
 export function validateFlowDiagram({
   nodes,
   edges,
+  functions = [],
+  currentDiagramId = "main",
 }: FlowValidationInput): FlowValidationIssue[] {
   const graph = createFlowGraph(nodes, edges);
 
@@ -40,6 +52,8 @@ export function validateFlowDiagram({
     ...validateStartCount(graph),
     ...validateInvalidEdges(graph),
     ...validateNodeConnectionLimits(graph),
+    ...validateNodeConfigs(graph.nodes, functions, currentDiagramId),
+    ...validateFunctionDefinitions(functions),
   ];
 }
 
@@ -138,10 +152,105 @@ function validateNodeConnectionLimits(
       }
     }
 
-    if (node.type === "end" && outgoing > 0) {
+    if ((node.type === "end" || node.type === "return") && outgoing > 0) {
       issues.push({
-        id: `${node.id}-end-outgoing`,
-        message: `El bloque Fin "${nodeName}" no debe tener conexiones de salida.`,
+        id: `${node.id}-terminal-outgoing`,
+        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no debe tener conexiones de salida.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function validateNodeConfigs(
+  nodes: FlowEditorNode[],
+  functions: FlowFunctionDefinition[],
+  currentDiagramId: string,
+): FlowValidationIssue[] {
+  const issues: FlowValidationIssue[] = [];
+  const functionById = new Map(functions.map((flowFunction) => [flowFunction.id, flowFunction]));
+
+  for (const node of nodes) {
+    const nodeName = getNodeName(node);
+
+    if (node.type === "input") {
+      const variableName =
+        "variableName" in node.data.config ? node.data.config.variableName.trim() : "";
+
+      if (!variableName) {
+        issues.push({
+          id: `${node.id}-input-variable`,
+          message: `El bloque Entrada "${nodeName}" necesita una variable para guardar el valor.`,
+        });
+      }
+    }
+
+    if (node.type === "functionCall") {
+      const config = node.data.config;
+
+      if (!("functionId" in config) || !config.functionId) {
+        issues.push({
+          id: `${node.id}-function-call-missing`,
+          message: `La llamada "${nodeName}" debe seleccionar una funcion.`,
+        });
+        continue;
+      }
+
+      const flowFunction = functionById.get(config.functionId);
+
+      if (!flowFunction) {
+        issues.push({
+          id: `${node.id}-function-call-invalid`,
+          message: `La llamada "${nodeName}" referencia una funcion que no existe.`,
+        });
+        continue;
+      }
+
+      if (config.args.length !== flowFunction.parameters.length) {
+        issues.push({
+          id: `${node.id}-function-call-args`,
+          message: `La funcion "${flowFunction.name}" espera ${flowFunction.parameters.length} argumento(s), pero la llamada tiene ${config.args.length}.`,
+        });
+      }
+    }
+
+    if (node.type === "return" && currentDiagramId === "main") {
+      issues.push({
+        id: `${node.id}-return-in-main`,
+        message: `El bloque Retorno "${nodeName}" solo debe usarse dentro de una funcion.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function validateFunctionDefinitions(
+  functions: FlowFunctionDefinition[],
+): FlowValidationIssue[] {
+  const issues: FlowValidationIssue[] = [];
+  const names = new Map<string, number>();
+
+  for (const flowFunction of functions) {
+    const name = flowFunction.name.trim();
+
+    if (!name) {
+      issues.push({
+        id: `${flowFunction.id}-function-name`,
+        message: "Todas las funciones deben tener nombre.",
+      });
+      continue;
+    }
+
+    names.set(name, (names.get(name) ?? 0) + 1);
+  }
+
+  for (const [name, count] of names) {
+    if (count > 1) {
+      issues.push({
+        id: `function-name-${name}`,
+        message: `El nombre de funcion "${name}" esta repetido.`,
       });
     }
   }
