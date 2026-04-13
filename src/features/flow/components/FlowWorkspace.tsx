@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge,
+  type Connection,
   useEdgesState,
   useNodesState,
   type IsValidConnection,
@@ -10,6 +11,14 @@ import {
 } from "@xyflow/react";
 import { FlowEditor } from "@/components/editor/FlowEditor";
 import { flowEdgeComponents } from "@/components/editor/edges";
+import { ExerciseModePanel } from "@/features/exercises/components/ExerciseModePanel";
+import { getExercises } from "@/features/exercises/data/exercises";
+import type {
+  ExerciseStarterDiagram,
+  ExerciseStarterEdge,
+  ExerciseStarterFunction,
+  ExerciseStarterNode,
+} from "@/features/exercises/types";
 import {
   generateJavaScriptFromFlow,
   type FlowCodeGenerationResult,
@@ -37,6 +46,7 @@ import {
 } from "@/features/flow/initial-diagram";
 import {
   importJavaScriptToFlow,
+  type ImportedFlowFunctionDefinition,
   type ImportedFlowNode,
 } from "@/features/flow/parser";
 import type {
@@ -71,6 +81,8 @@ type ImportStatus = "idle" | "success" | "error";
 export function FlowWorkspace() {
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
+  const loadedExerciseStarterCode = useRef<string | null>(null);
+  const exerciseCatalog = useMemo(() => getExercises(), []);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
   >(null);
@@ -85,6 +97,9 @@ export function FlowWorkspace() {
   const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
+    null,
+  );
   const [activeDiagramId, setActiveDiagramId] = useState("main");
   const [mainDiagram, setMainDiagram] = useState<FlowProgram["main"]>({
     nodes: initialFlowNodes,
@@ -115,6 +130,12 @@ export function FlowWorkspace() {
       ),
     }),
     [activeDiagramId, edges, functions, mainDiagram, nodes],
+  );
+  const selectedExercise = useMemo(
+    () =>
+      exerciseCatalog.find((exercise) => exercise.id === selectedExerciseId) ??
+      null,
+    [exerciseCatalog, selectedExerciseId],
   );
   const activeDiagramName =
     activeDiagramId === "main"
@@ -339,6 +360,127 @@ export function FlowWorkspace() {
     ],
   );
 
+  const createFunctionDefinitionFromImport = useCallback(
+    (
+      flowFunction: ImportedFlowFunctionDefinition,
+    ): FlowFunctionDefinition => ({
+      ...flowFunction,
+      nodes: flowFunction.nodes.map(createEditorNodeFromImport),
+    }),
+    [createEditorNodeFromImport],
+  );
+
+  const createEditorNodeFromStarter = useCallback(
+    (node: ExerciseStarterNode): FlowEditorNode =>
+      createEditorNodeFromImport(node as ImportedFlowNode),
+    [createEditorNodeFromImport],
+  );
+
+  const createFunctionDefinitionFromStarter = useCallback(
+    (
+      flowFunction: ExerciseStarterFunction,
+    ): FlowFunctionDefinition => ({
+      ...flowFunction,
+      nodes: flowFunction.nodes.map(createEditorNodeFromStarter),
+      edges: flowFunction.edges.map(createEditorEdgeFromStarter),
+    }),
+    [createEditorNodeFromStarter],
+  );
+
+  const loadStarterDiagram = useCallback(
+    (starterDiagram: ExerciseStarterDiagram) => {
+      const starterNodes = starterDiagram.main.nodes.map(
+        createEditorNodeFromStarter,
+      );
+      const starterEdges = starterDiagram.main.edges.map(
+        createEditorEdgeFromStarter,
+      );
+      const starterFunctions = (starterDiagram.functions ?? []).map(
+        createFunctionDefinitionFromStarter,
+      );
+      const nextMainDiagram = {
+        nodes: starterNodes,
+        edges: starterEdges,
+      };
+      const loadedNodeCount =
+        starterNodes.length +
+        starterFunctions.reduce(
+          (count, flowFunction) => count + flowFunction.nodes.length,
+          0,
+        );
+
+      setActiveDiagramId("main");
+      setMainDiagram(nextMainDiagram);
+      setFunctions(starterFunctions);
+      setNodes(nextMainDiagram.nodes);
+      setEdges(nextMainDiagram.edges);
+      setExecutionState(resetFlowExecution("main", "Principal"));
+      nextNodeId.current = loadedNodeCount;
+    },
+    [
+      createEditorNodeFromStarter,
+      createFunctionDefinitionFromStarter,
+      setEdges,
+      setNodes,
+    ],
+  );
+
+  const handleSelectExercise = useCallback(
+    (exerciseId: string) => {
+      const exercise = exerciseCatalog.find((item) => item.id === exerciseId);
+
+      if (!exercise || exercise.id === selectedExerciseId) {
+        return;
+      }
+
+      const replacesEditedStarterCode =
+        exercise.starterCode !== undefined &&
+        importCode.trim().length > 0 &&
+        importCode !== exercise.starterCode &&
+        importCode !== loadedExerciseStarterCode.current;
+      const replacesDiagram =
+        exercise.starterDiagram !== undefined &&
+        hasDiagramContent(currentProgram);
+
+      if (
+        (replacesEditedStarterCode || replacesDiagram) &&
+        !window.confirm(
+          "Seleccionar este ejercicio reemplazara contenido actual del espacio de trabajo. Continuar?",
+        )
+      ) {
+        return;
+      }
+
+      setSelectedExerciseId(exercise.id);
+      setBlockedConnectionMessage(null);
+      setIsAutoRunning(false);
+      setCodeGenerationResult(initialCodeGenerationResult);
+
+      if (exercise.starterCode !== undefined) {
+        setImportCode(exercise.starterCode);
+        setImportStatus("success");
+        setImportMessage(
+          "Codigo inicial del ejercicio cargado en el importador.",
+        );
+        setImportWarnings([]);
+        loadedExerciseStarterCode.current = exercise.starterCode;
+      } else {
+        loadedExerciseStarterCode.current = null;
+      }
+
+      if (exercise.starterDiagram) {
+        loadStarterDiagram(exercise.starterDiagram);
+      }
+    },
+    [
+      currentProgram,
+      exerciseCatalog,
+      importCode,
+      loadStarterDiagram,
+      selectedExerciseId,
+    ],
+  );
+
   const handleAddNode = useCallback(
     (type: FlowNodeType) => {
       setBlockedConnectionMessage(null);
@@ -413,19 +555,40 @@ export function FlowWorkspace() {
       return;
     }
 
+    const importedNodes = importResult.nodes.map(createEditorNodeFromImport);
+    const importedFunctions = importResult.functions.map(
+      createFunctionDefinitionFromImport,
+    );
+    const nextMainDiagram = {
+      nodes: importedNodes,
+      edges: importResult.edges,
+    };
+    const importedNodeCount =
+      importResult.nodes.length +
+      importResult.functions.reduce(
+        (count, flowFunction) => count + flowFunction.nodes.length,
+        0,
+      );
+
     setBlockedConnectionMessage(null);
     setIsAutoRunning(false);
-    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
+    setExecutionState(resetFlowExecution("main", "Principal"));
     setCodeGenerationResult(initialCodeGenerationResult);
     setImportStatus("success");
-    setImportMessage("Diagrama generado desde el código JavaScript.");
+    setImportMessage(
+      importedFunctions.length > 0
+        ? "Diagrama y funciones generados desde el codigo JavaScript."
+        : "Diagrama generado desde el codigo JavaScript.",
+    );
     setImportWarnings(importResult.warnings);
-    nextNodeId.current = importResult.nodes.length;
-    setNodes(importResult.nodes.map(createEditorNodeFromImport));
-    setEdges(importResult.edges);
+    nextNodeId.current = importedNodeCount;
+    setActiveDiagramId("main");
+    setMainDiagram(nextMainDiagram);
+    setFunctions(importedFunctions);
+    setNodes(nextMainDiagram.nodes);
+    setEdges(nextMainDiagram.edges);
   }, [
-    activeDiagramId,
-    activeDiagramName,
+    createFunctionDefinitionFromImport,
     createEditorNodeFromImport,
     importCode,
     setEdges,
@@ -614,25 +777,17 @@ export function FlowWorkspace() {
           onDeleteFunction={handleDeleteFunction}
         />
         <FlowSidebar onAddNode={handleAddNode} />
-        <FlowValidationPanel
-          issues={validationIssues}
-          hasLoops={hasLoops}
-          blockedConnectionMessage={blockedConnectionMessage}
-        />
-        <FlowExecutionPanel
-          executionState={executionState}
-          isAutoRunning={isAutoExecutionActive}
-          onStep={handleStepExecution}
-          onRun={handleRunExecution}
-          onPause={handlePauseExecution}
-          onReset={handleResetExecution}
-        />
       </div>
 
       <div className="flex min-w-0 flex-col gap-4">
+        <ExerciseModePanel
+          exercises={exerciseCatalog}
+          selectedExercise={selectedExercise}
+          onSelectExercise={handleSelectExercise}
+        />
         <div className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300 bg-neutral-100 shadow-md shadow-neutral-300/60">
-          <div className="flex min-h-12 items-center justify-between border-b border-neutral-300 bg-white px-4">
-            <div>
+          <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-300 bg-white px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-950">
                 Diagrama: {activeDiagramName}
               </p>
@@ -640,9 +795,19 @@ export function FlowWorkspace() {
                 Agrega bloques desde la barra lateral
               </p>
             </div>
-            <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
-              {nodes.length} bloques
-            </span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+              <FlowExecutionPanel
+                executionState={executionState}
+                isAutoRunning={isAutoExecutionActive}
+                onStep={handleStepExecution}
+                onRun={handleRunExecution}
+                onPause={handlePauseExecution}
+                onReset={handleResetExecution}
+              />
+              <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
+                {nodes.length} bloques
+              </span>
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 bg-neutral-100">
@@ -675,6 +840,11 @@ export function FlowWorkspace() {
       </div>
 
       <aside className="flex min-w-0 flex-col gap-4 lg:col-span-2 xl:col-span-1 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+        <FlowValidationPanel
+          issues={validationIssues}
+          hasLoops={hasLoops}
+          blockedConnectionMessage={blockedConnectionMessage}
+        />
         <FlowVariablesPanel variables={executionState.variables} />
         <FlowOutputPanel outputs={executionState.outputs} />
         <FlowExecutionHistoryPanel history={executionState.history} />
@@ -684,6 +854,33 @@ export function FlowWorkspace() {
         onConfirm={handleInputConfirm}
       />
     </section>
+  );
+}
+
+function createEditorEdgeFromStarter(
+  edge: ExerciseStarterEdge,
+): FlowEditorEdge {
+  const connection: Connection = {
+    source: edge.source,
+    target: edge.target,
+    sourceHandle: edge.sourceHandle ?? null,
+    targetHandle: edge.targetHandle ?? "in",
+  };
+  const editorEdge = createFlowEditorEdge(connection);
+
+  return edge.id
+    ? {
+        ...editorEdge,
+        id: edge.id,
+      }
+    : editorEdge;
+}
+
+function hasDiagramContent(program: FlowProgram) {
+  return (
+    program.main.nodes.length > 0 ||
+    program.main.edges.length > 0 ||
+    program.functions.length > 0
   );
 }
 

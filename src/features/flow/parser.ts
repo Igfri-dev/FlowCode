@@ -7,11 +7,13 @@ import type {
   Expression,
   ExpressionStatement,
   File,
+  FunctionDeclaration,
   IfStatement,
   LogicalExpression,
   MemberExpression,
   OptionalCallExpression,
   OptionalMemberExpression,
+  ReturnStatement,
   Statement,
   UnaryExpression,
   UpdateExpression,
@@ -22,6 +24,7 @@ import type {
 import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
 import type {
   FlowEditorEdge,
+  FlowFunctionDefinition,
   FlowNode,
   FlowNodeDataByType,
   FlowNodeType,
@@ -31,11 +34,19 @@ export type ImportedFlowNode = FlowNode & {
   position: XYPosition;
 };
 
+export type ImportedFlowFunctionDefinition = Omit<
+  FlowFunctionDefinition,
+  "nodes"
+> & {
+  nodes: ImportedFlowNode[];
+};
+
 export type JavaScriptImportResult =
   | {
       ok: true;
       nodes: ImportedFlowNode[];
       edges: FlowEditorEdge[];
+      functions: ImportedFlowFunctionDefinition[];
       warnings: string[];
     }
   | {
@@ -57,8 +68,25 @@ type DiagramBuilder = {
   nodes: ImportedFlowNode[];
   edges: FlowEditorEdge[];
   warnings: string[];
+  functionsByName: Map<string, ImportedFlowFunctionDefinition>;
   nextId: number;
   nextRow: number;
+};
+
+type KnownFunctionCall = {
+  flowFunction: ImportedFlowFunctionDefinition;
+  args: string[];
+  argsText: string;
+};
+
+type ImportedInputCall = Omit<
+  FlowNodeDataByType["input"]["config"],
+  "variableName"
+>;
+
+type ImportPlan = {
+  functionDeclarations: FunctionDeclaration[];
+  mainStatements: Statement[];
 };
 
 const columnWidth = 260;
@@ -78,10 +106,25 @@ export function importJavaScriptToFlow(code: string): JavaScriptImportResult {
     }
 
     const ast = parseJavaScript(trimmedCode);
-    const builder = createDiagramBuilder();
+    const importPlan = createImportPlan(ast.program.body);
+    const warnings: string[] = [];
+    const functionsByName = createFunctionDefinitions(
+      importPlan.functionDeclarations,
+      warnings,
+    );
+
+    for (const functionDeclaration of importPlan.functionDeclarations) {
+      buildFunctionDefinition(
+        functionDeclaration,
+        functionsByName,
+        warnings,
+      );
+    }
+
+    const builder = createDiagramBuilder(functionsByName, warnings);
     const startNode = addNode(builder, "start", "Inicio", {}, 0);
     const bodyResult = buildStatementSequence(
-      ast.program.body,
+      importPlan.mainStatements,
       builder,
       0,
     );
@@ -101,6 +144,7 @@ export function importJavaScriptToFlow(code: string): JavaScriptImportResult {
       ok: true,
       nodes: builder.nodes,
       edges: builder.edges,
+      functions: Array.from(functionsByName.values()),
       warnings: builder.warnings,
     };
   } catch (error) {
@@ -130,6 +174,158 @@ function parseJavaScript(code: string): File {
     sourceType: "unambiguous",
     errorRecovery: false,
   });
+}
+
+function createImportPlan(statements: Statement[]): ImportPlan {
+  const functionDeclarations = statements.filter(isFunctionDeclaration);
+  const mainFunction = functionDeclarations.find(
+    (functionDeclaration) =>
+      functionDeclaration.id?.name === "main" &&
+      functionDeclaration.params.length === 0,
+  );
+  const importedFunctionDeclarations = functionDeclarations.filter(
+    (functionDeclaration) =>
+      functionDeclaration !== mainFunction &&
+      !isGeneratedInputHelper(functionDeclaration),
+  );
+  const topLevelStatements = statements.filter(
+    (statement) => statement.type !== "FunctionDeclaration",
+  );
+
+  if (
+    mainFunction &&
+    topLevelStatements.length === 1 &&
+    isIdentifierCallStatement(topLevelStatements[0], "main")
+  ) {
+    return {
+      functionDeclarations: importedFunctionDeclarations,
+      mainStatements: mainFunction.body.body,
+    };
+  }
+
+  return {
+    functionDeclarations: importedFunctionDeclarations,
+    mainStatements: topLevelStatements,
+  };
+}
+
+function isFunctionDeclaration(
+  statement: Statement,
+): statement is FunctionDeclaration {
+  return statement.type === "FunctionDeclaration";
+}
+
+function isIdentifierCallStatement(statement: Statement, name: string) {
+  return (
+    statement.type === "ExpressionStatement" &&
+    statement.expression.type === "CallExpression" &&
+    statement.expression.callee.type === "Identifier" &&
+    statement.expression.callee.name === name &&
+    statement.expression.arguments.length === 0
+  );
+}
+
+function isGeneratedInputHelper(functionDeclaration: FunctionDeclaration) {
+  return (
+    functionDeclaration.id?.name === "leerEntrada" &&
+    functionDeclaration.params.length === 2 &&
+    isIdentifierParameter(functionDeclaration.params[0], "mensaje") &&
+    isDefaultStringParameter(functionDeclaration.params[1], "tipo", "text")
+  );
+}
+
+function isIdentifierParameter(
+  parameter: FunctionDeclaration["params"][number],
+  name: string,
+) {
+  return parameter.type === "Identifier" && parameter.name === name;
+}
+
+function isDefaultStringParameter(
+  parameter: FunctionDeclaration["params"][number],
+  name: string,
+  value: string,
+) {
+  return (
+    parameter.type === "AssignmentPattern" &&
+    parameter.left.type === "Identifier" &&
+    parameter.left.name === name &&
+    parameter.right.type === "StringLiteral" &&
+    parameter.right.value === value
+  );
+}
+
+function createFunctionDefinitions(
+  functionDeclarations: FunctionDeclaration[],
+  warnings: string[],
+) {
+  const functionsByName = new Map<string, ImportedFlowFunctionDefinition>();
+  const usedIds = new Set<string>();
+
+  for (const functionDeclaration of functionDeclarations) {
+    const name = functionDeclaration.id?.name;
+
+    if (!name) {
+      warnings.push("Se omitio una funcion sin nombre durante la importacion.");
+      continue;
+    }
+
+    if (functionsByName.has(name)) {
+      warnings.push(
+        `La funcion "${name}" esta duplicada; se importo la primera.`,
+      );
+      continue;
+    }
+
+    functionsByName.set(name, {
+      id: createFunctionId(name, usedIds),
+      name,
+      parameters: functionDeclaration.params.map(functionParameterToCode),
+      nodes: [],
+      edges: [],
+    });
+  }
+
+  return functionsByName;
+}
+
+function buildFunctionDefinition(
+  functionDeclaration: FunctionDeclaration,
+  functionsByName: Map<string, ImportedFlowFunctionDefinition>,
+  warnings: string[],
+) {
+  const name = functionDeclaration.id?.name;
+  const flowFunction = name ? functionsByName.get(name) : undefined;
+
+  if (!flowFunction) {
+    return;
+  }
+
+  const builder = createDiagramBuilder(functionsByName, warnings);
+  const startNode = addNode(builder, "start", "Inicio", {}, 0);
+  const bodyResult = buildStatementSequence(
+    functionDeclaration.body.body,
+    builder,
+    0,
+  );
+
+  if (bodyResult.entryId) {
+    addEdge(builder, startNode.id, bodyResult.entryId, "out");
+
+    if (bodyResult.pending.length > 0) {
+      const endNode = addNode(builder, "end", "Fin", {}, 0);
+      connectPendingToTarget(builder, bodyResult.pending, endNode.id);
+    }
+  } else {
+    const endNode = addNode(builder, "end", "Fin", {}, 0);
+    addEdge(builder, startNode.id, endNode.id, "out");
+    warnings.push(
+      `La funcion "${name}" no contiene instrucciones; se genero Inicio y Fin.`,
+    );
+  }
+
+  flowFunction.nodes = builder.nodes;
+  flowFunction.edges = builder.edges;
 }
 
 function buildStatementSequence(
@@ -182,6 +378,10 @@ function buildStatement(
     return buildWhileStatement(statement, builder, column);
   }
 
+  if (statement.type === "ReturnStatement") {
+    return buildReturnStatement(statement, builder, column);
+  }
+
   if (statement.type === "BlockStatement") {
     return buildStatementSequence(statement.body, builder, column);
   }
@@ -207,6 +407,59 @@ function buildVariableDeclaration(
 
   for (const declaration of statement.declarations) {
     const variableName = lValueToCode(declaration.id);
+
+    if (declaration.init) {
+      const inputCall = getGeneratedInputCall(declaration.init);
+
+      if (inputCall) {
+        const inputNode = addInputNode(
+          builder,
+          variableName,
+          inputCall,
+          column,
+        );
+
+        if (!entryId) {
+          entryId = inputNode.id;
+        }
+
+        connectPendingToTarget(builder, pending, inputNode.id);
+        pending = [{ sourceId: inputNode.id, sourceHandle: "out" }];
+        continue;
+      }
+
+      const knownCall = getKnownFunctionCall(declaration.init, builder);
+
+      if (knownCall) {
+        const declarationInstruction = createDeferredDeclarationInstruction(
+          statement.kind,
+          variableName,
+        );
+        const declarationNode = addNode(
+          builder,
+          "process",
+          declarationInstruction,
+          { instruction: declarationInstruction },
+          column,
+        );
+        const functionCallNode = addFunctionCallNode(
+          builder,
+          knownCall,
+          variableName,
+          column,
+        );
+
+        if (!entryId) {
+          entryId = declarationNode.id;
+        }
+
+        connectPendingToTarget(builder, pending, declarationNode.id);
+        addEdge(builder, declarationNode.id, functionCallNode.id, "out");
+        pending = [{ sourceId: functionCallNode.id, sourceHandle: "out" }];
+        continue;
+      }
+    }
+
     const instruction = declaration.init
       ? `${statement.kind} ${variableName} = ${expressionToCode(
           declaration.init,
@@ -234,12 +487,121 @@ function buildVariableDeclaration(
   };
 }
 
+function createDeferredDeclarationInstruction(
+  declarationKind: VariableDeclaration["kind"],
+  variableName: string,
+) {
+  return `${declarationKind === "var" ? "var" : "let"} ${variableName}`;
+}
+
+function addInputNode(
+  builder: DiagramBuilder,
+  variableName: string,
+  inputCall: ImportedInputCall,
+  column: number,
+) {
+  return addNode(
+    builder,
+    "input",
+    `Leer ${variableName || "variable"}`,
+    {
+      prompt: inputCall.prompt,
+      variableName,
+      inputType: inputCall.inputType,
+    },
+    column,
+  );
+}
+
+function addOutputNode(
+  builder: DiagramBuilder,
+  outputConfig: FlowNodeDataByType["output"]["config"],
+  column: number,
+) {
+  return addNode(
+    builder,
+    "output",
+    `Mostrar ${outputConfig.expression || "salida"}`,
+    outputConfig,
+    column,
+  );
+}
+
 function buildExpressionStatement(
   statement: ExpressionStatement,
   builder: DiagramBuilder,
   column: number,
 ): BuildResult {
   const expression = statement.expression;
+
+  if (
+    expression.type === "AssignmentExpression" &&
+    expression.operator === "="
+  ) {
+    const inputCall = getGeneratedInputCall(expression.right);
+
+    if (inputCall) {
+      const inputNode = addInputNode(
+        builder,
+        lValueToCode(expression.left),
+        inputCall,
+        column,
+      );
+
+      return {
+        entryId: inputNode.id,
+        pending: [{ sourceId: inputNode.id, sourceHandle: "out" }],
+      };
+    }
+  }
+
+  const outputCall = getConsoleLogCall(expression);
+
+  if (outputCall) {
+    const outputNode = addOutputNode(builder, outputCall, column);
+
+    return {
+      entryId: outputNode.id,
+      pending: [{ sourceId: outputNode.id, sourceHandle: "out" }],
+    };
+  }
+
+  const knownCall = getKnownFunctionCall(expression, builder);
+
+  if (knownCall) {
+    const functionCallNode = addFunctionCallNode(
+      builder,
+      knownCall,
+      "",
+      column,
+    );
+
+    return {
+      entryId: functionCallNode.id,
+      pending: [{ sourceId: functionCallNode.id, sourceHandle: "out" }],
+    };
+  }
+
+  if (
+    expression.type === "AssignmentExpression" &&
+    expression.operator === "="
+  ) {
+    const assignedKnownCall = getKnownFunctionCall(expression.right, builder);
+
+    if (assignedKnownCall) {
+      const functionCallNode = addFunctionCallNode(
+        builder,
+        assignedKnownCall,
+        lValueToCode(expression.left),
+        column,
+      );
+
+      return {
+        entryId: functionCallNode.id,
+        pending: [{ sourceId: functionCallNode.id, sourceHandle: "out" }],
+      };
+    }
+  }
 
   if (
     expression.type !== "AssignmentExpression" &&
@@ -264,6 +626,196 @@ function buildExpressionStatement(
     entryId: processNode.id,
     pending: [{ sourceId: processNode.id, sourceHandle: "out" }],
   };
+}
+
+function buildReturnStatement(
+  statement: ReturnStatement,
+  builder: DiagramBuilder,
+  column: number,
+): BuildResult {
+  const expression = statement.argument
+    ? expressionToCode(statement.argument)
+    : "";
+  const returnNode = addNode(
+    builder,
+    "return",
+    `Retornar ${expression || "valor"}`,
+    { expression },
+    column,
+  );
+
+  return {
+    entryId: returnNode.id,
+    pending: [],
+  };
+}
+
+function addFunctionCallNode(
+  builder: DiagramBuilder,
+  knownCall: KnownFunctionCall,
+  assignTo: string,
+  column: number,
+) {
+  return addNode(
+    builder,
+    "functionCall",
+    `Llamar ${knownCall.flowFunction.name}`,
+    {
+      functionId: knownCall.flowFunction.id,
+      args: knownCall.args,
+      argsText: knownCall.argsText,
+      assignTo,
+    },
+    column,
+  );
+}
+
+function getKnownFunctionCall(
+  expression: Expression,
+  builder: DiagramBuilder,
+): KnownFunctionCall | null {
+  const callExpression = getCallExpression(expression);
+
+  if (
+    !callExpression ||
+    callExpression.callee.type !== "Identifier"
+  ) {
+    return null;
+  }
+
+  const flowFunction = builder.functionsByName.get(callExpression.callee.name);
+
+  if (!flowFunction) {
+    return null;
+  }
+
+  const args = callExpression.arguments.map(argumentToCode);
+
+  return {
+    flowFunction,
+    args,
+    argsText: args.join(", "),
+  };
+}
+
+function getGeneratedInputCall(expression: Expression): ImportedInputCall | null {
+  const callExpression = getCallExpression(expression);
+
+  if (
+    !callExpression ||
+    callExpression.callee.type !== "Identifier" ||
+    callExpression.callee.name !== "leerEntrada"
+  ) {
+    return null;
+  }
+
+  return {
+    prompt: getInputPrompt(callExpression.arguments[0]),
+    inputType: getInputType(callExpression.arguments[1]),
+  };
+}
+
+function getConsoleLogCall(
+  expression: Expression,
+): FlowNodeDataByType["output"]["config"] | null {
+  const callExpression = getCallExpression(expression);
+
+  if (
+    !callExpression ||
+    !isConsoleLogCallee(callExpression.callee) ||
+    callExpression.arguments.length === 0
+  ) {
+    return null;
+  }
+
+  const outputArgument = callExpression.arguments[0];
+
+  if (outputArgument.type === "SpreadElement") {
+    throw new UnsupportedSyntaxError(
+      "console.log con argumentos spread todavia no esta soportado.",
+    );
+  }
+
+  if (outputArgument.type === "ArgumentPlaceholder") {
+    throw new UnsupportedSyntaxError(
+      "console.log con argumentos vacios todavia no esta soportado.",
+    );
+  }
+
+  if (outputArgument.type === "StringLiteral") {
+    return {
+      expression: outputArgument.value,
+      outputMode: "text",
+    };
+  }
+
+  return {
+    expression: expressionToCode(outputArgument),
+    outputMode: "expression",
+  };
+}
+
+function getCallExpression(expression: Expression): CallExpression | null {
+  const unwrappedExpression = unwrapGeneratedExpression(expression);
+
+  return unwrappedExpression.type === "CallExpression"
+    ? unwrappedExpression
+    : null;
+}
+
+function unwrapGeneratedExpression(expression: Expression): Expression {
+  if (expression.type === "AwaitExpression") {
+    return unwrapGeneratedExpression(expression.argument);
+  }
+
+  if (expression.type === "ParenthesizedExpression") {
+    return unwrapGeneratedExpression(expression.expression);
+  }
+
+  return expression;
+}
+
+function getInputPrompt(
+  argument: CallExpression["arguments"][number] | undefined,
+) {
+  if (!argument) {
+    return "Ingresa un valor";
+  }
+
+  if (argument.type === "StringLiteral") {
+    return argument.value;
+  }
+
+  return argumentToCode(argument);
+}
+
+function getInputType(
+  argument: CallExpression["arguments"][number] | undefined,
+): ImportedInputCall["inputType"] {
+  if (!argument || argument.type !== "StringLiteral") {
+    return "text";
+  }
+
+  if (
+    argument.value === "number" ||
+    argument.value === "boolean" ||
+    argument.value === "text"
+  ) {
+    return argument.value;
+  }
+
+  return "text";
+}
+
+function isConsoleLogCallee(callee: CallExpression["callee"]) {
+  return (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier" &&
+    callee.object.name === "console" &&
+    callee.property.type === "Identifier" &&
+    callee.property.name === "log" &&
+    !callee.computed
+  );
 }
 
 function buildIfStatement(
@@ -471,6 +1023,10 @@ function expressionToCode(expression: Expression): string {
     return optionalCallExpressionToCode(expression);
   }
 
+  if (expression.type === "AwaitExpression") {
+    return `await ${expressionToCode(expression.argument)}`;
+  }
+
   if (expression.type === "ParenthesizedExpression") {
     return `(${expressionToCode(expression.expression)})`;
   }
@@ -615,14 +1171,55 @@ function calleeToCode(
   return expressionToCode(callee);
 }
 
-function createDiagramBuilder(): DiagramBuilder {
+function createDiagramBuilder(
+  functionsByName: Map<string, ImportedFlowFunctionDefinition> = new Map(),
+  warnings: string[] = [],
+): DiagramBuilder {
   return {
     nodes: [],
     edges: [],
-    warnings: [],
+    warnings,
+    functionsByName,
     nextId: 0,
     nextRow: 0,
   };
+}
+
+function functionParameterToCode(
+  parameter: FunctionDeclaration["params"][number],
+) {
+  if (parameter.type === "Identifier") {
+    return parameter.name;
+  }
+
+  throw new UnsupportedSyntaxError(
+    `El parametro "${parameter.type}" todavia no esta soportado.`,
+  );
+}
+
+function createFunctionId(name: string, usedIds: Set<string>) {
+  const baseId = `import-function-${toSafeImportId(name)}`;
+  let id = baseId;
+  let suffix = 2;
+
+  while (usedIds.has(id)) {
+    id = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+
+  usedIds.add(id);
+
+  return id;
+}
+
+function toSafeImportId(value: string) {
+  return (
+    value
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "funcion"
+  );
 }
 
 function getNodePosition(row: number, column: number): XYPosition {
