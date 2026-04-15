@@ -4,17 +4,25 @@ import type {
   AssignmentExpression,
   BinaryExpression,
   CallExpression,
+  ConditionalExpression,
+  DoWhileStatement,
   Expression,
   ExpressionStatement,
   File,
+  ForStatement,
   FunctionDeclaration,
   IfStatement,
   LogicalExpression,
   MemberExpression,
+  ObjectProperty,
   OptionalCallExpression,
   OptionalMemberExpression,
   ReturnStatement,
+  SequenceExpression,
   Statement,
+  SwitchCase,
+  SwitchStatement,
+  TemplateLiteral,
   UnaryExpression,
   UpdateExpression,
   VariableDeclaration,
@@ -25,8 +33,10 @@ import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
 import type {
   FlowEditorEdge,
   FlowFunctionDefinition,
+  FlowFunctionParameterDefinition,
   FlowNode,
   FlowNodeDataByType,
+  FlowPendingConnectionReference,
   FlowNodeType,
 } from "@/types/flow";
 
@@ -62,6 +72,8 @@ type PendingConnection = {
 type BuildResult = {
   entryId?: string;
   pending: PendingConnection[];
+  breaks: PendingConnection[];
+  continues: PendingConnection[];
 };
 
 type DiagramBuilder = {
@@ -277,10 +289,15 @@ function createFunctionDefinitions(
       continue;
     }
 
+    const parameterDefinitions = functionDeclaration.params.map(
+      functionParameterToDefinition,
+    );
+
     functionsByName.set(name, {
       id: createFunctionId(name, usedIds),
       name,
-      parameters: functionDeclaration.params.map(functionParameterToCode),
+      parameters: parameterDefinitions.map((parameter) => parameter.source),
+      parameterDefinitions,
       nodes: [],
       edges: [],
     });
@@ -335,6 +352,8 @@ function buildStatementSequence(
 ): BuildResult {
   let entryId: string | undefined;
   let pending: PendingConnection[] = [];
+  const breaks: PendingConnection[] = [];
+  const continues: PendingConnection[] = [];
 
   for (const statement of statements) {
     const statementResult = buildStatement(statement, builder, column);
@@ -349,11 +368,15 @@ function buildStatementSequence(
 
     connectPendingToTarget(builder, pending, statementResult.entryId);
     pending = statementResult.pending;
+    breaks.push(...statementResult.breaks);
+    continues.push(...statementResult.continues);
   }
 
   return {
     entryId,
     pending,
+    breaks,
+    continues,
   };
 }
 
@@ -378,6 +401,38 @@ function buildStatement(
     return buildWhileStatement(statement, builder, column);
   }
 
+  if (statement.type === "ForStatement") {
+    return buildForStatement(statement, builder, column);
+  }
+
+  if (statement.type === "DoWhileStatement") {
+    return buildDoWhileStatement(statement, builder, column);
+  }
+
+  if (statement.type === "SwitchStatement") {
+    return buildSwitchStatement(statement, builder, column);
+  }
+
+  if (statement.type === "BreakStatement") {
+    if (statement.label) {
+      throw new UnsupportedSyntaxError(
+        "break con etiqueta todavia no esta soportado.",
+      );
+    }
+
+    return buildControlTransferStatement("break", builder, column);
+  }
+
+  if (statement.type === "ContinueStatement") {
+    if (statement.label) {
+      throw new UnsupportedSyntaxError(
+        "continue con etiqueta todavia no esta soportado.",
+      );
+    }
+
+    return buildControlTransferStatement("continue", builder, column);
+  }
+
   if (statement.type === "ReturnStatement") {
     return buildReturnStatement(statement, builder, column);
   }
@@ -389,11 +444,13 @@ function buildStatement(
   if (statement.type === "EmptyStatement") {
     return {
       pending: [],
+      breaks: [],
+      continues: [],
     };
   }
 
   throw new UnsupportedSyntaxError(
-    `La instrucción "${statement.type}" todavía no está soportada. Usa declaraciones, asignaciones, if/else o while.`,
+    `La instruccion "${statement.type}" todavia no esta soportada. Usa declaraciones, asignaciones, if/else, while, for, do while o switch.`,
   );
 }
 
@@ -484,6 +541,8 @@ function buildVariableDeclaration(
   return {
     entryId,
     pending,
+    breaks: [],
+    continues: [],
   };
 }
 
@@ -492,6 +551,31 @@ function createDeferredDeclarationInstruction(
   variableName: string,
 ) {
   return `${declarationKind === "var" ? "var" : "let"} ${variableName}`;
+}
+
+function variableDeclarationToCode(statement: VariableDeclaration) {
+  return `${statement.kind} ${statement.declarations
+    .map((declaration) =>
+      declaration.init
+        ? `${lValueToCode(declaration.id)} = ${expressionToCode(
+            declaration.init,
+          )}`
+        : lValueToCode(declaration.id),
+    )
+    .join(", ")}`;
+}
+
+function variableDeclaratorToInstruction(
+  declarationKind: VariableDeclaration["kind"],
+  declaration: VariableDeclarator,
+) {
+  const variableName = lValueToCode(declaration.id);
+
+  return declaration.init
+    ? `${declarationKind} ${variableName} = ${expressionToCode(
+        declaration.init,
+      )}`
+    : `${declarationKind} ${variableName}`;
 }
 
 function addInputNode(
@@ -551,6 +635,8 @@ function buildExpressionStatement(
       return {
         entryId: inputNode.id,
         pending: [{ sourceId: inputNode.id, sourceHandle: "out" }],
+        breaks: [],
+        continues: [],
       };
     }
   }
@@ -563,6 +649,8 @@ function buildExpressionStatement(
     return {
       entryId: outputNode.id,
       pending: [{ sourceId: outputNode.id, sourceHandle: "out" }],
+      breaks: [],
+      continues: [],
     };
   }
 
@@ -579,6 +667,8 @@ function buildExpressionStatement(
     return {
       entryId: functionCallNode.id,
       pending: [{ sourceId: functionCallNode.id, sourceHandle: "out" }],
+      breaks: [],
+      continues: [],
     };
   }
 
@@ -599,6 +689,8 @@ function buildExpressionStatement(
       return {
         entryId: functionCallNode.id,
         pending: [{ sourceId: functionCallNode.id, sourceHandle: "out" }],
+        breaks: [],
+        continues: [],
       };
     }
   }
@@ -606,7 +698,9 @@ function buildExpressionStatement(
   if (
     expression.type !== "AssignmentExpression" &&
     expression.type !== "UpdateExpression" &&
-    expression.type !== "CallExpression"
+    expression.type !== "CallExpression" &&
+    expression.type !== "OptionalCallExpression" &&
+    expression.type !== "SequenceExpression"
   ) {
     throw new UnsupportedSyntaxError(
       `La expresión "${expression.type}" todavía no está soportada como bloque de proceso.`,
@@ -625,6 +719,8 @@ function buildExpressionStatement(
   return {
     entryId: processNode.id,
     pending: [{ sourceId: processNode.id, sourceHandle: "out" }],
+    breaks: [],
+    continues: [],
   };
 }
 
@@ -647,6 +743,8 @@ function buildReturnStatement(
   return {
     entryId: returnNode.id,
     pending: [],
+    breaks: [],
+    continues: [],
   };
 }
 
@@ -687,6 +785,18 @@ function getKnownFunctionCall(
 
   if (!flowFunction) {
     return null;
+  }
+
+  if (
+    callExpression.arguments.some(
+      (argument) =>
+        argument.type === "SpreadElement" ||
+        argument.type === "ArgumentPlaceholder",
+    )
+  ) {
+    throw new UnsupportedSyntaxError(
+      "Las llamadas a funciones del diagrama con spread o argumentos vacios todavia no estan soportadas.",
+    );
   }
 
   const args = callExpression.arguments.map(argumentToCode);
@@ -844,8 +954,18 @@ function buildIfStatement(
       )
     : {
         pending: [] satisfies PendingConnection[],
+        breaks: [] satisfies PendingConnection[],
+        continues: [] satisfies PendingConnection[],
       };
   const pending: PendingConnection[] = [];
+  const breaks: PendingConnection[] = [
+    ...yesResult.breaks,
+    ...noResult.breaks,
+  ];
+  const continues: PendingConnection[] = [
+    ...yesResult.continues,
+    ...noResult.continues,
+  ];
 
   if (yesResult.entryId) {
     addEdge(builder, decisionNode.id, yesResult.entryId, "yes");
@@ -864,6 +984,8 @@ function buildIfStatement(
   return {
     entryId: decisionNode.id,
     pending,
+    breaks,
+    continues,
   };
 }
 
@@ -889,6 +1011,7 @@ function buildWhileStatement(
   if (bodyResult.entryId) {
     addEdge(builder, decisionNode.id, bodyResult.entryId, "yes");
     connectPendingToTarget(builder, bodyResult.pending, decisionNode.id);
+    connectPendingToTarget(builder, bodyResult.continues, decisionNode.id);
   } else {
     addEdge(builder, decisionNode.id, decisionNode.id, "yes");
     builder.warnings.push(
@@ -898,7 +1021,470 @@ function buildWhileStatement(
 
   return {
     entryId: decisionNode.id,
-    pending: [{ sourceId: decisionNode.id, sourceHandle: "no" }],
+    pending: [
+      { sourceId: decisionNode.id, sourceHandle: "no" },
+      ...bodyResult.breaks,
+    ],
+    breaks: [],
+    continues: [],
+  };
+}
+
+function buildForStatement(
+  statement: ForStatement,
+  builder: DiagramBuilder,
+  column: number,
+): BuildResult {
+  const initializer = buildForInitializer(statement.init, builder, column);
+  const condition = statement.test ? expressionToCode(statement.test) : "true";
+  const headerCondition = statement.test ? condition : null;
+  const update = statement.update ? expressionToCode(statement.update) : "";
+  const decisionNode = addNode(
+    builder,
+    "decision",
+    condition,
+    {
+      condition,
+      controlFlow: {
+        kind: "for",
+        init: initializer.code,
+        test: headerCondition,
+        update,
+        initNodeIds: initializer.nodeIds,
+      },
+    },
+    column,
+  );
+  const bodyResult = buildStatementSequence(
+    getStatementsFromBranch(statement.body),
+    builder,
+    column - 1,
+  );
+  const updateNode = update
+    ? addNode(
+        builder,
+        "process",
+        update,
+        {
+          instruction: update,
+          controlFlow: {
+            kind: "forUpdate",
+            loopDecisionId: decisionNode.id,
+          },
+        },
+        column,
+      )
+    : null;
+  const loopTargetId = updateNode?.id ?? decisionNode.id;
+
+  setForInitMetadata(builder, initializer.nodeIds, decisionNode.id);
+  setForDecisionMetadata(decisionNode, {
+    init: initializer.code,
+    test: headerCondition,
+    update,
+    initNodeIds: initializer.nodeIds,
+    updateNodeId: updateNode?.id,
+    bodyEntryId: bodyResult.entryId,
+  });
+
+  if (initializer.entryId) {
+    connectPendingToTarget(builder, initializer.pending, decisionNode.id);
+  }
+
+  if (bodyResult.entryId) {
+    addEdge(builder, decisionNode.id, bodyResult.entryId, "yes");
+    connectPendingToTarget(builder, bodyResult.pending, loopTargetId);
+    connectPendingToTarget(builder, bodyResult.continues, loopTargetId);
+  } else {
+    addEdge(builder, decisionNode.id, loopTargetId, "yes");
+    builder.warnings.push(
+      `El ciclo for (${condition}) no tiene instrucciones en su cuerpo.`,
+    );
+  }
+
+  if (updateNode) {
+    addEdge(builder, updateNode.id, decisionNode.id, "out");
+  }
+
+  return {
+    entryId: initializer.entryId ?? decisionNode.id,
+    pending: [
+      { sourceId: decisionNode.id, sourceHandle: "no" },
+      ...bodyResult.breaks,
+    ],
+    breaks: [],
+    continues: [],
+  };
+}
+
+function buildDoWhileStatement(
+  statement: DoWhileStatement,
+  builder: DiagramBuilder,
+  column: number,
+): BuildResult {
+  const bodyResult = buildStatementSequence(
+    getStatementsFromBranch(statement.body),
+    builder,
+    column - 1,
+  );
+  const condition = expressionToCode(statement.test);
+  const decisionNode = addNode(
+    builder,
+    "decision",
+    condition,
+    {
+      condition,
+      controlFlow: {
+        kind: "doWhile",
+        bodyEntryId: bodyResult.entryId,
+      },
+    },
+    column,
+  );
+
+  if (bodyResult.entryId) {
+    connectPendingToTarget(builder, bodyResult.pending, decisionNode.id);
+    connectPendingToTarget(builder, bodyResult.continues, decisionNode.id);
+    addEdge(builder, decisionNode.id, bodyResult.entryId, "yes");
+  } else {
+    addEdge(builder, decisionNode.id, decisionNode.id, "yes");
+    builder.warnings.push(
+      `El ciclo do while (${condition}) no tiene instrucciones en su cuerpo.`,
+    );
+  }
+
+  return {
+    entryId: bodyResult.entryId ?? decisionNode.id,
+    pending: [
+      { sourceId: decisionNode.id, sourceHandle: "no" },
+      ...bodyResult.breaks,
+    ],
+    breaks: [],
+    continues: [],
+  };
+}
+
+function buildSwitchStatement(
+  statement: SwitchStatement,
+  builder: DiagramBuilder,
+  column: number,
+): BuildResult {
+  const discriminant = expressionToCode(statement.discriminant);
+  const builtCases = statement.cases.map((switchCase) =>
+    buildSwitchCase(switchCase, builder, column + 1),
+  );
+  const testCaseIndexes = builtCases
+    .map((switchCase, index) => (switchCase.test === null ? null : index))
+    .filter((index): index is number => index !== null);
+  const defaultIndex = builtCases.findIndex(
+    (switchCase) => switchCase.test === null,
+  );
+  const conditionNodes = testCaseIndexes.map((caseIndex) => {
+    const test = builtCases[caseIndex].test ?? "true";
+
+    return {
+      caseIndex,
+      node: addNode(
+        builder,
+        "decision",
+        `${discriminant} === ${test}`,
+        {
+          condition: `${discriminant} === ${test}`,
+        },
+        column,
+      ),
+    };
+  });
+  const rootNode =
+    conditionNodes[0]?.node ??
+    addNode(
+      builder,
+      "decision",
+      "true",
+      {
+        condition: "true",
+      },
+      column,
+    );
+  const exitSources: PendingConnection[] = [];
+  const continues: PendingConnection[] = [];
+
+  for (let index = 0; index < conditionNodes.length; index += 1) {
+    const current = conditionNodes[index];
+    const next = conditionNodes[index + 1];
+    const yesTarget = findSwitchFallthroughEntry(
+      builtCases,
+      current.caseIndex,
+    );
+
+    if (yesTarget) {
+      addEdge(builder, current.node.id, yesTarget, "yes");
+    } else {
+      exitSources.push({ sourceId: current.node.id, sourceHandle: "yes" });
+    }
+
+    if (next) {
+      addEdge(builder, current.node.id, next.node.id, "no");
+      continue;
+    }
+
+    const defaultTarget =
+      defaultIndex >= 0
+        ? findSwitchFallthroughEntry(builtCases, defaultIndex)
+        : undefined;
+
+    if (defaultTarget) {
+      addEdge(builder, current.node.id, defaultTarget, "no");
+    } else {
+      exitSources.push({ sourceId: current.node.id, sourceHandle: "no" });
+    }
+  }
+
+  if (conditionNodes.length === 0) {
+    const defaultTarget =
+      defaultIndex >= 0
+        ? findSwitchFallthroughEntry(builtCases, defaultIndex)
+        : undefined;
+
+    if (defaultTarget) {
+      addEdge(builder, rootNode.id, defaultTarget, "yes");
+    } else {
+      exitSources.push({ sourceId: rootNode.id, sourceHandle: "yes" });
+    }
+  }
+
+  for (let index = 0; index < builtCases.length; index += 1) {
+    const switchCase = builtCases[index];
+    const nextCaseEntry = findSwitchFallthroughEntry(builtCases, index + 1);
+
+    if (nextCaseEntry) {
+      connectPendingToTarget(builder, switchCase.result.pending, nextCaseEntry);
+    } else {
+      exitSources.push(...switchCase.result.pending);
+    }
+
+    exitSources.push(...switchCase.result.breaks);
+    continues.push(...switchCase.result.continues);
+  }
+
+  const caseDecisionIds = conditionNodes.map((item) => item.node.id);
+
+  setDecisionSwitchMetadata(rootNode, {
+    discriminant,
+    cases: builtCases.map((switchCase) => ({
+      test: switchCase.test,
+      entryId: switchCase.result.entryId,
+    })),
+    caseDecisionIds,
+    exitSources,
+  });
+
+  for (const item of conditionNodes.slice(1)) {
+    const test = builtCases[item.caseIndex].test;
+
+    if (test) {
+      setDecisionSwitchCaseMetadata(item.node, rootNode.id, test);
+    }
+  }
+
+  return {
+    entryId: rootNode.id,
+    pending: exitSources,
+    breaks: [],
+    continues,
+  };
+}
+
+function buildControlTransferStatement(
+  kind: "break" | "continue",
+  builder: DiagramBuilder,
+  column: number,
+): BuildResult {
+  const processNode = addNode(
+    builder,
+    "process",
+    kind,
+    {
+      instruction: kind,
+      controlFlow: {
+        kind,
+      },
+    },
+    column,
+  );
+  const pending = [{ sourceId: processNode.id, sourceHandle: "out" }];
+
+  return {
+    entryId: processNode.id,
+    pending: [],
+    breaks: kind === "break" ? pending : [],
+    continues: kind === "continue" ? pending : [],
+  };
+}
+
+type ForInitializerBuildResult = BuildResult & {
+  code: string;
+  nodeIds: string[];
+};
+
+type BuiltSwitchCase = {
+  test: string | null;
+  result: BuildResult;
+};
+
+function buildForInitializer(
+  initializer: ForStatement["init"],
+  builder: DiagramBuilder,
+  column: number,
+): ForInitializerBuildResult {
+  if (!initializer) {
+    return {
+      code: "",
+      nodeIds: [],
+      pending: [],
+      breaks: [],
+      continues: [],
+    };
+  }
+
+  const instructions =
+    initializer.type === "VariableDeclaration"
+      ? initializer.declarations.map((declaration) =>
+          variableDeclaratorToInstruction(initializer.kind, declaration),
+        )
+      : [expressionToCode(initializer)];
+  let entryId: string | undefined;
+  let pending: PendingConnection[] = [];
+  const nodeIds: string[] = [];
+
+  for (const instruction of instructions) {
+    const node = addNode(
+      builder,
+      "process",
+      instruction,
+      { instruction },
+      column,
+    );
+
+    nodeIds.push(node.id);
+
+    if (!entryId) {
+      entryId = node.id;
+    }
+
+    connectPendingToTarget(builder, pending, node.id);
+    pending = [{ sourceId: node.id, sourceHandle: "out" }];
+  }
+
+  return {
+    code:
+      initializer.type === "VariableDeclaration"
+        ? variableDeclarationToCode(initializer)
+        : expressionToCode(initializer),
+    nodeIds,
+    entryId,
+    pending,
+    breaks: [],
+    continues: [],
+  };
+}
+
+function buildSwitchCase(
+  switchCase: SwitchCase,
+  builder: DiagramBuilder,
+  column: number,
+): BuiltSwitchCase {
+  return {
+    test: switchCase.test ? expressionToCode(switchCase.test) : null,
+    result: buildStatementSequence(switchCase.consequent, builder, column),
+  };
+}
+
+function findSwitchFallthroughEntry(
+  cases: BuiltSwitchCase[],
+  startIndex: number,
+) {
+  for (let index = startIndex; index < cases.length; index += 1) {
+    const entryId = cases[index].result.entryId;
+
+    if (entryId) {
+      return entryId;
+    }
+  }
+
+  return undefined;
+}
+
+function setForInitMetadata(
+  builder: DiagramBuilder,
+  nodeIds: string[],
+  loopDecisionId: string,
+) {
+  for (const nodeId of nodeIds) {
+    const node = builder.nodes.find((item) => item.id === nodeId);
+
+    if (node?.type === "process" && "instruction" in node.data.config) {
+      node.data.config.controlFlow = {
+        kind: "forInit",
+        loopDecisionId,
+      };
+    }
+  }
+}
+
+function setForDecisionMetadata(
+  node: Extract<ImportedFlowNode, { type: "decision" }>,
+  metadata: {
+    init: string;
+    test: string | null;
+    update: string;
+    initNodeIds: string[];
+    updateNodeId?: string;
+    bodyEntryId?: string;
+  },
+) {
+  node.data.config.controlFlow = {
+    kind: "for",
+    ...metadata,
+  };
+}
+
+function setDecisionSwitchMetadata(
+  node: Extract<ImportedFlowNode, { type: "decision" }>,
+  metadata: {
+    discriminant: string;
+    cases: Array<{ test: string | null; entryId?: string }>;
+    caseDecisionIds: string[];
+    exitSources: PendingConnection[];
+  },
+) {
+  node.data.config.controlFlow = {
+    kind: "switch",
+    discriminant: metadata.discriminant,
+    cases: metadata.cases,
+    caseDecisionIds: metadata.caseDecisionIds,
+    exitSources: metadata.exitSources.map(pendingConnectionToReference),
+  };
+}
+
+function setDecisionSwitchCaseMetadata(
+  node: Extract<ImportedFlowNode, { type: "decision" }>,
+  switchRootId: string,
+  test: string,
+) {
+  node.data.config.controlFlow = {
+    kind: "switchCase",
+    switchRootId,
+    test,
+  };
+}
+
+function pendingConnectionToReference(
+  pending: PendingConnection,
+): FlowPendingConnectionReference {
+  return {
+    sourceId: pending.sourceId,
+    sourceHandle: pending.sourceHandle,
   };
 }
 
@@ -995,6 +1581,10 @@ function expressionToCode(expression: Expression): string {
     return logicalExpressionToCode(expression);
   }
 
+  if (expression.type === "ConditionalExpression") {
+    return conditionalExpressionToCode(expression);
+  }
+
   if (expression.type === "UnaryExpression") {
     return unaryExpressionToCode(expression);
   }
@@ -1005,6 +1595,10 @@ function expressionToCode(expression: Expression): string {
 
   if (expression.type === "UpdateExpression") {
     return updateExpressionToCode(expression);
+  }
+
+  if (expression.type === "SequenceExpression") {
+    return sequenceExpressionToCode(expression);
   }
 
   if (expression.type === "MemberExpression") {
@@ -1021,6 +1615,20 @@ function expressionToCode(expression: Expression): string {
 
   if (expression.type === "OptionalCallExpression") {
     return optionalCallExpressionToCode(expression);
+  }
+
+  if (expression.type === "ArrayExpression") {
+    return `[${expression.elements
+      .map((element) => (element ? argumentToCode(element) : ""))
+      .join(", ")}]`;
+  }
+
+  if (expression.type === "ObjectExpression") {
+    return `{ ${expression.properties.map(objectPropertyToCode).join(", ")} }`;
+  }
+
+  if (expression.type === "TemplateLiteral") {
+    return templateLiteralToCode(expression);
   }
 
   if (expression.type === "AwaitExpression") {
@@ -1048,6 +1656,12 @@ function logicalExpressionToCode(expression: LogicalExpression) {
   } ${expressionToCode(expression.right)}`;
 }
 
+function conditionalExpressionToCode(expression: ConditionalExpression) {
+  return `${expressionToCode(expression.test)} ? ${expressionToCode(
+    expression.consequent,
+  )} : ${expressionToCode(expression.alternate)}`;
+}
+
 function unaryExpressionToCode(expression: UnaryExpression) {
   const argument = expressionToCode(expression.argument);
 
@@ -1068,6 +1682,10 @@ function updateExpressionToCode(expression: UpdateExpression) {
   return expression.prefix
     ? `${expression.operator}${argument}`
     : `${argument}${expression.operator}`;
+}
+
+function sequenceExpressionToCode(expression: SequenceExpression) {
+  return expression.expressions.map(expressionToCode).join(", ");
 }
 
 function memberExpressionToCode(expression: MemberExpression) {
@@ -1099,6 +1717,75 @@ function optionalCallExpressionToCode(expression: OptionalCallExpression) {
   const callee = calleeToCode(expression.callee);
 
   return `${callee}?.(${expression.arguments.map(argumentToCode).join(", ")})`;
+}
+
+function objectPropertyToCode(
+  property: Extract<
+    Extract<Expression, { type: "ObjectExpression" }>["properties"][number],
+    { type: "ObjectProperty" | "SpreadElement" | "ObjectMethod" }
+  >,
+) {
+  if (property.type === "SpreadElement") {
+    return `...${expressionToCode(property.argument)}`;
+  }
+
+  if (property.type !== "ObjectProperty") {
+    throw new UnsupportedSyntaxError(
+      `La propiedad de objeto "${property.type}" todavia no esta soportada.`,
+    );
+  }
+
+  const key = objectPropertyKeyToCode(property);
+  const value = expressionToCode(property.value as Expression);
+
+  if (
+    !property.computed &&
+    property.key.type === "Identifier" &&
+    property.value.type === "Identifier" &&
+    property.key.name === property.value.name
+  ) {
+    return property.key.name;
+  }
+
+  return `${key}: ${value}`;
+}
+
+function objectPropertyKeyToCode(property: ObjectProperty) {
+  if (property.computed) {
+    return `[${expressionToCode(property.key as Expression)}]`;
+  }
+
+  if (property.key.type === "Identifier") {
+    return property.key.name;
+  }
+
+  if (property.key.type === "StringLiteral") {
+    return JSON.stringify(property.key.value);
+  }
+
+  if (property.key.type === "NumericLiteral") {
+    return String(property.key.value);
+  }
+
+  throw new UnsupportedSyntaxError(
+    `La clave de objeto "${property.key.type}" todavia no esta soportada.`,
+  );
+}
+
+function templateLiteralToCode(expression: TemplateLiteral) {
+  let code = "`";
+
+  expression.quasis.forEach((quasi, index) => {
+    code += quasi.value.raw;
+
+    const embeddedExpression = expression.expressions[index];
+
+    if (embeddedExpression) {
+      code += "${" + expressionToCode(embeddedExpression as Expression) + "}";
+    }
+  });
+
+  return `${code}\``;
 }
 
 function argumentToCode(
@@ -1185,15 +1872,42 @@ function createDiagramBuilder(
   };
 }
 
-function functionParameterToCode(
+function functionParameterToDefinition(
   parameter: FunctionDeclaration["params"][number],
-) {
+): FlowFunctionParameterDefinition {
   if (parameter.type === "Identifier") {
-    return parameter.name;
+    return {
+      name: parameter.name,
+      source: parameter.name,
+    };
+  }
+
+  if (
+    parameter.type === "AssignmentPattern" &&
+    parameter.left.type === "Identifier"
+  ) {
+    const defaultValue = expressionToCode(parameter.right);
+
+    return {
+      name: parameter.left.name,
+      source: `${parameter.left.name} = ${defaultValue}`,
+      defaultValue,
+    };
+  }
+
+  if (
+    parameter.type === "RestElement" &&
+    parameter.argument.type === "Identifier"
+  ) {
+    return {
+      name: parameter.argument.name,
+      source: `...${parameter.argument.name}`,
+      rest: true,
+    };
   }
 
   throw new UnsupportedSyntaxError(
-    `El parametro "${parameter.type}" todavia no esta soportado.`,
+    `El parametro "${parameter.type}" todavia no esta soportado. El destructuring queda fuera por ahora.`,
   );
 }
 

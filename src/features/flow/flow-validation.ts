@@ -8,6 +8,7 @@ import {
 import type {
   FlowEditorNode,
   FlowFunctionDefinition,
+  FlowFunctionParameterDefinition,
   FlowNodeType,
 } from "@/types/flow";
 
@@ -53,6 +54,7 @@ export function validateFlowDiagram({
     ...validateInvalidEdges(graph),
     ...validateNodeConnectionLimits(graph),
     ...validateNodeConfigs(graph.nodes, functions, currentDiagramId),
+    ...validateControlFlowMetadata(graph),
     ...validateFunctionDefinitions(functions),
   ];
 }
@@ -207,10 +209,17 @@ function validateNodeConfigs(
         continue;
       }
 
-      if (config.args.length !== flowFunction.parameters.length) {
+      const parameterDefinitions = getFunctionParameterDefinitions(flowFunction);
+      const argumentCountValidation = validateFunctionArgumentCount(
+        flowFunction.name,
+        parameterDefinitions,
+        config.args.length,
+      );
+
+      if (!argumentCountValidation.ok) {
         issues.push({
           id: `${node.id}-function-call-args`,
-          message: `La funcion "${flowFunction.name}" espera ${flowFunction.parameters.length} argumento(s), pero la llamada tiene ${config.args.length}.`,
+          message: argumentCountValidation.message,
         });
       }
     }
@@ -219,6 +228,113 @@ function validateNodeConfigs(
       issues.push({
         id: `${node.id}-return-in-main`,
         message: `El bloque Retorno "${nodeName}" solo debe usarse dentro de una funcion.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
+  const issues: FlowValidationIssue[] = [];
+
+  for (const node of graph.nodes) {
+    if (node.type === "process" && "instruction" in node.data.config) {
+      const instruction = node.data.config.instruction.trim().replace(/;$/, "");
+      const controlFlow = node.data.config.controlFlow;
+
+      if (
+        (instruction === "break" || instruction === "continue") &&
+        controlFlow?.kind !== instruction
+      ) {
+        issues.push({
+          id: `${node.id}-${instruction}-context`,
+          message: `El bloque "${instruction}" debe venir de un ciclo o switch valido para conectarse correctamente.`,
+        });
+      }
+
+      if (
+        controlFlow?.kind === "forInit" &&
+        !graph.nodeById.has(controlFlow.loopDecisionId)
+      ) {
+        issues.push({
+          id: `${node.id}-for-init-target`,
+          message: `El inicializador for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
+        });
+      }
+
+      if (
+        controlFlow?.kind === "forUpdate" &&
+        !graph.nodeById.has(controlFlow.loopDecisionId)
+      ) {
+        issues.push({
+          id: `${node.id}-for-update-target`,
+          message: `La actualizacion for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
+        });
+      }
+    }
+
+    if (node.type !== "decision" || !("condition" in node.data.config)) {
+      continue;
+    }
+
+    const controlFlow = node.data.config.controlFlow;
+
+    if (!controlFlow) {
+      continue;
+    }
+
+    if (controlFlow.kind === "for") {
+      if (!node.data.config.condition.trim()) {
+        issues.push({
+          id: `${node.id}-for-condition`,
+          message: `El ciclo for "${getNodeName(node)}" necesita una condicion interna valida.`,
+        });
+      }
+
+      if (
+        controlFlow.updateNodeId &&
+        !graph.nodeById.has(controlFlow.updateNodeId)
+      ) {
+        issues.push({
+          id: `${node.id}-for-update`,
+          message: `El ciclo for "${getNodeName(node)}" referencia una actualizacion que no existe.`,
+        });
+      }
+    }
+
+    if (controlFlow.kind === "switch") {
+      if (!controlFlow.discriminant.trim()) {
+        issues.push({
+          id: `${node.id}-switch-discriminant`,
+          message: `El switch "${getNodeName(node)}" necesita una expresion a evaluar.`,
+        });
+      }
+
+      if (controlFlow.cases.length === 0) {
+        issues.push({
+          id: `${node.id}-switch-cases`,
+          message: `El switch "${getNodeName(node)}" debe tener al menos un case o default.`,
+        });
+      }
+
+      for (const caseDecisionId of controlFlow.caseDecisionIds) {
+        if (!graph.nodeById.has(caseDecisionId)) {
+          issues.push({
+            id: `${node.id}-switch-case-${caseDecisionId}`,
+            message: `El switch "${getNodeName(node)}" referencia un case que no existe.`,
+          });
+        }
+      }
+    }
+
+    if (
+      controlFlow.kind === "switchCase" &&
+      !graph.nodeById.has(controlFlow.switchRootId)
+    ) {
+      issues.push({
+        id: `${node.id}-switch-root`,
+        message: `El case "${getNodeName(node)}" apunta a un switch que no existe.`,
       });
     }
   }
@@ -256,6 +372,73 @@ function validateFunctionDefinitions(
   }
 
   return issues;
+}
+
+function getFunctionParameterDefinitions(
+  flowFunction: FlowFunctionDefinition,
+): FlowFunctionParameterDefinition[] {
+  return flowFunction.parameterDefinitions?.length
+    ? flowFunction.parameterDefinitions
+    : flowFunction.parameters.map(parameterTextToDefinition);
+}
+
+function parameterTextToDefinition(
+  parameter: string,
+): FlowFunctionParameterDefinition {
+  const trimmedParameter = parameter.trim();
+
+  if (trimmedParameter.startsWith("...")) {
+    return {
+      name: trimmedParameter.slice(3).trim(),
+      source: trimmedParameter,
+      rest: true,
+    };
+  }
+
+  const defaultSeparatorIndex = trimmedParameter.indexOf("=");
+
+  if (defaultSeparatorIndex >= 0) {
+    return {
+      name: trimmedParameter.slice(0, defaultSeparatorIndex).trim(),
+      source: trimmedParameter,
+      defaultValue: trimmedParameter.slice(defaultSeparatorIndex + 1).trim(),
+    };
+  }
+
+  return {
+    name: trimmedParameter,
+    source: trimmedParameter,
+  };
+}
+
+function validateFunctionArgumentCount(
+  functionName: string,
+  parameters: FlowFunctionParameterDefinition[],
+  argumentCount: number,
+): { ok: true } | { ok: false; message: string } {
+  const restParameter = parameters.find((parameter) => parameter.rest);
+  const normalParameters = parameters.filter((parameter) => !parameter.rest);
+  const requiredCount = normalParameters.filter(
+    (parameter) => parameter.defaultValue === undefined,
+  ).length;
+
+  if (argumentCount < requiredCount) {
+    return {
+      ok: false,
+      message: `La funcion "${functionName}" espera al menos ${requiredCount} argumento(s), pero la llamada tiene ${argumentCount}.`,
+    };
+  }
+
+  if (!restParameter && argumentCount > normalParameters.length) {
+    return {
+      ok: false,
+      message: `La funcion "${functionName}" espera como maximo ${normalParameters.length} argumento(s), pero la llamada tiene ${argumentCount}.`,
+    };
+  }
+
+  return {
+    ok: true,
+  };
 }
 
 function getNodeName(node: FlowEditorNode) {

@@ -6,9 +6,13 @@ import {
   type FlowGraph,
 } from "@/features/flow/flow-graph";
 import type {
+  FlowDecisionControlFlow,
   FlowEditorEdge,
   FlowEditorNode,
   FlowFunctionDefinition,
+  FlowFunctionParameterDefinition,
+  FlowPendingConnectionReference,
+  FlowProcessControlFlow,
 } from "@/types/flow";
 
 type DecisionBranchHandle = "yes" | "no";
@@ -174,7 +178,34 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
     }
 
     if (node.type === "process") {
+      const controlFlow = getProcessControlFlow(node);
+
+      if (controlFlow?.kind === "forInit") {
+        const decisionNode = context.graph.nodeById.get(
+          controlFlow.loopDecisionId,
+        );
+
+        if (decisionNode?.type === "decision") {
+          renderForLoop(decisionNode, context);
+          return;
+        }
+      }
+
       context.emittedNodeIds.add(node.id);
+
+      if (controlFlow?.kind === "break" || isControlInstruction(node, "break")) {
+        addLine(context, "break;");
+        return;
+      }
+
+      if (
+        controlFlow?.kind === "continue" ||
+        isControlInstruction(node, "continue")
+      ) {
+        addLine(context, "continue;");
+        return;
+      }
+
       addLine(context, formatInstruction(getProcessInstruction(node)));
       renderSequence(getFirstOutgoingEdge(context.graph, node.id)?.target, {
         ...context,
@@ -221,6 +252,32 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
 
     if (node.type === "decision") {
       context.emittedNodeIds.add(node.id);
+      const controlFlow = getDecisionControlFlow(node);
+
+      if (controlFlow?.kind === "for") {
+        renderForLoop(node, context);
+        return;
+      }
+
+      if (controlFlow?.kind === "doWhile") {
+        renderDoWhileLoop(
+          {
+            targetNodeId: controlFlow.bodyEntryId ?? node.id,
+            decisionNodeId: node.id,
+            loopBranch: "yes",
+            exitBranch: "no",
+            condition: getDecisionCondition(node),
+          },
+          context,
+        );
+        return;
+      }
+
+      if (controlFlow?.kind === "switch") {
+        renderSwitchStatement(node, controlFlow, context);
+        return;
+      }
+
       renderDecision(node, context);
     }
   } finally {
@@ -243,9 +300,7 @@ function renderFunctionDefinition(
   const graph = createFlowGraph(flowFunction.nodes, flowFunction.edges);
   const startNode = flowFunction.nodes.find((node) => node.type === "start");
   const functionName = toSafeIdentifier(flowFunction.name, "funcion");
-  const parameters = flowFunction.parameters
-    .map((parameter) => toSafeIdentifier(parameter, "parametro"))
-    .join(", ");
+  const parameters = getFunctionParametersForCode(flowFunction).join(", ");
 
   lines.push("");
   lines.push(`async function ${functionName}(${parameters}) {`);
@@ -430,6 +485,140 @@ function renderTopTestedLoop(
   }
 }
 
+function renderForLoop(decisionNode: FlowEditorNode, context: RenderContext) {
+  const controlFlow = getDecisionControlFlow(decisionNode);
+
+  if (controlFlow?.kind !== "for") {
+    renderDecision(decisionNode, context);
+    return;
+  }
+
+  const condition = controlFlow.test ?? "";
+  const init = controlFlow.init.trim();
+  const update = controlFlow.update.trim();
+
+  context.emittedNodeIds.add(decisionNode.id);
+
+  for (const nodeId of controlFlow.initNodeIds) {
+    context.emittedNodeIds.add(nodeId);
+  }
+
+  if (controlFlow.updateNodeId) {
+    context.emittedNodeIds.add(controlFlow.updateNodeId);
+  }
+
+  addLine(context, `for (${init}; ${condition}; ${update}) {`);
+
+  if (controlFlow.bodyEntryId) {
+    renderSequence(controlFlow.bodyEntryId, {
+      ...context,
+      activePath: new Set(context.activePath),
+      indentLevel: context.indentLevel + 1,
+      stopNodeId: controlFlow.updateNodeId ?? decisionNode.id,
+    });
+  }
+
+  addLine(context, "}");
+
+  const exitEdge = getDecisionBranchEdge(context.graph, decisionNode.id, "no");
+
+  if (exitEdge) {
+    renderSequence(exitEdge.target, {
+      ...context,
+      activePath: new Set(context.activePath),
+    });
+  } else {
+    context.warnings.push(
+      `El ciclo for "${getNodeDescription(decisionNode)}" no tiene rama de salida.`,
+    );
+  }
+}
+
+function renderDoWhileLoop(
+  loopInfo: BackwardLoopInfo,
+  context: RenderContext,
+) {
+  addLine(context, "do {");
+
+  if (loopInfo.targetNodeId !== loopInfo.decisionNodeId) {
+    renderSequence(loopInfo.targetNodeId, {
+      ...context,
+      activePath: new Set(context.activePath),
+      indentLevel: context.indentLevel + 1,
+      stopNodeId: loopInfo.decisionNodeId,
+      disabledLoopTargetId: loopInfo.targetNodeId,
+    });
+  }
+
+  addLine(
+    context,
+    `} while (${formatLoopCondition(loopInfo.condition, loopInfo.loopBranch)});`,
+  );
+
+  const exitEdge = getDecisionBranchEdge(
+    context.graph,
+    loopInfo.decisionNodeId,
+    loopInfo.exitBranch,
+  );
+
+  if (exitEdge) {
+    renderSequence(exitEdge.target, {
+      ...context,
+      activePath: new Set(context.activePath),
+    });
+  } else {
+    context.warnings.push("El ciclo do while no tiene rama de salida.");
+  }
+}
+
+function renderSwitchStatement(
+  node: FlowEditorNode,
+  controlFlow: Extract<FlowDecisionControlFlow, { kind: "switch" }>,
+  context: RenderContext,
+) {
+  context.emittedNodeIds.add(node.id);
+
+  for (const decisionId of controlFlow.caseDecisionIds) {
+    context.emittedNodeIds.add(decisionId);
+  }
+
+  const exitNodeId = findSwitchExitNodeId(controlFlow, context.graph);
+
+  addLine(context, `switch (${controlFlow.discriminant}) {`);
+
+  controlFlow.cases.forEach((switchCase, index) => {
+    const label =
+      switchCase.test === null ? "default:" : `case ${switchCase.test}:`;
+
+    addLine(
+      {
+        ...context,
+        indentLevel: context.indentLevel + 1,
+      },
+      label,
+    );
+
+    if (switchCase.entryId) {
+      renderSequence(switchCase.entryId, {
+        ...context,
+        activePath: new Set(context.activePath),
+        indentLevel: context.indentLevel + 2,
+        stopNodeId:
+          findNextSwitchCaseEntryId(controlFlow, index + 1) ?? exitNodeId,
+      });
+    }
+  });
+
+  addLine(context, "}");
+
+  if (exitNodeId) {
+    renderSequence(exitNodeId, {
+      ...context,
+      activePath: new Set(context.activePath),
+    });
+  }
+}
+
 function renderBackwardLoop(
   loopInfo: BackwardLoopInfo,
   context: RenderContext,
@@ -440,6 +629,11 @@ function renderBackwardLoop(
     context.warnings.push(
       "No se pudo generar un ciclo porque falta la decisión asociada.",
     );
+    return;
+  }
+
+  if (getDecisionControlFlow(decisionNode)?.kind === "doWhile") {
+    renderDoWhileLoop(loopInfo, context);
     return;
   }
 
@@ -683,6 +877,45 @@ function getDecisionBranchEdge(
   return getOutgoingEdgesByHandle(graph, nodeId, branch)[0];
 }
 
+function findNextSwitchCaseEntryId(
+  controlFlow: Extract<FlowDecisionControlFlow, { kind: "switch" }>,
+  startIndex: number,
+) {
+  for (let index = startIndex; index < controlFlow.cases.length; index += 1) {
+    const entryId = controlFlow.cases[index].entryId;
+
+    if (entryId) {
+      return entryId;
+    }
+  }
+
+  return undefined;
+}
+
+function findSwitchExitNodeId(
+  controlFlow: Extract<FlowDecisionControlFlow, { kind: "switch" }>,
+  graph: FlowGraph,
+) {
+  for (const exitSource of controlFlow.exitSources) {
+    const edge = findOutgoingEdgeFromReference(graph, exitSource);
+
+    if (edge) {
+      return edge.target;
+    }
+  }
+
+  return undefined;
+}
+
+function findOutgoingEdgeFromReference(
+  graph: FlowGraph,
+  reference: FlowPendingConnectionReference,
+) {
+  return getOutgoingEdges(graph, reference.sourceId).find(
+    (edge) => (edge.sourceHandle ?? "out") === reference.sourceHandle,
+  );
+}
+
 function getFirstOutgoingEdge(graph: FlowGraph, nodeId: string) {
   return getOutgoingEdges(graph, nodeId)[0];
 }
@@ -764,7 +997,7 @@ function formatFunctionCallInstruction(
   const assignTo = config.assignTo?.trim();
 
   if (assignTo) {
-    return `${toSafeIdentifier(assignTo, "resultado")} = ${callExpression};`;
+    return `${assignTo} = ${callExpression};`;
   }
 
   return `${callExpression};`;
@@ -825,6 +1058,81 @@ function getDecisionCondition(node: FlowEditorNode) {
     "condition" in node.data.config ? node.data.config.condition.trim() : "";
 
   return condition || "true";
+}
+
+function getDecisionControlFlow(
+  node: FlowEditorNode,
+): FlowDecisionControlFlow | undefined {
+  return "condition" in node.data.config
+    ? node.data.config.controlFlow
+    : undefined;
+}
+
+function getProcessControlFlow(
+  node: FlowEditorNode,
+): FlowProcessControlFlow | undefined {
+  return "instruction" in node.data.config
+    ? node.data.config.controlFlow
+    : undefined;
+}
+
+function isControlInstruction(
+  node: FlowEditorNode,
+  instruction: "break" | "continue",
+) {
+  return getProcessInstruction(node).trim().replace(/;$/, "") === instruction;
+}
+
+function getFunctionParametersForCode(flowFunction: FlowFunctionDefinition) {
+  const definitions =
+    flowFunction.parameterDefinitions?.length
+      ? flowFunction.parameterDefinitions
+      : flowFunction.parameters.map(parameterTextToDefinition);
+
+  return definitions.map(formatFunctionParameter);
+}
+
+function parameterTextToDefinition(
+  parameter: string,
+): FlowFunctionParameterDefinition {
+  const trimmedParameter = parameter.trim();
+
+  if (trimmedParameter.startsWith("...")) {
+    return {
+      name: trimmedParameter.slice(3).trim(),
+      source: trimmedParameter,
+      rest: true,
+    };
+  }
+
+  const defaultSeparatorIndex = trimmedParameter.indexOf("=");
+
+  if (defaultSeparatorIndex >= 0) {
+    return {
+      name: trimmedParameter.slice(0, defaultSeparatorIndex).trim(),
+      source: trimmedParameter,
+      defaultValue: trimmedParameter.slice(defaultSeparatorIndex + 1).trim(),
+    };
+  }
+
+  return {
+    name: trimmedParameter,
+    source: trimmedParameter,
+  };
+}
+
+function formatFunctionParameter(parameter: FlowFunctionParameterDefinition) {
+  const name = toSafeIdentifier(parameter.name, "parametro");
+
+  if (parameter.rest) {
+    return `...${name}`;
+  }
+
+  if (parameter.defaultValue !== undefined) {
+    return `${name} = ${parameter.defaultValue}`;
+  }
+
+  return name;
 }
 
 function getNodeDescription(node: FlowEditorNode) {

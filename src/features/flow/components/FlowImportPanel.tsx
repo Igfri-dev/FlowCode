@@ -23,7 +23,7 @@ export function FlowImportPanel({
             Importar código JavaScript
           </h2>
           <p className="mt-1 text-sm text-neutral-600">
-            Usa declaraciones, asignaciones, if/else y while simples.
+            Usa variables, funciones, if/else, ciclos, switch y expresiones comunes.
           </p>
         </div>
 

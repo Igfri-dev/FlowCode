@@ -21,15 +21,77 @@ export type FlowNodeHandlePositions = Partial<
   Record<FlowNodeHandleId, FlowHandlePosition>
 >;
 
+export type FlowPendingConnectionReference = {
+  sourceId: string;
+  sourceHandle: FlowNodeHandleId | string;
+};
+
+export type FlowProcessControlFlow =
+  | {
+      kind: "forInit";
+      loopDecisionId: string;
+    }
+  | {
+      kind: "forUpdate";
+      loopDecisionId: string;
+    }
+  | {
+      kind: "break";
+    }
+  | {
+      kind: "continue";
+    };
+
+export type FlowSwitchCaseMetadata = {
+  test: string | null;
+  entryId?: string;
+};
+
+export type FlowDecisionControlFlow =
+  | {
+      kind: "for";
+      init: string;
+      test: string | null;
+      update: string;
+      initNodeIds: string[];
+      updateNodeId?: string;
+      bodyEntryId?: string;
+    }
+  | {
+      kind: "doWhile";
+      bodyEntryId?: string;
+    }
+  | {
+      kind: "switch";
+      discriminant: string;
+      cases: FlowSwitchCaseMetadata[];
+      caseDecisionIds: string[];
+      exitSources: FlowPendingConnectionReference[];
+    }
+  | {
+      kind: "switchCase";
+      switchRootId: string;
+      test: string;
+    };
+
+export type FlowFunctionParameterDefinition = {
+  name: string;
+  source: string;
+  defaultValue?: string;
+  rest?: boolean;
+};
+
 export type StartNodeConfig = Record<string, never>;
 export type EndNodeConfig = Record<string, never>;
 
 export type ProcessNodeConfig = {
   instruction: string;
+  controlFlow?: FlowProcessControlFlow;
 };
 
 export type DecisionNodeConfig = {
   condition: string;
+  controlFlow?: FlowDecisionControlFlow;
 };
 
 export type InputNodeConfig = {
@@ -195,6 +257,7 @@ export type FlowFunctionReference = {
   id: string;
   name: string;
   parameters: string[];
+  parameterDefinitions?: FlowFunctionParameterDefinition[];
 };
 
 export type FlowFunctionDefinition = FlowFunctionReference & {

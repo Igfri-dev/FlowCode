@@ -705,18 +705,25 @@ export function FlowWorkspace() {
       changes: Pick<FlowFunctionDefinition, "name" | "parameters">,
     ) => {
       setFunctions((currentFunctions) =>
-        currentFunctions.map((flowFunction) =>
-          flowFunction.id === functionId
-            ? {
-                ...flowFunction,
-                ...changes,
-                nodes:
-                  activeDiagramId === functionId ? nodes : flowFunction.nodes,
-                edges:
-                  activeDiagramId === functionId ? edges : flowFunction.edges,
-              }
-            : flowFunction,
-        ),
+        currentFunctions.map((flowFunction) => {
+          if (flowFunction.id !== functionId) {
+            return flowFunction;
+          }
+
+          const parametersChanged =
+            changes.parameters.join("\u0000") !==
+            flowFunction.parameters.join("\u0000");
+
+          return {
+            ...flowFunction,
+            ...changes,
+            parameterDefinitions: parametersChanged
+              ? undefined
+              : flowFunction.parameterDefinitions,
+            nodes: activeDiagramId === functionId ? nodes : flowFunction.nodes,
+            edges: activeDiagramId === functionId ? edges : flowFunction.edges,
+          };
+        }),
       );
     },
     [activeDiagramId, edges, nodes],
