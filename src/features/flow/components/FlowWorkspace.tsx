@@ -28,6 +28,7 @@ import { getDefaultFlowNodeHandlePositions } from "@/features/flow/handle-positi
 import {
   initialFlowExecutionState,
   resumeFlowExecutionWithInput,
+  resumeFlowExecutionWithFunctionParameters,
   resetFlowExecution,
   stepFlowExecution,
 } from "@/features/flow/execution";
@@ -63,6 +64,7 @@ import { FlowCodePanel } from "./FlowCodePanel";
 import { FlowExecutionHistoryPanel } from "./FlowExecutionHistoryPanel";
 import { FlowExecutionPanel } from "./FlowExecutionPanel";
 import { FlowFunctionPanel } from "./FlowFunctionPanel";
+import { FlowFunctionParameterModal } from "./FlowFunctionParameterModal";
 import { FlowImportPanel } from "./FlowImportPanel";
 import { FlowInputModal } from "./FlowInputModal";
 import { FlowOutputPanel } from "./FlowOutputPanel";
@@ -160,7 +162,8 @@ export function FlowWorkspace() {
   const canContinueExecution =
     executionState.status !== "finished" &&
     executionState.status !== "error" &&
-    executionState.status !== "waitingInput";
+    executionState.status !== "waitingInput" &&
+    executionState.status !== "waitingFunctionParameters";
   const isAutoExecutionActive = isAutoRunning && canContinueExecution;
   const hasActiveDiagramContent = nodes.length > 0 || edges.length > 0;
   const renderedNodes = useMemo(() => {
@@ -693,6 +696,22 @@ export function FlowWorkspace() {
     [],
   );
 
+  const handleFunctionParameterConfirm = useCallback(
+    (
+      values: Parameters<
+        typeof resumeFlowExecutionWithFunctionParameters
+      >[0]["values"],
+    ) => {
+      setExecutionState((currentExecutionState) =>
+        resumeFlowExecutionWithFunctionParameters({
+          state: currentExecutionState,
+          values,
+        }),
+      );
+    },
+    [],
+  );
+
   const handleSelectDiagram = useCallback(
     (diagramId: string) => {
       const nextDiagram =
@@ -919,6 +938,10 @@ export function FlowWorkspace() {
       <FlowInputModal
         pendingInput={executionState.pendingInput}
         onConfirm={handleInputConfirm}
+      />
+      <FlowFunctionParameterModal
+        pendingFunctionParameters={executionState.pendingFunctionParameters}
+        onConfirm={handleFunctionParameterConfirm}
       />
     </section>
   );

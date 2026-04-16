@@ -79,6 +79,17 @@ export type FlowExecutionPendingInput = {
   edgeId?: string;
 };
 
+export type FlowExecutionPendingFunctionParameters = {
+  functionId: string;
+  functionName: string;
+  parameters: FlowFunctionParameterDefinition[];
+};
+
+export type FlowExecutionFunctionParameterValues = Record<
+  string,
+  ExecutionValue
+>;
+
 export type FlowExecutionCallFrame = {
   diagramId: string;
   diagramName: string;
@@ -98,7 +109,14 @@ export type FlowExecutionState = {
   outputs: FlowExecutionOutputItem[];
   callStack: FlowExecutionCallFrame[];
   pendingInput: FlowExecutionPendingInput | null;
-  status: "idle" | "running" | "waitingInput" | "finished" | "error";
+  pendingFunctionParameters: FlowExecutionPendingFunctionParameters | null;
+  status:
+    | "idle"
+    | "running"
+    | "waitingInput"
+    | "waitingFunctionParameters"
+    | "finished"
+    | "error";
   message: string;
   stepCount: number;
   maxSteps: number;
@@ -120,6 +138,7 @@ export const initialFlowExecutionState: FlowExecutionState = {
   outputs: [],
   callStack: [],
   pendingInput: null,
+  pendingFunctionParameters: null,
   status: "idle",
   message: "Listo para ejecutar.",
   stepCount: 0,
@@ -153,7 +172,8 @@ export function stepFlowExecution({
   if (
     state.status === "finished" ||
     state.status === "error" ||
-    state.status === "waitingInput"
+    state.status === "waitingInput" ||
+    state.status === "waitingFunctionParameters"
   ) {
     return state;
   }
@@ -166,7 +186,34 @@ export function stepFlowExecution({
     };
   }
 
-  const diagramId = state.status === "idle" ? activeDiagramId : state.currentDiagramId;
+  if (state.status === "idle" && activeDiagramId !== "main") {
+    const activeFunction = program.functions.find(
+      (flowFunction) => flowFunction.id === activeDiagramId,
+    );
+
+    if (activeFunction) {
+      const parameterDefinitions =
+        getFunctionParameterDefinitions(activeFunction);
+
+      if (parameterDefinitions.length > 0) {
+        return {
+          ...state,
+          currentDiagramId: activeFunction.id,
+          currentDiagramName: `Funcion ${activeFunction.name}`,
+          status: "waitingFunctionParameters",
+          message: `Ingresa los parametros de "${activeFunction.name}".`,
+          pendingFunctionParameters: {
+            functionId: activeFunction.id,
+            functionName: activeFunction.name,
+            parameters: parameterDefinitions,
+          },
+        };
+      }
+    }
+  }
+
+  const diagramId =
+    state.status === "idle" ? activeDiagramId : state.currentDiagramId;
   const diagram = getDiagramById(program, diagramId);
 
   if (!diagram) {
@@ -203,7 +250,7 @@ export function stepFlowExecution({
   }
 
   if (currentNode.type === "end") {
-    if (state.callStack.length > 0) {
+    if (state.callStack.length > 0 || diagram.id !== "main") {
       return returnToCaller({
         state: ensureExecutionDiagram(state, diagram),
         node: currentNode,
@@ -358,6 +405,45 @@ export function resumeFlowExecutionWithInput({
     message: `Entrada guardada en "${variableName}".`,
     activeEdgeId: state.pendingInput.edgeId ?? null,
     pendingInput: null,
+  };
+}
+
+export function resumeFlowExecutionWithFunctionParameters({
+  state,
+  values,
+}: {
+  state: FlowExecutionState;
+  values: FlowExecutionFunctionParameterValues;
+}): FlowExecutionState {
+  if (!state.pendingFunctionParameters) {
+    return state;
+  }
+
+  const parameterBindingResult = bindStandaloneFunctionParameters(
+    state.pendingFunctionParameters.parameters,
+    values,
+  );
+
+  if (!parameterBindingResult.ok) {
+    return {
+      ...state,
+      status: "error",
+      message: parameterBindingResult.message,
+    };
+  }
+
+  return {
+    ...state,
+    currentNodeId: null,
+    currentDiagramId: state.pendingFunctionParameters.functionId,
+    currentDiagramName: `Funcion ${state.pendingFunctionParameters.functionName}`,
+    variables: parameterBindingResult.variables,
+    status: "running",
+    message: `Parametros cargados para "${state.pendingFunctionParameters.functionName}".`,
+    activeEdgeId: null,
+    activeDecision: null,
+    pendingInput: null,
+    pendingFunctionParameters: null,
   };
 }
 
@@ -670,13 +756,29 @@ function returnToCaller({
   const callerFrame = state.callStack.at(-1);
 
   if (!callerFrame) {
+    const isStandaloneFunctionReturn = state.currentDiagramId !== "main";
+    const nextStep = state.stepCount + 1;
+    const stateWithReturnOutput = isStandaloneFunctionReturn
+      ? {
+          ...state,
+          outputs: [
+            ...state.outputs,
+            {
+              id: `${nextStep}-${node.id}-return`,
+              step: nextStep,
+              content: `return ${formatExecutionValue(value)}`,
+            },
+          ],
+        }
+      : state;
+
     return recordStep({
-      state,
+      state: stateWithReturnOutput,
       node,
       variables,
       message:
-        node.type === "return"
-          ? "Retorno ejecutado en el flujo principal."
+        node.type === "return" || isStandaloneFunctionReturn
+          ? `Retorno: ${formatExecutionValue(value)}.`
           : "Ejecucion finalizada.",
       status: "finished",
     });
@@ -868,6 +970,85 @@ function bindFunctionParameters(
   };
 }
 
+function bindStandaloneFunctionParameters(
+  parameters: FlowFunctionParameterDefinition[],
+  values: FlowExecutionFunctionParameterValues,
+):
+  | { ok: true; variables: ExecutionVariables }
+  | { ok: false; message: string } {
+  let nextVariables: ExecutionVariables = {};
+
+  for (const parameter of parameters) {
+    if (!parameter.name) {
+      return {
+        ok: false,
+        message: "Una funcion tiene un parametro sin nombre.",
+      };
+    }
+
+    if (parameter.rest) {
+      const restValue = hasOwnValue(values, parameter.name)
+        ? values[parameter.name]
+        : [];
+
+      if (!Array.isArray(restValue)) {
+        return {
+          ok: false,
+          message: `El parametro rest "${parameter.name}" debe recibir un arreglo.`,
+        };
+      }
+
+      nextVariables = {
+        ...nextVariables,
+        [parameter.name]: restValue,
+      };
+      continue;
+    }
+
+    if (hasOwnValue(values, parameter.name)) {
+      nextVariables = {
+        ...nextVariables,
+        [parameter.name]: values[parameter.name],
+      };
+      continue;
+    }
+
+    if (parameter.defaultValue !== undefined) {
+      const defaultResult = evaluateExpressionWithVariables(
+        parameter.defaultValue,
+        nextVariables,
+      );
+
+      if (!defaultResult.ok) {
+        return defaultResult;
+      }
+
+      nextVariables = {
+        ...defaultResult.variables,
+        [parameter.name]: defaultResult.value,
+      };
+      continue;
+    }
+
+    return {
+      ok: false,
+      message: `Falta un valor para el parametro "${parameter.name}".`,
+    };
+  }
+
+  return {
+    ok: true,
+    variables: nextVariables,
+  };
+}
+
+function hasOwnValue(
+  values: FlowExecutionFunctionParameterValues,
+  name: string,
+) {
+  return Object.prototype.hasOwnProperty.call(values, name);
+}
+
 function recordStep({
   state,
   node,
@@ -882,6 +1063,7 @@ function recordStep({
   currentDiagramName = state.currentDiagramName,
   callStack = state.callStack,
   pendingInput = null,
+  pendingFunctionParameters = null,
 }: {
   state: FlowExecutionState;
   node: FlowEditorNode;
@@ -896,6 +1078,7 @@ function recordStep({
   currentDiagramName?: string;
   callStack?: FlowExecutionCallFrame[];
   pendingInput?: FlowExecutionPendingInput | null;
+  pendingFunctionParameters?: FlowExecutionPendingFunctionParameters | null;
 }): FlowExecutionState {
   const nextStep = state.stepCount + 1;
   const historyItem: FlowExecutionHistoryItem = {
@@ -925,6 +1108,7 @@ function recordStep({
     activeDecision,
     callStack,
     pendingInput,
+    pendingFunctionParameters,
   };
 }
 
@@ -2349,6 +2533,22 @@ function cloneExecutionValue(value: ExecutionValue): ExecutionValue {
   }
 
   return value;
+}
+
+function formatExecutionValue(value: ExecutionValue) {
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (Array.isArray(value) || isPlainExecutionObject(value)) {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }
 
 function getStaticMemberName(

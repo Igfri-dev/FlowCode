@@ -21,7 +21,8 @@ export function FlowExecutionPanel({
   const cannotContinue =
     executionState.status === "finished" ||
     executionState.status === "error" ||
-    executionState.status === "waitingInput";
+    executionState.status === "waitingInput" ||
+    executionState.status === "waitingFunctionParameters";
 
   return (
     <div
