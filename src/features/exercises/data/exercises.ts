@@ -81,6 +81,257 @@ async function main() {
 main();`,
     tags: ["entrada", "if", "comparaciones"],
   },
+  {
+    id: "multiplication-table",
+    title: "Tabla de multiplicar",
+    description:
+      "Practica un ciclo for y salida con texto dinamico.",
+    difficulty: "facil",
+    objective:
+      "Muestra la tabla de multiplicar de un numero desde 1 hasta 10.",
+    starterCode: `let numero = 7;
+for (let i = 1; i <= 10; i++) {
+  console.log(\`\${numero} x \${i} = \${numero * i}\`);
+}`,
+    tags: ["for", "template", "salida"],
+  },
+  {
+    id: "operation-menu",
+    title: "Menu de operaciones",
+    description:
+      "Usa switch para seleccionar una operacion matematica.",
+    difficulty: "media",
+    objective:
+      "Segun el texto de operacion, calcula suma, resta, multiplicacion o division.",
+    starterCode: `let operacion = "multiplicar";
+let a = 12;
+let b = 4;
+
+switch (operacion) {
+  case "sumar":
+    console.log(a + b);
+    break;
+  case "restar":
+    console.log(a - b);
+    break;
+  case "multiplicar":
+    console.log(a * b);
+    break;
+  case "dividir":
+    console.log(a / b);
+    break;
+  default:
+    console.log("Operacion no valida");
+}`,
+    tags: ["switch", "break", "operadores"],
+  },
+  {
+    id: "access-attempts",
+    title: "Intentos de acceso",
+    description:
+      "Modela una validacion que se ejecuta al menos una vez.",
+    difficulty: "media",
+    objective:
+      "Simula hasta tres intentos de clave y detente cuando el acceso sea correcto.",
+    starterCode: `let intento = 1;
+let clave = "1234";
+let claveIngresada = "0000";
+let acceso = false;
+
+do {
+  if (claveIngresada === clave) {
+    acceso = true;
+    console.log("Acceso permitido");
+  } else {
+    console.log("Intento " + intento + " fallido");
+    claveIngresada = intento === 2 ? "1234" : "1111";
+  }
+  intento++;
+} while (!acceso && intento <= 3);
+
+if (!acceso) {
+  console.log("Cuenta bloqueada");
+}`,
+    tags: ["do while", "booleano", "ternario"],
+  },
+  {
+    id: "normalize-user-profile",
+    title: "Normalizar perfil de usuario",
+    description:
+      "Combina objetos, metodos seguros de texto y acceso opcional.",
+    difficulty: "media",
+    objective:
+      "Limpia el nombre de un usuario y muestra su nivel en mayusculas.",
+    starterCode: `let usuario = {
+  nombre: "  Ana ",
+  perfil: {
+    nivel: "admin",
+  },
+};
+
+let nombreLimpio = usuario.nombre.trim();
+let nivel = usuario.perfil?.nivel ?? "invitado";
+console.log("Usuario " + nombreLimpio + " - " + nivel.toUpperCase());`,
+    tags: ["objetos", "optional chaining", "texto"],
+  },
+  {
+    id: "shipping-quote",
+    title: "Cotizacion de envio",
+    description:
+      "Calcula un total usando una funcion auxiliar, switch y Math.",
+    difficulty: "media",
+    objective:
+      "Calcula envio, descuento y total final para un pedido.",
+    starterCode: `function calcularEnvio(kilos, zona) {
+  let base = Math.ceil(kilos) * 1200;
+
+  switch (zona) {
+    case "norte":
+      return base + 3500;
+    case "sur":
+      return base + 2500;
+    case "centro":
+      return base + 1500;
+    default:
+      return base + 5000;
+  }
+}
+
+let pedido = {
+  subtotal: 42000,
+  kilos: 3.4,
+  zona: "sur",
+  cupon: 0.15,
+};
+
+let envio = calcularEnvio(pedido.kilos, pedido.zona);
+let descuento = pedido.subtotal * pedido.cupon;
+let total = pedido.subtotal + envio - descuento;
+console.log("Total: " + Math.round(total));`,
+    tags: ["funciones", "switch", "Math"],
+  },
+  {
+    id: "prime-number-function",
+    title: "Numero primo con funcion",
+    description:
+      "Encapsula una validacion numerica en una funcion reutilizable.",
+    difficulty: "dificil",
+    objective:
+      "Determina si un numero es primo usando una funcion, un for y retornos tempranos.",
+    starterCode: `function esPrimo(numero) {
+  if (numero < 2) {
+    return false;
+  }
+
+  for (let divisor = 2; divisor * divisor <= numero; divisor++) {
+    if (numero % divisor === 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+let numero = 29;
+let primo = esPrimo(numero);
+
+if (primo) {
+  console.log(numero + " es primo");
+} else {
+  console.log(numero + " no es primo");
+}`,
+    tags: ["funciones", "for", "return"],
+  },
+  {
+    id: "grade-report",
+    title: "Reporte de notas",
+    description:
+      "Procesa un arreglo con funciones y clasifica el resultado con switch.",
+    difficulty: "dificil",
+    objective:
+      "Calcula el promedio de notas, clasificalo y muestra una recomendacion.",
+    starterCode: `function calcularPromedio(notas) {
+  let suma = 0;
+
+  for (let i = 0; i < notas.length; i++) {
+    suma += notas[i];
+  }
+
+  return suma / notas.length;
+}
+
+function clasificarPromedio(promedio) {
+  if (promedio >= 6) {
+    return "excelente";
+  }
+
+  if (promedio >= 4) {
+    return "aprueba";
+  }
+
+  return "riesgo";
+}
+
+let notas = [5, 6, 4, 7];
+let promedio = calcularPromedio(notas);
+let categoria = clasificarPromedio(promedio);
+
+switch (categoria) {
+  case "excelente":
+    console.log("Promedio " + promedio + ": felicitar");
+    break;
+  case "aprueba":
+    console.log("Promedio " + promedio + ": reforzar");
+    break;
+  default:
+    console.log("Promedio " + promedio + ": plan de apoyo");
+}`,
+    tags: ["arreglos", "funciones", "switch"],
+  },
+  {
+    id: "atm-with-validations",
+    title: "Cajero con validaciones",
+    description:
+      "Combina reglas de negocio, funcion auxiliar, modulo y switch.",
+    difficulty: "dificil",
+    objective:
+      "Valida un retiro, actualiza el saldo solo si corresponde y muestra el resultado.",
+    starterCode: `function validarRetiro(saldo, monto) {
+  if (monto <= 0) {
+    return "monto invalido";
+  }
+
+  if (monto > saldo) {
+    return "saldo insuficiente";
+  }
+
+  if (monto % 1000 !== 0) {
+    return "multiplo invalido";
+  }
+
+  return "aprobado";
+}
+
+let saldo = 50000;
+let monto = 18000;
+let estado = validarRetiro(saldo, monto);
+
+switch (estado) {
+  case "aprobado":
+    saldo -= monto;
+    console.log("Retiro aprobado. Saldo: " + saldo);
+    break;
+  case "saldo insuficiente":
+    console.log("No alcanza el saldo disponible");
+    break;
+  case "multiplo invalido":
+    console.log("El monto debe ser multiplo de 1000");
+    break;
+  default:
+    console.log("Monto invalido");
+}`,
+    tags: ["funciones", "validacion", "switch"],
+  },
 ] satisfies Exercise[];
 
 export function getExercises(): Exercise[] {

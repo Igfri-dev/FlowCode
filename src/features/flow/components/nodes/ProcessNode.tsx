@@ -8,6 +8,8 @@ import { EditableNodeLabel } from "./EditableNodeLabel";
 import { NodePortControls } from "./NodePortControls";
 
 export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
+  const instruction =
+    "instruction" in data.config ? data.config.instruction : data.label;
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -29,7 +31,7 @@ export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
 
   return (
     <div
-      className={`relative min-w-40 cursor-grab select-none rounded-md border-2 border-neutral-500 bg-white px-5 py-4 text-center text-sm font-medium text-neutral-900 shadow-sm active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
+      className={`relative min-w-40 max-w-80 cursor-grab select-none rounded-md border-2 border-neutral-500 bg-white px-5 py-4 text-center text-sm font-medium text-neutral-900 shadow-sm active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
     >
       <Handle
         id="in"
@@ -39,15 +41,16 @@ export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
       />
       <EditableNodeLabel
         ariaLabel="Instrucción del bloque de proceso"
-        className="font-medium text-neutral-900"
-        value={
-          "instruction" in data.config ? data.config.instruction : data.label
-        }
+        className="font-mono text-xs leading-5 text-neutral-900 [overflow-wrap:anywhere]"
+        value={instruction}
         onValueChange={(instruction) =>
           data.onConfigChange(id, {
             instruction,
           })
         }
+        rows={getInstructionRows(instruction)}
+        textAlign="left"
+        autoResize
       />
       <Handle
         id="out"
@@ -75,4 +78,8 @@ export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
       />
     </div>
   );
+}
+
+function getInstructionRows(instruction: string) {
+  return Math.max(1, instruction.split(/\r\n|\r|\n/).length);
 }
