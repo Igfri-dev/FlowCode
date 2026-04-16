@@ -19,7 +19,7 @@ export function ExerciseModePanel({
 }: ExerciseModePanelProps) {
   return (
     <section className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-stretch">
-      <div className="min-w-0 rounded-md border border-neutral-300 bg-white p-3 shadow-sm sm:w-72 sm:shrink-0">
+      <div className="min-w-0 rounded-md border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50 sm:w-72 sm:shrink-0">
         <label
           className="block text-sm font-semibold text-neutral-950"
           htmlFor="exercise-mode-select"
@@ -31,7 +31,7 @@ export function ExerciseModePanel({
         </p>
         <select
           id="exercise-mode-select"
-          className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-950 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
+          className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
           value={selectedExercise?.id ?? ""}
           onChange={(event) => onSelectExercise(event.target.value)}
         >
@@ -47,7 +47,7 @@ export function ExerciseModePanel({
       </div>
 
       {selectedExercise ? (
-        <article className="min-w-0 flex-1 rounded-md border border-emerald-300 bg-white p-3 shadow-sm">
+        <article className="min-w-0 flex-1 rounded-md border border-emerald-300 bg-white p-3 shadow-md shadow-emerald-100/70 transition hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded border border-emerald-500 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
               Activo
@@ -80,7 +80,7 @@ export function ExerciseModePanel({
           ) : null}
         </article>
       ) : (
-        <p className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-3 text-sm text-neutral-600 shadow-sm">
+        <p className="min-w-0 flex-1 rounded-md border border-neutral-300/80 bg-white px-3 py-3 text-sm text-neutral-600 shadow-md shadow-neutral-200/70">
           Selecciona un ejercicio para ver las instrucciones.
         </p>
       )}

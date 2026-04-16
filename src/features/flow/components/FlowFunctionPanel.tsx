@@ -56,7 +56,7 @@ export function FlowFunctionPanel({
   }
 
   return (
-    <section className="rounded-lg border border-neutral-300 bg-white p-4 shadow-sm">
+    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
       <div>
         <h2 className="text-base font-semibold text-neutral-950">Funciones</h2>
         <p className="mt-1 text-sm text-neutral-600">
@@ -89,7 +89,7 @@ export function FlowFunctionPanel({
               aria-label={`Eliminar funcion ${flowFunction.name}`}
               title="Eliminar funcion"
               onClick={() => handleDeleteFunction(flowFunction.id)}
-              className="flex w-9 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              className="flex w-9 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-semibold text-red-700 transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
             >
               x
             </button>
@@ -99,18 +99,18 @@ export function FlowFunctionPanel({
         <button
           type="button"
           onClick={onCreateFunction}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
         >
           Nueva funcion
         </button>
       </div>
 
       {activeFunction ? (
-        <div className="mt-4 space-y-2 rounded-md border border-violet-200 bg-violet-50 p-3">
+        <div className="mt-4 space-y-2 rounded-md border border-violet-200 bg-violet-50/70 p-3">
           <label className="block text-xs font-semibold text-violet-950">
             Nombre
             <input
-              className="mt-1 w-full rounded border border-violet-200 bg-white px-2 py-1 text-sm font-medium text-violet-950 outline-none focus:border-violet-500"
+              className="mt-1 w-full rounded-md border border-violet-200 bg-white px-2 py-1 text-sm font-medium text-violet-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
               value={activeFunction.name}
               onChange={(event) =>
                 onUpdateFunction(activeFunction.id, {
@@ -123,7 +123,7 @@ export function FlowFunctionPanel({
           <label className="block text-xs font-semibold text-violet-950">
             Parametros
             <input
-              className="mt-1 w-full rounded border border-violet-200 bg-white px-2 py-1 text-sm font-mono text-violet-950 outline-none focus:border-violet-500"
+              className="mt-1 w-full rounded-md border border-violet-200 bg-white px-2 py-1 text-sm font-mono text-violet-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
               value={activeParameterValue}
               onChange={(event) =>
                 handleParameterChange(activeFunction, event.target.value)
@@ -139,8 +139,8 @@ export function FlowFunctionPanel({
 
 function getDiagramButtonClassName(isActive: boolean) {
   return isActive
-    ? "rounded-md border border-violet-500 bg-violet-50 px-3 py-2 text-left text-sm font-semibold text-violet-950"
-    : "rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition hover:bg-neutral-50";
+    ? "rounded-md border border-violet-500 bg-violet-50 px-3 py-2 text-left text-sm font-semibold text-violet-950 shadow-sm ring-1 ring-violet-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+    : "rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none";
 }
 
 function splitParameters(value: string) {

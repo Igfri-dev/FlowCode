@@ -111,7 +111,7 @@ export function FlowEditor({
 }: FlowEditorProps) {
   return (
     <ReactFlow<FlowEditorNode, FlowEditorEdge>
-      className="flow-editor-canvas h-full min-h-[520px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing"
+      className="flow-editor-canvas h-full min-h-[580px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors"
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -159,7 +159,7 @@ export function FlowEditor({
         position="bottom-left"
         showFitView
         fitViewOptions={fitViewOptions}
-        className="!rounded-md !border !border-neutral-300 !bg-white !shadow-sm"
+        className="!rounded-md !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
         aria-label="Controles del diagrama"
       />
       <MiniMap<FlowEditorNode>
@@ -170,14 +170,14 @@ export function FlowEditor({
         nodeStrokeColor={getMiniMapNodeStrokeColor}
         nodeStrokeWidth={3}
         nodeBorderRadius={4}
-        bgColor="#fafafa"
-        maskColor="rgba(245, 245, 245, 0.72)"
+        bgColor="#ffffff"
+        maskColor="rgba(245, 245, 245, 0.68)"
         maskStrokeColor="#525252"
         maskStrokeWidth={1}
         offsetScale={8}
         zoomStep={12}
         ariaLabel="Mini mapa del diagrama"
-        className="!h-32 !w-48 !rounded-md !border !border-neutral-300 !bg-white !shadow-md"
+        className="!h-32 !w-48 !rounded-md !border !border-neutral-300 !bg-white !shadow-lg"
       />
     </ReactFlow>
   );

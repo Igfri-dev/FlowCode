@@ -162,6 +162,7 @@ export function FlowWorkspace() {
     executionState.status !== "error" &&
     executionState.status !== "waitingInput";
   const isAutoExecutionActive = isAutoRunning && canContinueExecution;
+  const hasActiveDiagramContent = nodes.length > 0 || edges.length > 0;
   const renderedNodes = useMemo(() => {
     const visitedNodeIds = new Set(
       executionState.history.map((item) => item.nodeId),
@@ -535,6 +536,57 @@ export function FlowWorkspace() {
     setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
   }, [activeDiagramId, activeDiagramName]);
 
+  const handleClearActiveDiagram = useCallback(() => {
+    if (!hasActiveDiagramContent) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Limpiar el diagrama "${activeDiagramName}"? Se eliminaran todos los bloques y conexiones.`,
+      )
+    ) {
+      return;
+    }
+
+    const emptyDiagram: FlowProgram["main"] = {
+      nodes: [],
+      edges: [],
+    };
+
+    setBlockedConnectionMessage(null);
+    setIsAutoRunning(false);
+    setCodeGenerationResult(initialCodeGenerationResult);
+    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
+    setNodes(emptyDiagram.nodes);
+    setEdges(emptyDiagram.edges);
+
+    if (activeDiagramId === "main") {
+      setMainDiagram(emptyDiagram);
+      return;
+    }
+
+    setMainDiagram(currentProgram.main);
+    setFunctions(
+      currentProgram.functions.map((flowFunction) =>
+        flowFunction.id === activeDiagramId
+          ? {
+              ...flowFunction,
+              ...emptyDiagram,
+            }
+          : flowFunction,
+      ),
+    );
+  }, [
+    activeDiagramId,
+    activeDiagramName,
+    currentProgram.functions,
+    currentProgram.main,
+    hasActiveDiagramContent,
+    setEdges,
+    setNodes,
+  ]);
+
   const handleGenerateCode = useCallback(() => {
     setCodeGenerationResult(
       generateJavaScriptFromFlow({
@@ -773,8 +825,13 @@ export function FlowWorkspace() {
   );
 
   return (
-    <section className="mx-auto grid min-h-[calc(100vh-7rem)] w-full max-w-[92rem] grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_280px]">
+    <section className="grid min-h-[calc(100vh-6rem)] w-full grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_320px] 2xl:grid-cols-[300px_minmax(0,1fr)_340px]">
       <div className="flex min-w-0 flex-col gap-4">
+        <FlowValidationPanel
+          issues={validationIssues}
+          hasLoops={hasLoops}
+          blockedConnectionMessage={blockedConnectionMessage}
+        />
         <FlowFunctionPanel
           activeDiagramId={activeDiagramId}
           functions={currentProgram.functions}
@@ -792,8 +849,8 @@ export function FlowWorkspace() {
           selectedExercise={selectedExercise}
           onSelectExercise={handleSelectExercise}
         />
-        <div className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300 bg-neutral-100 shadow-md shadow-neutral-300/60">
-          <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-300 bg-white px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-lg shadow-neutral-300/50">
+          <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-950">
                 Diagrama: {activeDiagramName}
@@ -803,6 +860,14 @@ export function FlowWorkspace() {
               </p>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={handleClearActiveDiagram}
+                disabled={!hasActiveDiagramContent}
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+              >
+                Limpiar
+              </button>
               <FlowExecutionPanel
                 executionState={executionState}
                 isAutoRunning={isAutoExecutionActive}
@@ -811,7 +876,7 @@ export function FlowWorkspace() {
                 onPause={handlePauseExecution}
                 onReset={handleResetExecution}
               />
-              <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
+              <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 shadow-sm">
                 {nodes.length} bloques
               </span>
             </div>
@@ -846,12 +911,7 @@ export function FlowWorkspace() {
         />
       </div>
 
-      <aside className="flex min-w-0 flex-col gap-4 lg:col-span-2 xl:col-span-1 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
-        <FlowValidationPanel
-          issues={validationIssues}
-          hasLoops={hasLoops}
-          blockedConnectionMessage={blockedConnectionMessage}
-        />
+      <aside className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
         <FlowVariablesPanel variables={executionState.variables} />
         <FlowOutputPanel outputs={executionState.outputs} />
         <FlowExecutionHistoryPanel history={executionState.history} />

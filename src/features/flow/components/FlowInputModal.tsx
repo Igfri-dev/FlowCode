@@ -50,8 +50,8 @@ function FlowInputModalContent({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/40 px-4">
-      <div className="w-full max-w-md rounded-lg border border-neutral-300 bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/50 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-neutral-300 bg-white p-5 shadow-2xl shadow-neutral-950/20">
         <h2 className="text-lg font-semibold text-neutral-950">
           Entrada requerida
         </h2>
@@ -63,7 +63,7 @@ function FlowInputModalContent({
         <div className="mt-4">
           {pendingInput.inputType === "boolean" ? (
             <select
-              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-sky-500"
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition hover:border-neutral-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
               value={value}
               onChange={(event) => setValue(event.target.value)}
             >
@@ -73,7 +73,7 @@ function FlowInputModalContent({
           ) : (
             <input
               autoFocus
-              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-sky-500"
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition hover:border-neutral-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
               type={pendingInput.inputType === "number" ? "number" : "text"}
               value={value}
               onChange={(event) => setValue(event.target.value)}
@@ -91,7 +91,7 @@ function FlowInputModalContent({
           <button
             type="button"
             onClick={handleConfirm}
-            className="rounded-md bg-neutral-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800"
+            className="rounded-md border border-neutral-950 bg-neutral-950 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
           >
             Confirmar
           </button>

@@ -16,7 +16,7 @@ export function FlowImportPanel({
   onImportCode,
 }: FlowImportPanelProps) {
   return (
-    <section className="rounded-lg border border-neutral-300 bg-white p-4 shadow-sm">
+    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-neutral-950">
@@ -30,7 +30,7 @@ export function FlowImportPanel({
         <button
           type="button"
           onClick={onImportCode}
-          className="rounded-md bg-neutral-950 px-3 py-2 text-sm font-medium text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
+          className="rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
         >
           Generar diagrama
         </button>
@@ -44,7 +44,7 @@ export function FlowImportPanel({
 while (x < 5) {
   x = x + 1;
 }`}
-        className="mt-3 min-h-48 w-full resize-y rounded-md border border-neutral-300 bg-neutral-50 p-3 font-mono text-sm leading-6 text-neutral-950 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
+        className="mt-3 min-h-48 w-full resize-y rounded-md border border-neutral-300 bg-neutral-50 p-3 font-mono text-sm leading-6 text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
       />
 
       {message ? (

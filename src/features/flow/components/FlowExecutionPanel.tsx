@@ -26,15 +26,15 @@ export function FlowExecutionPanel({
   return (
     <div
       aria-label="Controles de ejecucion"
-      className="flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1"
+      className="flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 shadow-sm"
     >
       <span
-        className="hidden max-w-44 truncate text-xs font-medium text-neutral-600 md:inline"
+        className="hidden max-w-44 truncate rounded-md bg-white px-2 py-1 text-xs font-medium text-neutral-600 shadow-sm md:inline"
         title={executionState.message}
       >
         {executionState.message}
       </span>
-      <span className="whitespace-nowrap text-xs font-medium text-neutral-500">
+      <span className="whitespace-nowrap rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-500">
         Paso {executionState.stepCount} de {executionState.maxSteps}
       </span>
 

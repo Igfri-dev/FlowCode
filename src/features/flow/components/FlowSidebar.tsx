@@ -53,7 +53,7 @@ const blockActions: Array<{
 
 export function FlowSidebar({ onAddNode }: FlowSidebarProps) {
   return (
-    <aside className="flex flex-col gap-4 rounded-lg border border-neutral-300 bg-white p-4 shadow-sm">
+    <aside className="flex flex-col gap-4 rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
       <div>
         <h2 className="text-base font-semibold text-neutral-950">Bloques</h2>
         <p className="mt-1 text-sm text-neutral-600">
@@ -67,10 +67,10 @@ export function FlowSidebar({ onAddNode }: FlowSidebarProps) {
             key={action.type}
             type="button"
             onClick={() => onAddNode(action.type)}
-            className="flex items-center gap-3 rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 shadow-sm transition hover:border-neutral-400 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2"
+            className="group flex items-center gap-3 rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
           >
             <span
-              className={`h-2.5 w-2.5 rounded-full ${action.markerClassName}`}
+              className={`h-2.5 w-2.5 rounded-full transition-transform group-hover:scale-125 ${action.markerClassName}`}
               aria-hidden="true"
             />
             {action.label}
