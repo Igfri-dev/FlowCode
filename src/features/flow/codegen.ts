@@ -1,5 +1,6 @@
 import {
   createFlowGraph,
+  getIncomingEdges,
   getOutgoingEdges,
   getOutgoingEdgesByHandle,
   type FlowConnectionLike,
@@ -34,6 +35,42 @@ type BackwardLoopInfo = {
   loopBranch: DecisionBranchHandle;
   exitBranch: DecisionBranchHandle;
   condition: string;
+};
+
+type InferredForLoop = {
+  initNodeId: string;
+  decisionNode: FlowEditorNode;
+  updateNodeId: string;
+  setupInstructions: InferredForSetupInstruction[];
+  init: string;
+  condition: string;
+  update: string;
+  bodyEntryId?: string;
+  exitBranch: DecisionBranchHandle;
+  emitInitBeforeLoop: boolean;
+};
+
+type InferredForSetupInstruction = {
+  nodeId: string;
+  instruction: string;
+};
+
+type InferredSwitchCase = {
+  test: string;
+  entryId: string;
+};
+
+type InferredSwitchStatement = {
+  discriminant: string;
+  cases: InferredSwitchCase[];
+  caseDecisionIds: string[];
+  defaultEntryId?: string;
+  exitNodeId?: string;
+};
+
+type SwitchComparison = {
+  discriminant: string;
+  test: string;
 };
 
 type RenderContext = {
@@ -191,6 +228,13 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
         }
       }
 
+      const inferredForLoop = inferForLoopFromInitializer(node, context);
+
+      if (inferredForLoop) {
+        renderInferredForLoop(inferredForLoop, context);
+        return;
+      }
+
       context.emittedNodeIds.add(node.id);
 
       if (controlFlow?.kind === "break" || isControlInstruction(node, "break")) {
@@ -275,6 +319,13 @@ function renderSequence(nodeId: string | undefined, context: RenderContext) {
 
       if (controlFlow?.kind === "switch") {
         renderSwitchStatement(node, controlFlow, context);
+        return;
+      }
+
+      const inferredSwitch = inferSwitchStatement(node, context);
+
+      if (inferredSwitch) {
+        renderInferredSwitchStatement(inferredSwitch, context);
         return;
       }
 
@@ -485,6 +536,64 @@ function renderTopTestedLoop(
   }
 }
 
+function renderInferredForLoop(
+  loop: InferredForLoop,
+  context: RenderContext,
+) {
+  for (const setupInstruction of loop.setupInstructions) {
+    context.emittedNodeIds.add(setupInstruction.nodeId);
+  }
+
+  context.emittedNodeIds.add(loop.decisionNode.id);
+  context.emittedNodeIds.add(loop.updateNodeId);
+
+  for (const setupInstruction of loop.setupInstructions) {
+    if (
+      setupInstruction.nodeId === loop.initNodeId &&
+      !loop.emitInitBeforeLoop
+    ) {
+      continue;
+    }
+
+    addLine(context, formatInstruction(setupInstruction.instruction));
+  }
+
+  addLine(
+    context,
+    `for (${loop.emitInitBeforeLoop ? "" : loop.init}; ${loop.condition}; ${
+      loop.update
+    }) {`,
+  );
+
+  if (loop.bodyEntryId) {
+    renderSequence(loop.bodyEntryId, {
+      ...context,
+      activePath: new Set(context.activePath),
+      indentLevel: context.indentLevel + 1,
+      stopNodeId: loop.updateNodeId,
+    });
+  }
+
+  addLine(context, "}");
+
+  const exitEdge = getDecisionBranchEdge(
+    context.graph,
+    loop.decisionNode.id,
+    loop.exitBranch,
+  );
+
+  if (exitEdge) {
+    renderSequence(exitEdge.target, {
+      ...context,
+      activePath: new Set(context.activePath),
+    });
+  } else {
+    context.warnings.push(
+      `El ciclo for "${getNodeDescription(loop.decisionNode)}" no tiene rama de salida.`,
+    );
+  }
+}
+
 function renderForLoop(decisionNode: FlowEditorNode, context: RenderContext) {
   const controlFlow = getDecisionControlFlow(decisionNode);
 
@@ -538,6 +647,8 @@ function renderDoWhileLoop(
   loopInfo: BackwardLoopInfo,
   context: RenderContext,
 ) {
+  context.emittedNodeIds.add(loopInfo.decisionNodeId);
+
   addLine(context, "do {");
 
   if (loopInfo.targetNodeId !== loopInfo.decisionNodeId) {
@@ -619,6 +730,70 @@ function renderSwitchStatement(
   }
 }
 
+function renderInferredSwitchStatement(
+  switchStatement: InferredSwitchStatement,
+  context: RenderContext,
+) {
+  for (const decisionId of switchStatement.caseDecisionIds) {
+    context.emittedNodeIds.add(decisionId);
+  }
+
+  addLine(context, `switch (${switchStatement.discriminant}) {`);
+
+  for (const switchCase of switchStatement.cases) {
+    addLine(
+      {
+        ...context,
+        indentLevel: context.indentLevel + 1,
+      },
+      `case ${switchCase.test}:`,
+    );
+
+    renderSequence(switchCase.entryId, {
+      ...context,
+      activePath: new Set(context.activePath),
+      indentLevel: context.indentLevel + 2,
+      stopNodeId: switchStatement.exitNodeId,
+    });
+
+    addLine(
+      {
+        ...context,
+        indentLevel: context.indentLevel + 2,
+      },
+      "break;",
+    );
+  }
+
+  if (
+    switchStatement.defaultEntryId &&
+    switchStatement.defaultEntryId !== switchStatement.exitNodeId
+  ) {
+    addLine(
+      {
+        ...context,
+        indentLevel: context.indentLevel + 1,
+      },
+      "default:",
+    );
+    renderSequence(switchStatement.defaultEntryId, {
+      ...context,
+      activePath: new Set(context.activePath),
+      indentLevel: context.indentLevel + 2,
+      stopNodeId: switchStatement.exitNodeId,
+    });
+  }
+
+  addLine(context, "}");
+
+  if (switchStatement.exitNodeId) {
+    renderSequence(switchStatement.exitNodeId, {
+      ...context,
+      activePath: new Set(context.activePath),
+    });
+  }
+}
+
 function renderBackwardLoop(
   loopInfo: BackwardLoopInfo,
   context: RenderContext,
@@ -632,40 +807,7 @@ function renderBackwardLoop(
     return;
   }
 
-  if (getDecisionControlFlow(decisionNode)?.kind === "doWhile") {
-    renderDoWhileLoop(loopInfo, context);
-    return;
-  }
-
-  addLine(
-    context,
-    `while (${formatLoopCondition(loopInfo.condition, loopInfo.loopBranch)}) {`,
-  );
-  renderSequence(loopInfo.targetNodeId, {
-    ...context,
-    activePath: new Set(context.activePath),
-    indentLevel: context.indentLevel + 1,
-    stopNodeId: loopInfo.decisionNodeId,
-    disabledLoopTargetId: loopInfo.targetNodeId,
-  });
-  addLine(context, "}");
-
-  const exitEdge = getDecisionBranchEdge(
-    context.graph,
-    loopInfo.decisionNodeId,
-    loopInfo.exitBranch,
-  );
-
-  if (exitEdge) {
-    renderSequence(exitEdge.target, {
-      ...context,
-      activePath: new Set(context.activePath),
-    });
-  } else {
-    context.warnings.push(
-      `El ciclo de "${getNodeDescription(decisionNode)}" no tiene rama de salida.`,
-    );
-  }
+  renderDoWhileLoop(loopInfo, context);
 }
 
 function findBackwardLoops(
@@ -752,6 +894,359 @@ function findTopTestedLoopBranch(
   return null;
 }
 
+function inferForLoopFromInitializer(
+  initNode: FlowEditorNode,
+  context: RenderContext,
+): InferredForLoop | null {
+  const setupChain = collectForSetupChain(initNode, context);
+
+  if (!setupChain) {
+    return null;
+  }
+
+  const { decisionNode, setupNodes } = setupChain;
+
+  if (getDecisionControlFlow(decisionNode)) {
+    return null;
+  }
+
+  const loopBranch = findTopTestedLoopBranch(
+    context.graph,
+    decisionNode,
+    context.activePath,
+  );
+
+  if (!loopBranch) {
+    return null;
+  }
+
+  const loopEdge = getDecisionBranchEdge(
+    context.graph,
+    decisionNode.id,
+    loopBranch,
+  );
+  const bodyEntryId = loopEdge?.target;
+
+  if (!bodyEntryId) {
+    return null;
+  }
+
+  const condition = formatLoopCondition(
+    getDecisionCondition(decisionNode),
+    loopBranch,
+  );
+  const setupInstructions = setupNodes.map((node) => ({
+    nodeId: node.id,
+    instruction: getForHeaderInstruction(node),
+  }));
+
+  for (const setupNode of setupNodes) {
+    const init = getForHeaderInstruction(setupNode);
+    const initVariable = getInitializerVariable(init);
+
+    if (
+      !initVariable ||
+      !expressionReferencesIdentifier(condition, initVariable)
+    ) {
+      continue;
+    }
+
+    const updateNode = findForUpdateNode(
+      context.graph,
+      decisionNode.id,
+      bodyEntryId,
+      initVariable,
+    );
+
+    if (!updateNode) {
+      continue;
+    }
+
+    const update = getForHeaderInstruction(updateNode);
+    const exitBranch = getOppositeBranch(loopBranch);
+
+    return {
+      initNodeId: setupNode.id,
+      decisionNode,
+      updateNodeId: updateNode.id,
+      setupInstructions,
+      init,
+      condition,
+      update,
+      bodyEntryId,
+      exitBranch,
+      emitInitBeforeLoop: shouldEmitInitializerBeforeForLoop(
+        context.graph,
+        decisionNode.id,
+        exitBranch,
+        init,
+        initVariable,
+        setupNodes.filter((node) => node.id !== setupNode.id),
+      ),
+    };
+  }
+
+  return null;
+}
+
+function collectForSetupChain(
+  startNode: FlowEditorNode,
+  context: RenderContext,
+) {
+  if (startNode.type !== "process") {
+    return null;
+  }
+
+  const setupNodes: FlowEditorNode[] = [];
+  const visitedNodeIds = new Set<string>();
+  let currentNode: FlowEditorNode | undefined = startNode;
+
+  while (currentNode?.type === "process") {
+    const controlFlow = getProcessControlFlow(currentNode);
+
+    if (
+      context.emittedNodeIds.has(currentNode.id) ||
+      visitedNodeIds.has(currentNode.id) ||
+      controlFlow?.kind === "break" ||
+      controlFlow?.kind === "continue" ||
+      controlFlow?.kind === "forUpdate" ||
+      isControlInstruction(currentNode, "break") ||
+      isControlInstruction(currentNode, "continue")
+    ) {
+      return null;
+    }
+
+    visitedNodeIds.add(currentNode.id);
+    setupNodes.push(currentNode);
+
+    const outgoingEdges = getOutgoingEdges(context.graph, currentNode.id);
+
+    if (outgoingEdges.length !== 1) {
+      return null;
+    }
+
+    const nextNode = context.graph.nodeById.get(outgoingEdges[0].target);
+
+    if (nextNode?.type === "decision") {
+      return {
+        decisionNode: nextNode,
+        setupNodes,
+      };
+    }
+
+    if (nextNode?.type !== "process") {
+      return null;
+    }
+
+    currentNode = nextNode;
+  }
+
+  return null;
+}
+
+function findForUpdateNode(
+  graph: FlowGraph,
+  decisionNodeId: string,
+  bodyEntryId: string,
+  variableName: string,
+) {
+  for (const edge of getIncomingEdges(graph, decisionNodeId)) {
+    const candidateNode = graph.nodeById.get(edge.source);
+
+    if (!candidateNode || candidateNode.type !== "process") {
+      continue;
+    }
+
+    const update = getForHeaderInstruction(candidateNode);
+
+    if (getUpdateVariable(update) !== variableName) {
+      continue;
+    }
+
+    const pathToUpdate = findPath(graph, bodyEntryId, candidateNode.id, {
+      blockedNodeIds: new Set([decisionNodeId]),
+    });
+
+    if (pathToUpdate.length > 0) {
+      return candidateNode;
+    }
+  }
+
+  return null;
+}
+
+function shouldEmitInitializerBeforeForLoop(
+  graph: FlowGraph,
+  decisionNodeId: string,
+  exitBranch: DecisionBranchHandle,
+  init: string,
+  variableName: string,
+  setupNodes: FlowEditorNode[],
+) {
+  if (!isMovableForInitializer(init, variableName)) {
+    return true;
+  }
+
+  if (setupNodes.some((node) => nodeReferencesIdentifier(node, variableName))) {
+    return true;
+  }
+
+  const exitEdge = getDecisionBranchEdge(graph, decisionNodeId, exitBranch);
+
+  if (!exitEdge) {
+    return false;
+  }
+
+  return reachableNodesReferenceIdentifier(
+    graph,
+    exitEdge.target,
+    variableName,
+    new Set([decisionNodeId]),
+  );
+}
+
+function isMovableForInitializer(instruction: string, variableName: string) {
+  const escapedVariableName = escapeRegExp(variableName);
+  const literalValuePattern =
+    String.raw`(?:-?\d+(?:\.\d+)?|true|false|null|undefined|"[^"]*"|'[^']*'|` +
+    "`[^`]*`)";
+  const declarationPattern = new RegExp(
+    String.raw`^(?:let|var|const)\s+${escapedVariableName}(?:\s*=\s*${literalValuePattern})?$`,
+  );
+  const assignmentPattern = new RegExp(
+    String.raw`^${escapedVariableName}\s*=\s*${literalValuePattern}$`,
+  );
+
+  return (
+    declarationPattern.test(instruction) || assignmentPattern.test(instruction)
+  );
+}
+
+function reachableNodesReferenceIdentifier(
+  graph: FlowGraph,
+  startNodeId: string,
+  identifier: string,
+  blockedNodeIds: Set<string>,
+) {
+  const visited = new Set<string>();
+  const queue = [startNodeId];
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+
+    if (!nodeId || visited.has(nodeId) || blockedNodeIds.has(nodeId)) {
+      continue;
+    }
+
+    visited.add(nodeId);
+
+    const node = graph.nodeById.get(nodeId);
+
+    if (node && nodeReferencesIdentifier(node, identifier)) {
+      return true;
+    }
+
+    for (const edge of getOutgoingEdges(graph, nodeId)) {
+      queue.push(edge.target);
+    }
+  }
+
+  return false;
+}
+
+function inferSwitchStatement(
+  rootNode: FlowEditorNode,
+  context: RenderContext,
+): InferredSwitchStatement | null {
+  const rootComparison = parseSwitchComparison(getDecisionCondition(rootNode));
+
+  if (!rootComparison) {
+    return null;
+  }
+
+  const discriminant = rootComparison.discriminant;
+  const cases: InferredSwitchCase[] = [];
+  const caseDecisionIds: string[] = [];
+  const visitedDecisionIds = new Set<string>();
+  let currentNode: FlowEditorNode | undefined = rootNode;
+  let currentComparison: SwitchComparison | null = rootComparison;
+  let defaultEntryId: string | undefined;
+
+  while (currentNode?.type === "decision" && currentComparison) {
+    if (
+      visitedDecisionIds.has(currentNode.id) ||
+      normalizeExpression(currentComparison.discriminant) !==
+        normalizeExpression(discriminant) ||
+      findTopTestedLoopBranch(context.graph, currentNode, context.activePath)
+    ) {
+      return null;
+    }
+
+    const yesEdge = getDecisionBranchEdge(context.graph, currentNode.id, "yes");
+    const noEdge = getDecisionBranchEdge(context.graph, currentNode.id, "no");
+
+    if (!yesEdge) {
+      return null;
+    }
+
+    visitedDecisionIds.add(currentNode.id);
+    caseDecisionIds.push(currentNode.id);
+    cases.push({
+      test: currentComparison.test,
+      entryId: yesEdge.target,
+    });
+
+    if (!noEdge) {
+      break;
+    }
+
+    const nextNode = context.graph.nodeById.get(noEdge.target);
+    const nextComparison =
+      nextNode?.type === "decision"
+        ? parseSwitchComparison(getDecisionCondition(nextNode))
+        : null;
+
+    if (
+      !nextNode ||
+      nextNode.type !== "decision" ||
+      !nextComparison ||
+      normalizeExpression(nextComparison.discriminant) !==
+        normalizeExpression(discriminant)
+    ) {
+      defaultEntryId = noEdge.target;
+      break;
+    }
+
+    currentNode = nextNode;
+    currentComparison = nextComparison;
+  }
+
+  if (cases.length < 2) {
+    return null;
+  }
+
+  const exitNodeId = findFirstCommonReachableNode(
+    context.graph,
+    [
+      ...cases.map((switchCase) => switchCase.entryId),
+      ...(defaultEntryId ? [defaultEntryId] : []),
+    ],
+    new Set(caseDecisionIds),
+  );
+
+  if (!exitNodeId) {
+    return null;
+  }
+
+  return {
+    discriminant,
+    cases,
+    caseDecisionIds,
+    defaultEntryId,
+    exitNodeId,
+  };
+}
+
 function findFirstSharedReachableNode(
   graph: FlowGraph,
   firstNodeId: string,
@@ -779,6 +1274,45 @@ function findFirstSharedReachableNode(
     }
 
     const totalDistance = firstDistance + secondDistance;
+
+    if (totalDistance < bestDistance) {
+      bestDistance = totalDistance;
+      bestNodeId = nodeId;
+    }
+  }
+
+  return bestNodeId;
+}
+
+function findFirstCommonReachableNode(
+  graph: FlowGraph,
+  startNodeIds: string[],
+  blockedNodeIds: Set<string>,
+) {
+  const reachableDistances = startNodeIds.map((nodeId) =>
+    collectReachableDistances(graph, nodeId, blockedNodeIds),
+  );
+
+  if (reachableDistances.length === 0) {
+    return undefined;
+  }
+
+  let bestNodeId: string | undefined;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const [nodeId] of reachableDistances[0]) {
+    const distances = reachableDistances.map((items) => items.get(nodeId));
+
+    let totalDistance = 0;
+
+    for (const distance of distances) {
+      if (distance === undefined) {
+        totalDistance = Number.POSITIVE_INFINITY;
+        break;
+      }
+
+      totalDistance += distance;
+    }
 
     if (totalDistance < bestDistance) {
       bestDistance = totalDistance;
@@ -945,6 +1479,270 @@ function formatInstruction(instruction: string) {
   }
 
   return `${trimmedInstruction};`;
+}
+
+function getForHeaderInstruction(node: FlowEditorNode) {
+  return getProcessInstruction(node).trim().replace(/;+$/, "").trim();
+}
+
+function getInitializerVariable(instruction: string) {
+  const declarationMatch = instruction.match(
+    /^(?:let|var|const)\s+([A-Za-z_$][\w$]*)\s*(?:=.*)?$/,
+  );
+
+  if (declarationMatch) {
+    return declarationMatch[1];
+  }
+
+  const assignmentMatch = instruction.match(
+    /^([A-Za-z_$][\w$]*)\s*=(?!=).*$/,
+  );
+
+  return assignmentMatch?.[1] ?? null;
+}
+
+function getUpdateVariable(instruction: string) {
+  const postfixMatch = instruction.match(/^([A-Za-z_$][\w$]*)(?:\+\+|--)$/);
+
+  if (postfixMatch) {
+    return postfixMatch[1];
+  }
+
+  const prefixMatch = instruction.match(/^(?:\+\+|--)([A-Za-z_$][\w$]*)$/);
+
+  if (prefixMatch) {
+    return prefixMatch[1];
+  }
+
+  const compoundMatch = instruction.match(
+    /^([A-Za-z_$][\w$]*)\s*(?:\+=|-=|\*=|\/=|%=)\s*.+$/,
+  );
+
+  if (compoundMatch) {
+    return compoundMatch[1];
+  }
+
+  const assignmentMatch = instruction.match(
+    /^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/,
+  );
+
+  if (!assignmentMatch) {
+    return null;
+  }
+
+  const [, assignee, expression] = assignmentMatch;
+
+  return expressionReferencesIdentifier(expression, assignee) ? assignee : null;
+}
+
+function expressionReferencesIdentifier(expression: string, identifier: string) {
+  return new RegExp(
+    `(^|[^A-Za-z0-9_$])${escapeRegExp(identifier)}([^A-Za-z0-9_$]|$)`,
+  ).test(expression);
+}
+
+function parseSwitchComparison(condition: string): SwitchComparison | null {
+  const comparison = splitStrictEqualityComparison(condition);
+
+  if (!comparison) {
+    return null;
+  }
+
+  const [left, right] = comparison;
+
+  if (isLikelySwitchCaseTest(left) && !isLikelySwitchCaseTest(right)) {
+    return createSwitchComparison(right, left);
+  }
+
+  return createSwitchComparison(left, right);
+}
+
+function createSwitchComparison(
+  discriminant: string,
+  test: string,
+): SwitchComparison | null {
+  const normalizedDiscriminant = normalizeExpression(discriminant);
+  const normalizedTest = normalizeExpression(test);
+
+  if (
+    !isSafeSwitchDiscriminant(normalizedDiscriminant) ||
+    !isLikelySwitchCaseTest(normalizedTest)
+  ) {
+    return null;
+  }
+
+  return {
+    discriminant: normalizedDiscriminant,
+    test: normalizedTest,
+  };
+}
+
+function splitStrictEqualityComparison(condition: string) {
+  const normalizedCondition = stripWrappingParentheses(condition.trim());
+  let quote: string | null = null;
+  let escaping = false;
+  let depth = 0;
+
+  for (let index = 0; index < normalizedCondition.length - 2; index += 1) {
+    const character = normalizedCondition[index];
+
+    if (quote) {
+      if (escaping) {
+        escaping = false;
+      } else if (character === "\\") {
+        escaping = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    if (character === "(" || character === "[" || character === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (character === ")" || character === "]" || character === "}") {
+      depth -= 1;
+      continue;
+    }
+
+    if (depth === 0 && normalizedCondition.slice(index, index + 3) === "===") {
+      const left = normalizedCondition.slice(0, index).trim();
+      const right = normalizedCondition.slice(index + 3).trim();
+
+      return left && right ? [left, right] : null;
+    }
+  }
+
+  return null;
+}
+
+function normalizeExpression(expression: string) {
+  return stripWrappingParentheses(expression.trim());
+}
+
+function stripWrappingParentheses(expression: string) {
+  let current = expression;
+
+  while (current.startsWith("(") && current.endsWith(")")) {
+    const inner = current.slice(1, -1).trim();
+
+    if (!hasBalancedWrappingParentheses(current, inner)) {
+      break;
+    }
+
+    current = inner;
+  }
+
+  return current;
+}
+
+function hasBalancedWrappingParentheses(expression: string, inner: string) {
+  let quote: string | null = null;
+  let escaping = false;
+  let depth = 0;
+
+  for (let index = 0; index < expression.length; index += 1) {
+    const character = expression[index];
+
+    if (quote) {
+      if (escaping) {
+        escaping = false;
+      } else if (character === "\\") {
+        escaping = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (character === '"' || character === "'" || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    if (character === "(") {
+      depth += 1;
+    }
+
+    if (character === ")") {
+      depth -= 1;
+    }
+
+    if (depth === 0 && index < expression.length - 1) {
+      return false;
+    }
+  }
+
+  return depth === 0 && inner.length > 0;
+}
+
+function isLikelySwitchCaseTest(expression: string) {
+  const normalizedExpression = normalizeExpression(expression);
+
+  return (
+    /^["'`]/.test(normalizedExpression) ||
+    /^-?\d+(?:\.\d+)?$/.test(normalizedExpression) ||
+    /^(?:true|false|null|undefined)$/.test(normalizedExpression)
+  );
+}
+
+function isSafeSwitchDiscriminant(expression: string) {
+  return /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(
+    expression.replace(/\s+/g, ""),
+  );
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function nodeReferencesIdentifier(node: FlowEditorNode, identifier: string) {
+  return getReferenceCandidateTexts(node).some((text) =>
+    expressionReferencesIdentifier(text, identifier),
+  );
+}
+
+function getReferenceCandidateTexts(node: FlowEditorNode) {
+  if (node.type === "process") {
+    return [getProcessInstruction(node)];
+  }
+
+  if (node.type === "decision") {
+    return [getDecisionCondition(node)];
+  }
+
+  if (node.type === "output") {
+    const config = node.data.config;
+
+    return "outputMode" in config && config.outputMode === "expression"
+      ? [config.expression]
+      : [];
+  }
+
+  if (node.type === "functionCall") {
+    const config = node.data.config;
+
+    return "functionId" in config
+      ? [...config.args, config.assignTo ?? ""]
+      : [];
+  }
+
+  if (node.type === "return") {
+    const config = node.data.config;
+
+    return "expression" in config ? [config.expression] : [];
+  }
+
+  return [];
 }
 
 function formatInputInstruction(node: FlowEditorNode) {

@@ -8,6 +8,7 @@ import {
   type ExecutionVariables,
   type FlowExecutionState,
 } from "@/features/flow/execution";
+import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
 import { getExercises } from "@/features/exercises/data/exercises";
 import { validateFlowDiagram } from "@/features/flow/flow-validation";
 import { importJavaScriptToFlow } from "@/features/flow/parser";
@@ -205,6 +206,184 @@ describe("JavaScript import parser", () => {
         result.ok ? "" : `${exercise.language}/${exercise.id}: ${result.message}`,
       );
     }
+  });
+});
+
+describe("Flow JavaScript code generation", () => {
+  it("infers a for loop from initializer, condition and update blocks", () => {
+    const nodes = [
+      createNode("start", "start", "Inicio", {}),
+      createNode("init", "process", "let i = 1", {
+        instruction: "let i = 1",
+      }),
+      createNode("condition", "decision", "i <= 3", {
+        condition: "i <= 3",
+      }),
+      createNode("print", "output", "Mostrar i", {
+        expression: "i",
+        outputMode: "expression",
+      }),
+      createNode("update", "process", "i++", { instruction: "i++" }),
+      createNode("end", "end", "Fin", {}),
+    ];
+    const edges = [
+      createEdge("start", "init", "out"),
+      createEdge("init", "condition", "out"),
+      createEdge("condition", "print", "yes"),
+      createEdge("print", "update", "out"),
+      createEdge("update", "condition", "out"),
+      createEdge("condition", "end", "no"),
+    ];
+
+    const result = generateJavaScriptFromFlow({ nodes, edges });
+
+    assert.deepEqual(result.warnings, []);
+    assert.match(result.code, /for \(let i = 1; i <= 3; i\+\+\) \{/);
+    assert.doesNotMatch(result.code, /while \(i <= 3\)/);
+  });
+
+  it("infers a for loop when other setup blocks appear before the condition", () => {
+    const nodes = [
+      createNode("start", "start", "Inicio", {}),
+      createNode("init", "process", "let i = 0", {
+        instruction: "let i = 0",
+      }),
+      createNode("setup", "process", "let suma = 0", {
+        instruction: "let suma = 0",
+      }),
+      createNode("condition", "decision", "i < 5", {
+        condition: "i < 5",
+      }),
+      createNode("body", "process", "suma = suma + i", {
+        instruction: "suma = suma + i",
+      }),
+      createNode("update", "process", "i++", { instruction: "i++" }),
+      createNode("print", "output", "Mostrar suma", {
+        expression: "suma",
+        outputMode: "expression",
+      }),
+      createNode("end", "end", "Fin", {}),
+    ];
+    const edges = [
+      createEdge("start", "init", "out"),
+      createEdge("init", "setup", "out"),
+      createEdge("setup", "condition", "out"),
+      createEdge("condition", "body", "yes"),
+      createEdge("body", "update", "out"),
+      createEdge("update", "condition", "out"),
+      createEdge("condition", "print", "no"),
+      createEdge("print", "end", "out"),
+    ];
+
+    const result = generateJavaScriptFromFlow({ nodes, edges });
+
+    assert.deepEqual(result.warnings, []);
+    assert.match(result.code, /let suma = 0;\n\s+for \(let i = 0; i < 5; i\+\+\) \{/);
+    assert.doesNotMatch(result.code, /while \(i < 5\)/);
+  });
+
+  it("uses do while for a cycle that evaluates the condition after the body", () => {
+    const nodes = [
+      createNode("start", "start", "Inicio", {}),
+      createNode("step", "process", "i++", { instruction: "i++" }),
+      createNode("condition", "decision", "i < 3", {
+        condition: "i < 3",
+      }),
+      createNode("end", "end", "Fin", {}),
+    ];
+    const edges = [
+      createEdge("start", "step", "out"),
+      createEdge("step", "condition", "out"),
+      createEdge("condition", "step", "yes"),
+      createEdge("condition", "end", "no"),
+    ];
+
+    const result = generateJavaScriptFromFlow({ nodes, edges });
+
+    assert.deepEqual(result.warnings, []);
+    assert.match(result.code, /do \{\n\s+i\+\+;\n\s+\} while \(i < 3\);/);
+    assert.doesNotMatch(result.code, /while \(i < 3\) \{/);
+  });
+
+  it("keeps a block-scoped for initializer visible after the loop when needed", () => {
+    const nodes = [
+      createNode("start", "start", "Inicio", {}),
+      createNode("init", "process", "let i = 1", {
+        instruction: "let i = 1",
+      }),
+      createNode("condition", "decision", "i <= 3", {
+        condition: "i <= 3",
+      }),
+      createNode("body", "process", "total += i", {
+        instruction: "total += i",
+      }),
+      createNode("update", "process", "i++", { instruction: "i++" }),
+      createNode("after", "output", "Mostrar i", {
+        expression: "i",
+        outputMode: "expression",
+      }),
+      createNode("end", "end", "Fin", {}),
+    ];
+    const edges = [
+      createEdge("start", "init", "out"),
+      createEdge("init", "condition", "out"),
+      createEdge("condition", "body", "yes"),
+      createEdge("body", "update", "out"),
+      createEdge("update", "condition", "out"),
+      createEdge("condition", "after", "no"),
+      createEdge("after", "end", "out"),
+    ];
+
+    const result = generateJavaScriptFromFlow({ nodes, edges });
+
+    assert.deepEqual(result.warnings, []);
+    assert.match(result.code, /let i = 1;\n\s+for \(; i <= 3; i\+\+\) \{/);
+  });
+
+  it("infers switch from a chain of strict equality decisions", () => {
+    const nodes = [
+      createNode("start", "start", "Inicio", {}),
+      createNode("sum-condition", "decision", 'operacion === "+"', {
+        condition: 'operacion === "+"',
+      }),
+      createNode("subtract-condition", "decision", 'operacion === "-"', {
+        condition: 'operacion === "-"',
+      }),
+      createNode("sum", "process", "resultado = a + b", {
+        instruction: "resultado = a + b",
+      }),
+      createNode("subtract", "process", "resultado = a - b", {
+        instruction: "resultado = a - b",
+      }),
+      createNode("fallback", "process", "resultado = 0", {
+        instruction: "resultado = 0",
+      }),
+      createNode("print", "output", "Mostrar resultado", {
+        expression: "resultado",
+        outputMode: "expression",
+      }),
+      createNode("end", "end", "Fin", {}),
+    ];
+    const edges = [
+      createEdge("start", "sum-condition", "out"),
+      createEdge("sum-condition", "sum", "yes"),
+      createEdge("sum-condition", "subtract-condition", "no"),
+      createEdge("subtract-condition", "subtract", "yes"),
+      createEdge("subtract-condition", "fallback", "no"),
+      createEdge("sum", "print", "out"),
+      createEdge("subtract", "print", "out"),
+      createEdge("fallback", "print", "out"),
+      createEdge("print", "end", "out"),
+    ];
+
+    const result = generateJavaScriptFromFlow({ nodes, edges });
+
+    assert.deepEqual(result.warnings, []);
+    assert.match(result.code, /switch \(operacion\) \{/);
+    assert.match(result.code, /case "\+":/);
+    assert.match(result.code, /case "-":/);
+    assert.match(result.code, /default:/);
+    assert.doesNotMatch(result.code, /if \(operacion ===/);
   });
 });
 
