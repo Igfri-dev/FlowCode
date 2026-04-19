@@ -332,6 +332,138 @@ switch (estado) {
 }`,
     tags: ["funciones", "validacion", "switch"],
   },
+  {
+    id: "geometry-lab",
+    title: "Laboratorio de geometria",
+    description:
+      "Aplica varias funciones Math para calcular medidas derivadas.",
+    difficulty: "media",
+    objective:
+      "Calcula area, perimetro, diagonal y redondeos usando constantes y funciones Math.",
+    starterCode: `let radio = 4.5;
+let ancho = 8;
+let alto = 6;
+
+let areaCirculo = Math.PI * Math.pow(radio, 2);
+let perimetro = 2 * Math.PI * radio;
+let diagonal = Math.sqrt(Math.pow(ancho, 2) + Math.pow(alto, 2));
+let areaRedondeada = Math.round(areaCirculo);
+let perimetroEntero = Math.trunc(perimetro);
+let altoTecho = Math.ceil(alto / 4);
+let anchoPiso = Math.floor(ancho / 3);
+
+console.log("Area: " + areaRedondeada);
+console.log("Perimetro entero: " + perimetroEntero);
+console.log("Diagonal: " + diagonal);
+console.log("Partes: " + altoTecho + " x " + anchoPiso);`,
+    tags: ["Math", "geometria", "numeros"],
+  },
+  {
+    id: "text-tag-cleaner",
+    title: "Limpiador de etiquetas",
+    description:
+      "Normaliza texto usando metodos de string y transformaciones de arreglo.",
+    difficulty: "media",
+    objective:
+      "Convierte una lista de etiquetas en texto limpio, filtrado y ordenado.",
+    starterCode: `let entrada = "  JS, flujo, Datos, javascript, codigo  ";
+let etiquetas = entrada
+  .trim()
+  .toLowerCase()
+  .replace("javascript", "js")
+  .split(",")
+  .map(texto => texto.trim())
+  .filter(texto => texto.length > 0);
+
+let relevantes = etiquetas.filter(texto => texto.includes("j") || texto.startsWith("d"));
+let resumen = relevantes.sort().join(" | ");
+let primera = resumen.slice(0, 2);
+
+console.log("Etiquetas: " + resumen);
+console.log("Primer fragmento: " + primera);`,
+    tags: ["texto", "arreglos", "callbacks"],
+  },
+  {
+    id: "inventory-objects",
+    title: "Inventario con objetos",
+    description:
+      "Combina objetos, Object.keys/values/entries y metodos de arreglo.",
+    difficulty: "dificil",
+    objective:
+      "Calcula totales de stock, detecta productos bajos y arma un reporte ordenado.",
+    starterCode: `let inventario = {
+  lapices: 12,
+  cuadernos: 4,
+  mochilas: 2,
+};
+
+inventario.reglas = 7;
+inventario["gomas"] = 3;
+
+let nombres = Object.keys(inventario);
+let cantidades = Object.values(inventario);
+let entradas = Object.entries(inventario);
+let total = cantidades.reduce((suma, cantidad) => suma + cantidad, 0);
+let bajos = entradas
+  .filter(item => item[1] <= 4)
+  .map(item => item[0])
+  .sort();
+
+console.log("Productos: " + nombres.join(", "));
+console.log("Total: " + total);
+console.log("Stock bajo: " + bajos.join(" / "));`,
+    tags: ["objetos", "Object", "reduce"],
+  },
+  {
+    id: "unicode-message",
+    title: "Mensaje Unicode",
+    description:
+      "Explora conversiones entre caracteres y codigos Unicode.",
+    difficulty: "media",
+    objective:
+      "Lee caracteres, transforma codigos y valida si un texto termina con un simbolo.",
+    starterCode: `let mensaje = "Hola 😀";
+let primeraLetra = charAt(mensaje, 0);
+let codigoH = charToCode(primeraLetra);
+let emojiCodigo = codePointAt(mensaje, 5);
+let emoji = fromCodePoint(emojiCodigo);
+let letraA = codeToChar(65);
+let letraB = fromCharCode(66);
+let terminaConEmoji = mensaje.endsWith(emoji);
+
+console.log("Primera letra: " + primeraLetra + " = " + codigoH);
+console.log("Emoji: " + emoji + " = " + emojiCodigo);
+console.log("Letras: " + letraA + letraB);
+console.log("Termina con emoji: " + terminaConEmoji);`,
+    tags: ["unicode", "caracteres", "texto"],
+  },
+  {
+    id: "survey-scoreboard",
+    title: "Ranking de encuesta",
+    description:
+      "Usa callbacks de arreglos para transformar, filtrar y resumir datos.",
+    difficulty: "dificil",
+    objective:
+      "Procesa respuestas numericas, calcula estadisticas y encuentra valores destacados.",
+    starterCode: `let respuestas = [5, 3, 4, 1, 5, 2, 4];
+let ajustadas = respuestas.map(valor => Math.max(1, Math.min(5, valor + 1)));
+let aprobadas = ajustadas.filter(valor => valor >= 4);
+let primeraAlta = ajustadas.find(valor => valor === 5);
+let hayBaja = ajustadas.some(valor => valor <= 2);
+let todasValidas = ajustadas.every(valor => valor >= 1 && valor <= 5);
+let total = ajustadas.reduce((suma, valor) => suma + valor, 0);
+let promedio = Math.round(total / ajustadas.length);
+let ranking = ajustadas.slice().sort((a, b) => b - a);
+
+console.log("Ajustadas: " + ajustadas.join(", "));
+console.log("Aprobadas: " + aprobadas.length);
+console.log("Primera alta: " + primeraAlta);
+console.log("Hay baja: " + hayBaja);
+console.log("Todas validas: " + todasValidas);
+console.log("Promedio: " + promedio);
+console.log("Ranking: " + ranking.join(" > "));`,
+    tags: ["arreglos", "callbacks", "Math"],
+  },
 ] satisfies Exercise[];
 
 export function getExercises(): Exercise[] {

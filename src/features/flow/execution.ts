@@ -1,10 +1,12 @@
 import { parseExpression } from "@babel/parser";
 import type {
   AssignmentExpression,
+  ArrowFunctionExpression,
   BinaryExpression,
   CallExpression,
   ConditionalExpression,
   Expression,
+  FunctionExpression,
   LogicalExpression,
   MemberExpression,
   ObjectProperty,
@@ -1224,7 +1226,7 @@ function executeInstruction(
     return {
       ok: false,
       message:
-        "Instruccion vacia. Usa asignaciones, actualizaciones o declaraciones como x = 5, x++, x += 1 o let x = 5.",
+        "Instruccion vacia. Usa asignaciones, llamadas seguras, actualizaciones o declaraciones como x = 5, arr.push(1), x++ o let x = 5.",
     };
   }
 
@@ -1274,11 +1276,13 @@ function executeInstruction(
     if (
       expression.type !== "AssignmentExpression" &&
       expression.type !== "UpdateExpression" &&
-      expression.type !== "SequenceExpression"
+      expression.type !== "SequenceExpression" &&
+      expression.type !== "CallExpression" &&
+      expression.type !== "OptionalCallExpression"
     ) {
       return {
         ok: false,
-        message: `Instruccion no soportada: "${instruction}". Usa asignaciones, actualizaciones o declaraciones como x = 5, x++, x += 1 o let x = 5.`,
+        message: `Instruccion no soportada: "${instruction}". Usa asignaciones, llamadas seguras, actualizaciones o declaraciones como x = 5, arr.push(1), x++ o let x = 5.`,
       };
     }
 
@@ -1912,6 +1916,15 @@ function evaluateCallExpression(
   expression: CallExpression | OptionalCallExpression,
   variables: ExecutionVariables,
 ): ExpressionEvaluationResult {
+  const methodCallResult = evaluateSafeMethodCallExpression(
+    expression,
+    variables,
+  );
+
+  if (methodCallResult) {
+    return methodCallResult;
+  }
+
   const calleeResult = resolveSafeCall(expression, variables);
 
   if (!calleeResult.ok) {
@@ -1965,6 +1978,24 @@ type SafeCallable = (
   args: ExecutionValue[],
 ) => { ok: true; value: ExecutionValue } | { ok: false; message: string };
 
+type SafeStringMethod = (
+  value: string,
+  args: ExecutionValue[],
+) => { ok: true; value: ExecutionValue } | { ok: false; message: string };
+
+type SafeArrayMethod = (
+  value: ExecutionArray,
+  args: ExecutionValue[],
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) => ExpressionEvaluationResult;
+
+type SafeArrayCallback = (
+  values: ExecutionValue[],
+) => ExpressionEvaluationResult;
+
+type SupportValidationResult = { ok: true } | { ok: false; message: string };
+
 type SafeCallResolution =
   | {
       ok: true;
@@ -1981,6 +2012,23 @@ const safeGlobalCalls: Record<string, SafeCallable> = {
   Number: (args) => createSafeCallValue(Number(args[0])),
   String: (args) => createSafeCallValue(String(args[0])),
   Boolean: (args) => createSafeCallValue(Boolean(args[0])),
+  charAt: (args) => callStringIndexFunction("charAt", args, (value, index) =>
+    value.charAt(index),
+  ),
+  charToCode: (args) => callCharToCode(args),
+  codeToChar: (args) => callCodePointToString("codeToChar", args),
+  charCodeAt: (args) =>
+    callStringIndexFunction("charCodeAt", args, (value, index) =>
+      value.charCodeAt(index),
+    ),
+  codePointAt: (args) =>
+    callStringIndexFunction("codePointAt", args, (value, index) =>
+      value.codePointAt(index),
+    ),
+  fromCharCode: (args) =>
+    callCharacterCodeFunction("fromCharCode", args, String.fromCharCode),
+  fromCodePoint: (args) =>
+    callCodePointToString("fromCodePoint", args),
 };
 
 const safeMathCalls: Record<string, SafeCallable> = {
@@ -1990,30 +2038,540 @@ const safeMathCalls: Record<string, SafeCallable> = {
   floor: (args) => callNumberMathFunction("Math.floor", Math.floor, args),
   ceil: (args) => callNumberMathFunction("Math.ceil", Math.ceil, args),
   round: (args) => callNumberMathFunction("Math.round", Math.round, args),
-  pow: (args) => {
-    if (args.length !== 2) {
+  trunc: (args) => callNumberMathFunction("Math.trunc", Math.trunc, args),
+  random: (args) => callNoArgumentFunction("Math.random", args, Math.random),
+  pow: (args) => callFixedNumberMathFunction("Math.pow", Math.pow, 2, args),
+  sqrt: (args) => callNumberMathFunction("Math.sqrt", Math.sqrt, args),
+  sin: (args) => callNumberMathFunction("Math.sin", Math.sin, args),
+  cos: (args) => callNumberMathFunction("Math.cos", Math.cos, args),
+  tan: (args) => callNumberMathFunction("Math.tan", Math.tan, args),
+};
+
+const safeObjectCalls: Record<string, SafeCallable> = {
+  keys: (args) =>
+    callObjectFunction("Object.keys", args, (value) => Object.keys(value)),
+  values: (args) =>
+    callObjectFunction("Object.values", args, (value) => Object.values(value)),
+  entries: (args) =>
+    callObjectFunction("Object.entries", args, (value) =>
+      Object.entries(value).map(([key, item]) => [key, item]),
+    ),
+};
+
+const safeStringMethods: Record<string, SafeStringMethod> = {
+  toUpperCase: (value, args) =>
+    callNoArgumentMethod("toUpperCase", args, () => value.toUpperCase()),
+  toLowerCase: (value, args) =>
+    callNoArgumentMethod("toLowerCase", args, () => value.toLowerCase()),
+  trim: (value, args) =>
+    callNoArgumentMethod("trim", args, () => value.trim()),
+  includes: (value, args) =>
+    callStringSearchMethod("includes", value, args, (search, position) =>
+      value.includes(search, position),
+    ),
+  startsWith: (value, args) =>
+    callStringSearchMethod("startsWith", value, args, (search, position) =>
+      value.startsWith(search, position),
+    ),
+  endsWith: (value, args) =>
+    callStringSearchMethod("endsWith", value, args, (search, position) =>
+      value.endsWith(search, position),
+    ),
+  slice: (value, args) =>
+    callStringSliceMethod("slice", value, args, (start, end) =>
+      value.slice(start, end),
+    ),
+  substring: (value, args) =>
+    callStringSliceMethod("substring", value, args, (start, end) =>
+      value.substring(start ?? 0, end),
+    ),
+  replace: (value, args) => callStringReplaceMethod(value, args),
+  split: (value, args) => callStringSplitMethod(value, args),
+  charAt: (value, args) =>
+    callStringOwnIndexMethod("charAt", value, args, (index) =>
+      value.charAt(index),
+    ),
+  charCodeAt: (value, args) =>
+    callStringOwnIndexMethod("charCodeAt", value, args, (index) =>
+      value.charCodeAt(index),
+    ),
+  codePointAt: (value, args) =>
+    callStringOwnIndexMethod("codePointAt", value, args, (index) =>
+      value.codePointAt(index),
+    ),
+};
+
+const safeArrayMethods: Record<string, SafeArrayMethod> = {
+  push: (value, args) => createExpressionValue(value.push(...args), {}),
+  pop: (value, args) =>
+    callNoArgumentArrayMethod("pop", args, () => value.pop()),
+  shift: (value, args) =>
+    callNoArgumentArrayMethod("shift", args, () => value.shift()),
+  unshift: (value, args) =>
+    createExpressionValue(value.unshift(...args), {}),
+  includes: (value, args) => callArrayIncludesMethod(value, args),
+  indexOf: (value, args) => callArrayIndexOfMethod(value, args),
+  slice: (value, args) => callArraySliceMethod(value, args),
+  join: (value, args) => callArrayJoinMethod(value, args),
+  map: (value, args, callbackArgs, variables) =>
+    callArrayMapMethod(value, callbackArgs, variables),
+  filter: (value, args, callbackArgs, variables) =>
+    callArrayFilterMethod(value, callbackArgs, variables),
+  find: (value, args, callbackArgs, variables) =>
+    callArrayFindMethod(value, callbackArgs, variables),
+  some: (value, args, callbackArgs, variables) =>
+    callArraySomeMethod(value, callbackArgs, variables),
+  every: (value, args, callbackArgs, variables) =>
+    callArrayEveryMethod(value, callbackArgs, variables),
+  reduce: (value, args, callbackArgs, variables) =>
+    callArrayReduceMethod(value, args, callbackArgs, variables),
+  sort: (value, args, callbackArgs, variables) =>
+    callArraySortMethod(value, callbackArgs, variables),
+};
+
+export function validateExpressionSupport(
+  expression: string,
+): SupportValidationResult {
+  const trimmedExpression = trimExpressionText(expression);
+
+  if (!trimmedExpression) {
+    return {
+      ok: false,
+      message: "La expresion esta vacia.",
+    };
+  }
+
+  try {
+    return validateExpressionNodeSupport(
+      parseExpression(trimmedExpression, {
+        sourceType: "unambiguous",
+      }),
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? `Expresion no soportada: ${error.message}`
+          : "Expresion no soportada.",
+    };
+  }
+}
+
+export function validateProcessInstructionSupport(
+  instruction: string,
+): SupportValidationResult {
+  const trimmedInstruction = trimExpressionText(instruction);
+  const declarationMatch = trimmedInstruction.match(
+    /^(let|const|var)\s+([A-Za-z_$][\w$]*)(?:\s*=\s*(.+))?$/,
+  );
+
+  if (!trimmedInstruction) {
+    return {
+      ok: false,
+      message: "La instruccion de proceso esta vacia.",
+    };
+  }
+
+  if (trimmedInstruction === "break" || trimmedInstruction === "continue") {
+    return {
+      ok: true,
+    };
+  }
+
+  if (declarationMatch) {
+    const [, , , initializer] = declarationMatch;
+
+    return initializer ? validateExpressionSupport(initializer) : { ok: true };
+  }
+
+  try {
+    const expression = parseExpression(trimmedInstruction, {
+      sourceType: "unambiguous",
+    });
+
+    if (
+      expression.type !== "AssignmentExpression" &&
+      expression.type !== "UpdateExpression" &&
+      expression.type !== "SequenceExpression" &&
+      expression.type !== "CallExpression" &&
+      expression.type !== "OptionalCallExpression"
+    ) {
       return {
         ok: false,
-        message: "Math.pow espera exactamente 2 argumento(s).",
+        message:
+          "El proceso debe ser una declaracion, asignacion, actualizacion o llamada segura.",
       };
     }
 
-    if (typeof args[0] !== "number" || typeof args[1] !== "number") {
+    return validateExpressionNodeSupport(expression);
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? `Instruccion no soportada: ${error.message}`
+          : "Instruccion no soportada.",
+    };
+  }
+}
+
+function validateExpressionNodeSupport(
+  expression: Expression,
+  options: { allowCallback?: boolean } = {},
+): SupportValidationResult {
+  if (
+    expression.type === "Identifier" ||
+    expression.type === "NumericLiteral" ||
+    expression.type === "StringLiteral" ||
+    expression.type === "BooleanLiteral" ||
+    expression.type === "NullLiteral"
+  ) {
+    return { ok: true };
+  }
+
+  if (expression.type === "ParenthesizedExpression") {
+    return validateExpressionNodeSupport(expression.expression, options);
+  }
+
+  if (expression.type === "UnaryExpression") {
+    return validateExpressionNodeSupport(expression.argument, options);
+  }
+
+  if (
+    expression.type === "LogicalExpression" ||
+    expression.type === "BinaryExpression"
+  ) {
+    if (expression.left.type === "PrivateName") {
       return {
         ok: false,
-        message: "Math.pow solo soporta argumentos numericos.",
+        message: "Los campos privados no estan soportados.",
       };
     }
 
-    return createSafeCallValue(Math.pow(args[0], args[1]));
-  },
-};
+    return mergeValidationResults(
+      validateExpressionNodeSupport(expression.left, options),
+      validateExpressionNodeSupport(expression.right, options),
+    );
+  }
 
-const safeStringMethods: Record<string, (value: string) => ExecutionValue> = {
-  toUpperCase: (value) => value.toUpperCase(),
-  toLowerCase: (value) => value.toLowerCase(),
-  trim: (value) => value.trim(),
-};
+  if (expression.type === "ConditionalExpression") {
+    return mergeValidationResults(
+      validateExpressionNodeSupport(expression.test, options),
+      validateExpressionNodeSupport(expression.consequent, options),
+      validateExpressionNodeSupport(expression.alternate, options),
+    );
+  }
+
+  if (
+    expression.type === "MemberExpression" ||
+    expression.type === "OptionalMemberExpression"
+  ) {
+    return validateMemberExpressionSupport(expression, options);
+  }
+
+  if (expression.type === "ArrayExpression") {
+    return mergeValidationResults(
+      ...expression.elements
+        .filter((element): element is NonNullable<typeof element> =>
+          Boolean(element),
+        )
+        .map((element) =>
+          element.type === "SpreadElement"
+            ? validateExpressionNodeSupport(element.argument, options)
+            : validateExpressionNodeSupport(element, options),
+        ),
+    );
+  }
+
+  if (expression.type === "ObjectExpression") {
+    const results = expression.properties.map((property) => {
+      if (property.type === "SpreadElement") {
+        return validateExpressionNodeSupport(property.argument, options);
+      }
+
+      if (property.type !== "ObjectProperty") {
+        return {
+          ok: false as const,
+          message: `La propiedad de objeto "${property.type}" no esta soportada.`,
+        };
+      }
+
+      return mergeValidationResults(
+        property.computed
+          ? validateExpressionNodeSupport(property.key as Expression, options)
+          : { ok: true },
+        validateExpressionNodeSupport(property.value as Expression, options),
+      );
+    });
+
+    return mergeValidationResults(...results);
+  }
+
+  if (expression.type === "TemplateLiteral") {
+    return mergeValidationResults(
+      ...expression.expressions.map((item) =>
+        validateExpressionNodeSupport(item as Expression, options),
+      ),
+    );
+  }
+
+  if (
+    expression.type === "CallExpression" ||
+    expression.type === "OptionalCallExpression"
+  ) {
+    return validateCallExpressionSupport(expression, options);
+  }
+
+  if (expression.type === "SequenceExpression") {
+    return mergeValidationResults(
+      ...expression.expressions.map((item) =>
+        validateExpressionNodeSupport(item, options),
+      ),
+    );
+  }
+
+  if (expression.type === "AssignmentExpression") {
+    return mergeValidationResults(
+      validateAssignmentTargetSupport(expression.left, options),
+      validateExpressionNodeSupport(expression.right, options),
+    );
+  }
+
+  if (expression.type === "UpdateExpression") {
+    return validateAssignmentTargetSupport(expression.argument, options);
+  }
+
+  if (
+    expression.type === "ArrowFunctionExpression" ||
+    expression.type === "FunctionExpression"
+  ) {
+    return options.allowCallback
+      ? validateCallbackExpressionSupport(expression)
+      : {
+          ok: false,
+          message:
+            "Los callbacks solo estan soportados como argumento de metodos de arreglo.",
+        };
+  }
+
+  return {
+    ok: false,
+    message: `La expresion "${expression.type}" todavia no esta soportada.`,
+  };
+}
+
+function validateMemberExpressionSupport(
+  expression: MemberExpression | OptionalMemberExpression,
+  options: { allowCallback?: boolean },
+): SupportValidationResult {
+  if (expression.object.type === "Super") {
+    return {
+      ok: false as const,
+      message: "super no esta soportado.",
+    };
+  }
+
+  if (expression.property.type === "PrivateName") {
+    return {
+      ok: false as const,
+      message: "Los campos privados no estan soportados.",
+    };
+  }
+
+  return mergeValidationResults(
+    validateExpressionNodeSupport(expression.object, options),
+    expression.computed
+      ? validateExpressionNodeSupport(expression.property, options)
+      : { ok: true },
+  );
+}
+
+function validateCallExpressionSupport(
+  expression: CallExpression | OptionalCallExpression,
+  options: { allowCallback?: boolean },
+): SupportValidationResult {
+  const callee = expression.callee;
+
+  if (callee.type === "Identifier") {
+    if (!(callee.name in safeGlobalCalls)) {
+      return {
+        ok: false as const,
+        message: `La llamada "${callee.name}(...)" no esta permitida por seguridad.`,
+      };
+    }
+
+    return validateCallArgumentsSupport(expression.arguments, options);
+  }
+
+  if (
+    callee.type !== "MemberExpression" &&
+    callee.type !== "OptionalMemberExpression"
+  ) {
+    return {
+      ok: false as const,
+      message: "Esta llamada no esta soportada.",
+    };
+  }
+
+  const staticMember = getStaticMemberName(callee);
+  const propertyName = staticMember?.propertyName;
+
+  if (!propertyName) {
+    return {
+      ok: false as const,
+      message: "Las llamadas con nombre calculado no estan soportadas.",
+    };
+  }
+
+  if (staticMember.objectName === "Math") {
+    return propertyName in safeMathCalls
+      ? validateCallArgumentsSupport(expression.arguments, options)
+      : {
+          ok: false,
+          message: `La llamada "Math.${propertyName}(...)" no esta permitida por seguridad.`,
+        };
+  }
+
+  if (staticMember.objectName === "Object") {
+    return propertyName in safeObjectCalls
+      ? validateCallArgumentsSupport(expression.arguments, options)
+      : {
+          ok: false,
+          message: `La llamada "Object.${propertyName}(...)" no esta permitida por seguridad.`,
+        };
+  }
+
+  if (propertyName in safeArrayMethods) {
+    return mergeValidationResults(
+      validateMemberExpressionSupport(callee, options),
+      validateArrayMethodArgumentsSupport(propertyName, expression.arguments),
+    );
+  }
+
+  if (propertyName in safeStringMethods) {
+    return mergeValidationResults(
+      validateMemberExpressionSupport(callee, options),
+      validateCallArgumentsSupport(expression.arguments, options),
+    );
+  }
+
+  return {
+    ok: false,
+    message: `La llamada ".${propertyName}()" no esta permitida por seguridad.`,
+  };
+}
+
+function validateArrayMethodArgumentsSupport(
+  methodName: string,
+  args: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+): SupportValidationResult {
+  if (!isCallbackArrayMethod(methodName)) {
+    return validateCallArgumentsSupport(args);
+  }
+
+  if (methodName === "sort" && args.length === 0) {
+    return { ok: true };
+  }
+
+  if (methodName === "reduce") {
+    return mergeValidationResults(
+      validateSingleCallbackArgument(methodName, args[0]),
+      args[1] ? validateCallArgumentSupport(args[1]) : { ok: true },
+    );
+  }
+
+  return validateSingleCallbackArgument(methodName, args[0]);
+}
+
+function validateSingleCallbackArgument(
+  methodName: string,
+  argument: CallExpression["arguments"][number] | undefined,
+): SupportValidationResult {
+  if (!argument) {
+    return {
+      ok: false as const,
+      message: `La llamada ".${methodName}()" necesita un callback.`,
+    };
+  }
+
+  return validateCallArgumentSupport(argument, { allowCallback: true });
+}
+
+function validateCallArgumentsSupport(
+  args: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  options: { allowCallback?: boolean } = {},
+): SupportValidationResult {
+  return mergeValidationResults(
+    ...args.map((argument) => validateCallArgumentSupport(argument, options)),
+  );
+}
+
+function validateCallArgumentSupport(
+  argument: CallExpression["arguments"][number],
+  options: { allowCallback?: boolean } = {},
+): SupportValidationResult {
+  if (argument.type === "ArgumentPlaceholder") {
+    return {
+      ok: false as const,
+      message: "Los argumentos vacios no estan soportados.",
+    };
+  }
+
+  if (argument.type === "SpreadElement") {
+    return validateExpressionNodeSupport(argument.argument, options);
+  }
+
+  return validateExpressionNodeSupport(argument, options);
+}
+
+function validateAssignmentTargetSupport(
+  target: AssignmentTargetNode,
+  options: { allowCallback?: boolean },
+): SupportValidationResult {
+  if (target.type === "Identifier") {
+    return { ok: true };
+  }
+
+  if (
+    target.type === "MemberExpression" ||
+    target.type === "OptionalMemberExpression"
+  ) {
+    return validateMemberExpressionSupport(target, options);
+  }
+
+  return {
+    ok: false,
+    message:
+      "Solo se pueden asignar variables o propiedades como x = 5, obj.prop = 5 o arr[i] = 5.",
+  };
+}
+
+function validateCallbackExpressionSupport(
+  expression: ArrowFunctionExpression | FunctionExpression,
+): SupportValidationResult {
+  const parameterResult = getCallbackParameterNames(expression);
+
+  if (!parameterResult.ok) {
+    return parameterResult;
+  }
+
+  const bodyResult = getCallbackBodyExpression(expression);
+
+  if (!bodyResult.ok) {
+    return bodyResult;
+  }
+
+  return bodyResult.expression
+    ? validateExpressionNodeSupport(bodyResult.expression)
+    : { ok: true };
+}
+
+function mergeValidationResults(
+  ...results: SupportValidationResult[]
+): SupportValidationResult {
+  return results.find((result) => !result.ok) ?? { ok: true };
+}
 
 function evaluateMemberAccess(
   expression: MemberExpression | OptionalMemberExpression,
@@ -2026,6 +2584,15 @@ function evaluateMemberAccess(
       ok: false,
       message: "super no esta soportado en accesos a propiedades.",
     };
+  }
+
+  const staticMember = getStaticMemberName(expression);
+
+  if (
+    staticMember?.objectName === "Math" &&
+    staticMember.propertyName === "PI"
+  ) {
+    return createExpressionValue(Math.PI, variables);
   }
 
   const objectResult = evaluateExpressionNode(expression.object, variables);
@@ -2263,60 +2830,20 @@ function resolveSafeCall(
       };
     }
 
-    const stringMethodName = staticMember?.propertyName;
+    if (staticMember?.objectName === "Object") {
+      const callable = safeObjectCalls[staticMember.propertyName];
 
-    if (stringMethodName && stringMethodName in safeStringMethods) {
-      if (callee.object.type === "Super") {
+      if (!callable) {
         return {
           ok: false,
-          message: "super no esta soportado en llamadas.",
-        };
-      }
-
-      const objectResult = evaluateExpressionNode(callee.object, variables);
-
-      if (!objectResult.ok) {
-        return objectResult;
-      }
-
-      if (objectResult.value === null || objectResult.value === undefined) {
-        if (isOptionalMemberAccess(callee) || expression.type === "OptionalCallExpression") {
-          return {
-            ok: true,
-            callable: () => createSafeCallValue(undefined),
-            variables: objectResult.variables,
-            optionalShortCircuited: true,
-          };
-        }
-
-        return {
-          ok: false,
-          message: `No se puede llamar ".${stringMethodName}()" sobre null o undefined.`,
-        };
-      }
-
-      if (typeof objectResult.value !== "string") {
-        return {
-          ok: false,
-          message: `La llamada ".${stringMethodName}()" solo esta permitida para textos.`,
+          message: `La llamada "Object.${staticMember.propertyName}(...)" no esta permitida por seguridad.`,
         };
       }
 
       return {
         ok: true,
-        callable: (args) => {
-          if (args.length !== 0) {
-            return {
-              ok: false,
-              message: `La llamada ".${stringMethodName}()" no recibe argumentos.`,
-            };
-          }
-
-          return createSafeCallValue(
-            safeStringMethods[stringMethodName](objectResult.value as string),
-          );
-        },
-        variables: objectResult.variables,
+        callable,
+        variables,
       };
     }
   }
@@ -2331,8 +2858,196 @@ function resolveSafeCall(
   return {
     ok: false,
     message:
-      "Llamada no permitida. Usa solo Number, String, Boolean, Math.abs/max/min/floor/ceil/round/pow o metodos seguros de texto.",
+      "Llamada no permitida. Usa solo Number, String, Boolean, conversiones de caracteres, Math.*, Object.* o metodos seguros de texto y arreglos.",
   };
+}
+
+function evaluateSafeMethodCallExpression(
+  expression: CallExpression | OptionalCallExpression,
+  variables: ExecutionVariables,
+): ExpressionEvaluationResult | null {
+  const callee = expression.callee;
+
+  if (
+    callee.type !== "MemberExpression" &&
+    callee.type !== "OptionalMemberExpression"
+  ) {
+    return null;
+  }
+
+  const staticMember = getStaticMemberName(callee);
+  const methodName = staticMember?.propertyName;
+
+  if (
+    !methodName ||
+    (!(methodName in safeStringMethods) && !(methodName in safeArrayMethods))
+  ) {
+    return null;
+  }
+
+  if (callee.object.type === "Super") {
+    return {
+      ok: false,
+      message: "super no esta soportado en llamadas.",
+    };
+  }
+
+  const shouldCloneVariables =
+    methodName in safeArrayMethods && isMutatingArrayMethod(methodName);
+  const objectResult = evaluateExpressionNode(
+    callee.object,
+    shouldCloneVariables ? cloneExecutionVariables(variables) : variables,
+  );
+
+  if (!objectResult.ok) {
+    return objectResult;
+  }
+
+  if (objectResult.value === null || objectResult.value === undefined) {
+    if (isOptionalMemberAccess(callee) || expression.type === "OptionalCallExpression") {
+      return createExpressionValue(undefined, objectResult.variables);
+    }
+
+    return {
+      ok: false,
+      message: `No se puede llamar ".${methodName}()" sobre null o undefined.`,
+    };
+  }
+
+  if (typeof objectResult.value === "string" && methodName in safeStringMethods) {
+    const argumentResult = evaluateCallArguments(
+      expression.arguments,
+      objectResult.variables,
+    );
+
+    if (!argumentResult.ok) {
+      return argumentResult;
+    }
+
+    const callResult = safeStringMethods[methodName](
+      objectResult.value,
+      argumentResult.values,
+    );
+
+    if (!callResult.ok) {
+      return callResult;
+    }
+
+    return createExpressionValue(callResult.value, argumentResult.variables);
+  }
+
+  if (Array.isArray(objectResult.value) && methodName in safeArrayMethods) {
+    return evaluateSafeArrayMethodCall({
+      arrayValue: objectResult.value,
+      callee,
+      expression,
+      methodName,
+      variables: objectResult.variables,
+    });
+  }
+
+  if (methodName in safeStringMethods) {
+    return {
+      ok: false,
+      message: `La llamada ".${methodName}()" solo esta permitida para textos.`,
+    };
+  }
+
+  return {
+    ok: false,
+    message: `La llamada ".${methodName}()" solo esta permitida para arreglos.`,
+  };
+}
+
+function evaluateSafeArrayMethodCall({
+  arrayValue,
+  callee,
+  expression,
+  methodName,
+  variables,
+}: {
+  arrayValue: ExecutionArray;
+  callee: MemberExpression | OptionalMemberExpression;
+  expression: CallExpression | OptionalCallExpression;
+  methodName: string;
+  variables: ExecutionVariables;
+}): ExpressionEvaluationResult {
+  const method = safeArrayMethods[methodName];
+
+  if (isCallbackArrayMethod(methodName)) {
+    const methodResult = method(arrayValue, [], expression.arguments, variables);
+
+    if (!methodResult.ok) {
+      return methodResult;
+    }
+
+    return createExpressionValue(methodResult.value, variables);
+  }
+
+  const argumentResult = evaluateCallArguments(expression.arguments, variables);
+
+  if (!argumentResult.ok) {
+    return argumentResult;
+  }
+
+  let targetArray = arrayValue;
+  let targetVariables = argumentResult.variables;
+
+  if (isMutatingArrayMethod(methodName)) {
+    const latestObjectResult = evaluateExpressionNode(
+      callee.object as Expression,
+      argumentResult.variables,
+    );
+
+    if (!latestObjectResult.ok) {
+      return latestObjectResult;
+    }
+
+    if (!Array.isArray(latestObjectResult.value)) {
+      return {
+        ok: false,
+        message: `La llamada ".${methodName}()" solo esta permitida para arreglos.`,
+      };
+    }
+
+    targetArray = latestObjectResult.value;
+    targetVariables = latestObjectResult.variables;
+  }
+
+  const methodResult = method(
+    targetArray,
+    argumentResult.values,
+    expression.arguments,
+    targetVariables,
+  );
+
+  if (!methodResult.ok) {
+    return methodResult;
+  }
+
+  return createExpressionValue(methodResult.value, targetVariables);
+}
+
+function isCallbackArrayMethod(methodName: string) {
+  return (
+    methodName === "map" ||
+    methodName === "filter" ||
+    methodName === "find" ||
+    methodName === "some" ||
+    methodName === "every" ||
+    methodName === "reduce" ||
+    methodName === "sort"
+  );
+}
+
+function isMutatingArrayMethod(methodName: string) {
+  return (
+    methodName === "push" ||
+    methodName === "pop" ||
+    methodName === "shift" ||
+    methodName === "unshift" ||
+    methodName === "sort"
+  );
 }
 
 function evaluateCallArguments(
@@ -2629,6 +3344,290 @@ function createSafeCallValue(value: ExecutionValue) {
   } as const;
 }
 
+function callNoArgumentFunction(
+  name: string,
+  args: ExecutionValue[],
+  fn: () => ExecutionValue,
+) {
+  if (args.length !== 0) {
+    return {
+      ok: false,
+      message: `${name} no recibe argumentos.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn());
+}
+
+function callNoArgumentMethod(
+  name: string,
+  args: ExecutionValue[],
+  fn: () => ExecutionValue,
+) {
+  if (args.length !== 0) {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" no recibe argumentos.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn());
+}
+
+function callNoArgumentArrayMethod(
+  name: string,
+  args: ExecutionValue[],
+  fn: () => ExecutionValue,
+) {
+  if (args.length !== 0) {
+    return createExpressionError(`La llamada ".${name}()" no recibe argumentos.`);
+  }
+
+  return createExpressionValue(fn(), {});
+}
+
+function callStringSearchMethod(
+  name: string,
+  value: string,
+  args: ExecutionValue[],
+  fn: (search: string, position?: number) => boolean,
+) {
+  if (args.length < 1 || args.length > 2) {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" espera 1 o 2 argumento(s).`,
+    } as const;
+  }
+
+  if (typeof args[0] !== "string") {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" espera texto como busqueda.`,
+    } as const;
+  }
+
+  const positionResult = getOptionalNumberArgument(
+    `.${name}()`,
+    args,
+    1,
+    "posicion",
+  );
+
+  if (!positionResult.ok) {
+    return positionResult;
+  }
+
+  return createSafeCallValue(fn(args[0], positionResult.value));
+}
+
+function callStringSliceMethod(
+  name: string,
+  value: string,
+  args: ExecutionValue[],
+  fn: (start?: number, end?: number) => string,
+) {
+  if (args.length > 2) {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" espera maximo 2 argumento(s).`,
+    } as const;
+  }
+
+  const startResult = getOptionalNumberArgument(
+    `.${name}()`,
+    args,
+    0,
+    "inicio",
+  );
+
+  if (!startResult.ok) {
+    return startResult;
+  }
+
+  const endResult = getOptionalNumberArgument(`.${name}()`, args, 1, "fin");
+
+  if (!endResult.ok) {
+    return endResult;
+  }
+
+  return createSafeCallValue(fn(startResult.value, endResult.value));
+}
+
+function callStringReplaceMethod(value: string, args: ExecutionValue[]) {
+  if (args.length !== 2) {
+    return {
+      ok: false,
+      message: 'La llamada ".replace()" espera exactamente 2 argumento(s).',
+    } as const;
+  }
+
+  if (typeof args[0] !== "string" || typeof args[1] !== "string") {
+    return {
+      ok: false,
+      message: 'La llamada ".replace()" espera textos como busqueda y reemplazo.',
+    } as const;
+  }
+
+  return createSafeCallValue(value.replace(args[0], args[1]));
+}
+
+function callStringSplitMethod(value: string, args: ExecutionValue[]) {
+  if (args.length > 2) {
+    return {
+      ok: false,
+      message: 'La llamada ".split()" espera maximo 2 argumento(s).',
+    } as const;
+  }
+
+  if (args.length === 0 || args[0] === undefined) {
+    return createSafeCallValue([value]);
+  }
+
+  if (typeof args[0] !== "string") {
+    return {
+      ok: false,
+      message: 'La llamada ".split()" espera un separador de texto.',
+    } as const;
+  }
+
+  const limitResult = getOptionalNumberArgument(".split()", args, 1, "limite");
+
+  if (!limitResult.ok) {
+    return limitResult;
+  }
+
+  return createSafeCallValue(value.split(args[0], limitResult.value));
+}
+
+function callStringOwnIndexMethod(
+  name: string,
+  value: string,
+  args: ExecutionValue[],
+  fn: (index: number) => ExecutionValue,
+) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" espera exactamente 1 argumento(s).`,
+    } as const;
+  }
+
+  if (typeof args[0] !== "number") {
+    return {
+      ok: false,
+      message: `La llamada ".${name}()" espera un indice numerico.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn(args[0]));
+}
+
+function callStringIndexFunction(
+  name: string,
+  args: ExecutionValue[],
+  fn: (value: string, index: number) => ExecutionValue,
+) {
+  if (args.length !== 2) {
+    return {
+      ok: false,
+      message: `${name} espera exactamente 2 argumento(s): texto e indice.`,
+    } as const;
+  }
+
+  if (typeof args[0] !== "string") {
+    return {
+      ok: false,
+      message: `${name} espera texto como primer argumento.`,
+    } as const;
+  }
+
+  if (typeof args[1] !== "number") {
+    return {
+      ok: false,
+      message: `${name} espera un indice numerico como segundo argumento.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn(args[0], args[1]));
+}
+
+function callCharToCode(args: ExecutionValue[]) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: "charToCode espera exactamente 1 caracter.",
+    } as const;
+  }
+
+  const characterResult = getSingleCharacterArgument("charToCode", args[0]);
+
+  if (!characterResult.ok) {
+    return characterResult;
+  }
+
+  return createSafeCallValue(characterResult.value.codePointAt(0));
+}
+
+function callCharacterCodeFunction(
+  name: string,
+  args: ExecutionValue[],
+  fn: (code: number) => string,
+) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: `${name} espera exactamente 1 codigo numerico.`,
+    } as const;
+  }
+
+  const codeResult = getFiniteNumberArgument(name, args[0], "codigo");
+
+  if (!codeResult.ok) {
+    return codeResult;
+  }
+
+  return createSafeCallValue(fn(codeResult.value));
+}
+
+function callCodePointToString(name: string, args: ExecutionValue[]) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: `${name} espera exactamente 1 codigo numerico.`,
+    } as const;
+  }
+
+  const codeResult = getCodePointArgument(name, args[0]);
+
+  if (!codeResult.ok) {
+    return codeResult;
+  }
+
+  return createSafeCallValue(String.fromCodePoint(codeResult.value));
+}
+
+function callObjectFunction(
+  name: string,
+  args: ExecutionValue[],
+  fn: (value: ExecutionArray | ExecutionObject) => ExecutionValue,
+) {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: `${name} espera exactamente 1 objeto.`,
+    } as const;
+  }
+
+  if (!Array.isArray(args[0]) && !isPlainExecutionObject(args[0])) {
+    return {
+      ok: false,
+      message: `${name} solo soporta objetos planos o arreglos.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn(args[0]));
+}
+
 function callNumberMathFunction(
   name: string,
   fn: (value: number) => number,
@@ -2651,6 +3650,29 @@ function callNumberMathFunction(
   return createSafeCallValue(fn(args[0]));
 }
 
+function callFixedNumberMathFunction(
+  name: string,
+  fn: (...values: number[]) => number,
+  expectedCount: number,
+  args: ExecutionValue[],
+) {
+  if (args.length !== expectedCount) {
+    return {
+      ok: false,
+      message: `${name} espera exactamente ${expectedCount} argumento(s).`,
+    } as const;
+  }
+
+  if (!args.every((arg) => typeof arg === "number")) {
+    return {
+      ok: false,
+      message: `${name} solo soporta argumentos numericos.`,
+    } as const;
+  }
+
+  return createSafeCallValue(fn(...(args as number[])));
+}
+
 function callVariadicNumberMathFunction(
   name: string,
   fn: (...values: number[]) => number,
@@ -2671,6 +3693,586 @@ function callVariadicNumberMathFunction(
   }
 
   return createSafeCallValue(fn(...(args as number[])));
+}
+
+function callArrayIncludesMethod(value: ExecutionArray, args: ExecutionValue[]) {
+  if (args.length < 1 || args.length > 2) {
+    return createExpressionError(
+      'La llamada ".includes()" espera 1 o 2 argumento(s).',
+    );
+  }
+
+  const fromIndexResult = getOptionalNumberArgument(
+    ".includes()",
+    args,
+    1,
+    "inicio",
+  );
+
+  if (!fromIndexResult.ok) {
+    return createExpressionError(fromIndexResult.message);
+  }
+
+  return createExpressionValue(
+    value.includes(args[0], fromIndexResult.value),
+    {},
+  );
+}
+
+function callArrayIndexOfMethod(value: ExecutionArray, args: ExecutionValue[]) {
+  if (args.length < 1 || args.length > 2) {
+    return createExpressionError(
+      'La llamada ".indexOf()" espera 1 o 2 argumento(s).',
+    );
+  }
+
+  const fromIndexResult = getOptionalNumberArgument(
+    ".indexOf()",
+    args,
+    1,
+    "inicio",
+  );
+
+  if (!fromIndexResult.ok) {
+    return createExpressionError(fromIndexResult.message);
+  }
+
+  return createExpressionValue(
+    value.indexOf(args[0], fromIndexResult.value),
+    {},
+  );
+}
+
+function callArraySliceMethod(value: ExecutionArray, args: ExecutionValue[]) {
+  if (args.length > 2) {
+    return createExpressionError(
+      'La llamada ".slice()" espera maximo 2 argumento(s).',
+    );
+  }
+
+  const startResult = getOptionalNumberArgument(
+    ".slice()",
+    args,
+    0,
+    "inicio",
+  );
+
+  if (!startResult.ok) {
+    return createExpressionError(startResult.message);
+  }
+
+  const endResult = getOptionalNumberArgument(".slice()", args, 1, "fin");
+
+  if (!endResult.ok) {
+    return createExpressionError(endResult.message);
+  }
+
+  return createExpressionValue(value.slice(startResult.value, endResult.value), {});
+}
+
+function callArrayJoinMethod(value: ExecutionArray, args: ExecutionValue[]) {
+  if (args.length > 1) {
+    return createExpressionError(
+      'La llamada ".join()" espera maximo 1 argumento.',
+    );
+  }
+
+  if (args.length === 1 && typeof args[0] !== "string") {
+    return createExpressionError(
+      'La llamada ".join()" espera un separador de texto.',
+    );
+  }
+
+  const separator = args.length === 1 ? (args[0] as string) : ",";
+
+  return createExpressionValue(value.join(separator), {});
+}
+
+function callArrayMapMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  const callbackResult = createSafeArrayCallback(".map()", callbackArgs, variables);
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  const mappedValues: ExecutionValue[] = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([value[index], index, value]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    mappedValues.push(itemResult.value);
+  }
+
+  return createExpressionValue(mappedValues, {});
+}
+
+function callArrayFilterMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  const callbackResult = createSafeArrayCallback(
+    ".filter()",
+    callbackArgs,
+    variables,
+  );
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  const filteredValues: ExecutionValue[] = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([value[index], index, value]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    if (itemResult.value) {
+      filteredValues.push(value[index]);
+    }
+  }
+
+  return createExpressionValue(filteredValues, {});
+}
+
+function callArrayFindMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  const callbackResult = createSafeArrayCallback(".find()", callbackArgs, variables);
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([value[index], index, value]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    if (itemResult.value) {
+      return createExpressionValue(value[index], {});
+    }
+  }
+
+  return createExpressionValue(undefined, {});
+}
+
+function callArraySomeMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  const callbackResult = createSafeArrayCallback(".some()", callbackArgs, variables);
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([value[index], index, value]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    if (itemResult.value) {
+      return createExpressionValue(true, {});
+    }
+  }
+
+  return createExpressionValue(false, {});
+}
+
+function callArrayEveryMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  const callbackResult = createSafeArrayCallback(
+    ".every()",
+    callbackArgs,
+    variables,
+  );
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([value[index], index, value]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    if (!itemResult.value) {
+      return createExpressionValue(false, {});
+    }
+  }
+
+  return createExpressionValue(true, {});
+}
+
+function callArrayReduceMethod(
+  value: ExecutionArray,
+  _args: ExecutionValue[],
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  if (callbackArgs.length < 1 || callbackArgs.length > 2) {
+    return createExpressionError(
+      'La llamada ".reduce()" espera callback y, opcionalmente, valor inicial.',
+    );
+  }
+
+  const callbackResult = createSafeArrayCallback(
+    ".reduce()",
+    [callbackArgs[0]],
+    variables,
+  );
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  let accumulator: ExecutionValue;
+  let startIndex: number;
+
+  if (callbackArgs.length === 2) {
+    const initialValue = callbackArgs[1];
+
+    if (
+      initialValue.type === "ArgumentPlaceholder" ||
+      initialValue.type === "SpreadElement"
+    ) {
+      return createExpressionError(
+        'El valor inicial de ".reduce()" debe ser una expresion simple.',
+      );
+    }
+
+    const initialResult = evaluateExpressionNode(initialValue, variables);
+
+    if (!initialResult.ok) {
+      return initialResult;
+    }
+
+    accumulator = initialResult.value;
+    startIndex = 0;
+  } else {
+    if (value.length === 0) {
+      return createExpressionError(
+        'La llamada ".reduce()" sobre un arreglo vacio necesita valor inicial.',
+      );
+    }
+
+    accumulator = value[0];
+    startIndex = 1;
+  }
+
+  for (let index = startIndex; index < value.length; index += 1) {
+    const itemResult = callbackResult.callback([
+      accumulator,
+      value[index],
+      index,
+      value,
+    ]);
+
+    if (!itemResult.ok) {
+      return itemResult;
+    }
+
+    accumulator = itemResult.value;
+  }
+
+  return createExpressionValue(accumulator, {});
+}
+
+function callArraySortMethod(
+  value: ExecutionArray,
+  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+) {
+  if (callbackArgs.length > 1) {
+    return createExpressionError(
+      'La llamada ".sort()" espera maximo 1 callback de comparacion.',
+    );
+  }
+
+  if (callbackArgs.length === 0) {
+    value.sort((left, right) => String(left).localeCompare(String(right)));
+
+    return createExpressionValue(value, {});
+  }
+
+  const callbackResult = createSafeArrayCallback(".sort()", callbackArgs, variables);
+
+  if (!callbackResult.ok) {
+    return callbackResult;
+  }
+
+  try {
+    value.sort((left, right) => {
+      const itemResult = callbackResult.callback([left, right]);
+
+      if (!itemResult.ok) {
+        throw new SafeSortCallbackError(itemResult.message);
+      }
+
+      if (typeof itemResult.value !== "number") {
+        throw new SafeSortCallbackError(
+          'El callback de ".sort()" debe retornar un numero.',
+        );
+      }
+
+      return itemResult.value;
+    });
+  } catch (error) {
+    if (error instanceof SafeSortCallbackError) {
+      return createExpressionError(error.message);
+    }
+
+    throw error;
+  }
+
+  return createExpressionValue(value, {});
+}
+
+function createSafeArrayCallback(
+  methodName: string,
+  args: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  variables: ExecutionVariables,
+):
+  | { ok: true; callback: SafeArrayCallback }
+  | { ok: false; message: string } {
+  if (args.length !== 1) {
+    return {
+      ok: false,
+      message: `La llamada "${methodName}" espera exactamente 1 callback.`,
+    };
+  }
+
+  const callbackExpression = args[0];
+
+  if (
+    callbackExpression.type !== "ArrowFunctionExpression" &&
+    callbackExpression.type !== "FunctionExpression"
+  ) {
+    return {
+      ok: false,
+      message: `La llamada "${methodName}" necesita un callback como x => x.`,
+    };
+  }
+
+  const parameterResult = getCallbackParameterNames(callbackExpression);
+
+  if (!parameterResult.ok) {
+    return parameterResult;
+  }
+
+  const bodyResult = getCallbackBodyExpression(callbackExpression);
+
+  if (!bodyResult.ok) {
+    return bodyResult;
+  }
+
+  return {
+    ok: true,
+    callback: (values) => {
+      const callbackVariables = cloneExecutionVariables(variables);
+
+      parameterResult.names.forEach((name, index) => {
+        callbackVariables[name] = values[index];
+      });
+
+      if (!bodyResult.expression) {
+        return createExpressionValue(undefined, callbackVariables);
+      }
+
+      return evaluateExpressionNode(bodyResult.expression, callbackVariables);
+    },
+  };
+}
+
+function getCallbackParameterNames(
+  callbackExpression: ArrowFunctionExpression | FunctionExpression,
+): { ok: true; names: string[] } | { ok: false; message: string } {
+  const names: string[] = [];
+
+  for (const parameter of callbackExpression.params) {
+    if (parameter.type !== "Identifier") {
+      return {
+        ok: false,
+        message:
+          "Los callbacks de arreglos solo soportan parametros simples, como x o (x, i).",
+      };
+    }
+
+    names.push(parameter.name);
+  }
+
+  return {
+    ok: true,
+    names,
+  };
+}
+
+function getCallbackBodyExpression(
+  callbackExpression: ArrowFunctionExpression | FunctionExpression,
+): { ok: true; expression?: Expression } | { ok: false; message: string } {
+  if (callbackExpression.body.type !== "BlockStatement") {
+    return {
+      ok: true,
+      expression: callbackExpression.body as Expression,
+    };
+  }
+
+  if (callbackExpression.body.body.length === 0) {
+    return {
+      ok: true,
+      expression: undefined,
+    };
+  }
+
+  if (
+    callbackExpression.body.body.length === 1 &&
+    callbackExpression.body.body[0].type === "ReturnStatement"
+  ) {
+    return {
+      ok: true,
+      expression: callbackExpression.body.body[0].argument as
+        | Expression
+        | undefined,
+    };
+  }
+
+  return {
+    ok: false,
+    message:
+      "Los callbacks con bloque solo soportan una instruccion return simple.",
+  };
+}
+
+class SafeSortCallbackError extends Error {}
+
+function getOptionalNumberArgument(
+  context: string,
+  args: ExecutionValue[],
+  index: number,
+  label: string,
+): { ok: true; value?: number } | { ok: false; message: string } {
+  if (args[index] === undefined) {
+    return {
+      ok: true,
+      value: undefined,
+    };
+  }
+
+  if (typeof args[index] !== "number") {
+    return {
+      ok: false,
+      message: `La llamada "${context}" espera ${label} numerico.`,
+    };
+  }
+
+  return {
+    ok: true,
+    value: args[index],
+  };
+}
+
+function getSingleCharacterArgument(
+  context: string,
+  value: ExecutionValue,
+): { ok: true; value: string } | { ok: false; message: string } {
+  if (typeof value !== "string") {
+    return {
+      ok: false,
+      message: `${context} espera un caracter de texto.`,
+    };
+  }
+
+  if (value.length === 0) {
+    return {
+      ok: false,
+      message: `${context} no acepta un texto vacio; espera un caracter.`,
+    };
+  }
+
+  if (Array.from(value).length !== 1) {
+    return {
+      ok: false,
+      message: `${context} espera exactamente un caracter.`,
+    };
+  }
+
+  return {
+    ok: true,
+    value,
+  };
+}
+
+function getFiniteNumberArgument(
+  context: string,
+  value: ExecutionValue,
+  label: string,
+): { ok: true; value: number } | { ok: false; message: string } {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return {
+      ok: false,
+      message: `${context} espera ${label} numerico finito.`,
+    };
+  }
+
+  return {
+    ok: true,
+    value,
+  };
+}
+
+function getCodePointArgument(
+  context: string,
+  value: ExecutionValue,
+): { ok: true; value: number } | { ok: false; message: string } {
+  const numberResult = getFiniteNumberArgument(context, value, "codigo");
+
+  if (!numberResult.ok) {
+    return numberResult;
+  }
+
+  if (
+    !Number.isInteger(numberResult.value) ||
+    numberResult.value < 0 ||
+    numberResult.value > 0x10ffff
+  ) {
+    return {
+      ok: false,
+      message: `${context} espera un codigo Unicode entero entre 0 y 1114111.`,
+    };
+  }
+
+  return numberResult;
+}
+
+function createExpressionError(message: string): ExpressionEvaluationResult {
+  return {
+    ok: false,
+    message,
+  };
 }
 
 function applyUnaryNumberOperator(

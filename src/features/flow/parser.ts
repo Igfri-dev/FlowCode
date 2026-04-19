@@ -2,6 +2,7 @@ import { parse } from "@babel/parser";
 import type { XYPosition } from "@xyflow/react";
 import type {
   AssignmentExpression,
+  ArrowFunctionExpression,
   BinaryExpression,
   CallExpression,
   ConditionalExpression,
@@ -10,6 +11,7 @@ import type {
   ExpressionStatement,
   File,
   ForStatement,
+  FunctionExpression,
   FunctionDeclaration,
   IfStatement,
   LogicalExpression,
@@ -1655,6 +1657,14 @@ function expressionToCode(expression: Expression): string {
     return templateLiteralToCode(expression);
   }
 
+  if (expression.type === "ArrowFunctionExpression") {
+    return arrowFunctionExpressionToCode(expression);
+  }
+
+  if (expression.type === "FunctionExpression") {
+    return functionExpressionToCode(expression);
+  }
+
   if (expression.type === "AwaitExpression") {
     return `await ${expressionToCode(expression.argument)}`;
   }
@@ -1810,6 +1820,60 @@ function templateLiteralToCode(expression: TemplateLiteral) {
   });
 
   return `${code}\``;
+}
+
+function arrowFunctionExpressionToCode(expression: ArrowFunctionExpression) {
+  const params = expression.params.map(callbackParameterToCode).join(", ");
+  const paramsCode = expression.params.length === 1 ? params : `(${params})`;
+  const body = callbackBodyToCode(expression.body);
+
+  return `${paramsCode} => ${body}`;
+}
+
+function functionExpressionToCode(expression: FunctionExpression) {
+  const params = expression.params.map(callbackParameterToCode).join(", ");
+  const body = callbackBlockBodyToCode(expression.body.body);
+  const name = expression.id?.name ? ` ${expression.id.name}` : "";
+
+  return `function${name}(${params}) { ${body} }`;
+}
+
+function callbackBodyToCode(body: ArrowFunctionExpression["body"]) {
+  if (body.type !== "BlockStatement") {
+    return expressionToCode(body);
+  }
+
+  return `{ ${callbackBlockBodyToCode(body.body)} }`;
+}
+
+function callbackBlockBodyToCode(
+  statements: Extract<ArrowFunctionExpression["body"], { type: "BlockStatement" }>["body"],
+) {
+  if (statements.length === 0) {
+    return "";
+  }
+
+  if (statements.length === 1 && statements[0].type === "ReturnStatement") {
+    return statements[0].argument
+      ? `return ${expressionToCode(statements[0].argument)};`
+      : "return;";
+  }
+
+  throw new UnsupportedSyntaxError(
+    "Los callbacks con bloque solo soportan una instruccion return simple.",
+  );
+}
+
+function callbackParameterToCode(
+  parameter: ArrowFunctionExpression["params"][number],
+) {
+  if (parameter.type === "Identifier") {
+    return parameter.name;
+  }
+
+  throw new UnsupportedSyntaxError(
+    `El parametro de callback "${parameter.type}" todavia no esta soportado.`,
+  );
 }
 
 function argumentToCode(

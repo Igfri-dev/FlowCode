@@ -5,6 +5,10 @@ import {
   type FlowConnectionLike,
   type FlowGraph,
 } from "@/features/flow/flow-graph";
+import {
+  validateExpressionSupport,
+  validateProcessInstructionSupport,
+} from "@/features/flow/execution";
 import type {
   FlowEditorNode,
   FlowFunctionDefinition,
@@ -176,6 +180,32 @@ function validateNodeConfigs(
   for (const node of nodes) {
     const nodeName = getNodeName(node);
 
+    if (node.type === "process" && "instruction" in node.data.config) {
+      const instructionValidation = validateProcessInstructionSupport(
+        node.data.config.instruction,
+      );
+
+      if (!instructionValidation.ok) {
+        issues.push({
+          id: `${node.id}-process-instruction`,
+          message: `El bloque Proceso "${nodeName}" tiene una instruccion no valida: ${instructionValidation.message}`,
+        });
+      }
+    }
+
+    if (node.type === "decision" && "condition" in node.data.config) {
+      const conditionValidation = validateExpressionSupport(
+        node.data.config.condition,
+      );
+
+      if (!conditionValidation.ok) {
+        issues.push({
+          id: `${node.id}-decision-condition`,
+          message: `La condicion "${nodeName}" no es valida: ${conditionValidation.message}`,
+        });
+      }
+    }
+
     if (node.type === "input") {
       const variableName =
         "variableName" in node.data.config ? node.data.config.variableName.trim() : "";
@@ -222,6 +252,34 @@ function validateNodeConfigs(
           message: argumentCountValidation.message,
         });
       }
+
+      config.args.forEach((argument, index) => {
+        const argumentValidation = validateExpressionSupport(argument);
+
+        if (!argumentValidation.ok) {
+          issues.push({
+            id: `${node.id}-function-call-arg-${index}`,
+            message: `El argumento ${index + 1} de "${nodeName}" no es valido: ${argumentValidation.message}`,
+          });
+        }
+      });
+    }
+
+    if (
+      node.type === "output" &&
+      "outputMode" in node.data.config &&
+      node.data.config.outputMode === "expression"
+    ) {
+      const outputValidation = validateExpressionSupport(
+        node.data.config.expression,
+      );
+
+      if (!outputValidation.ok) {
+        issues.push({
+          id: `${node.id}-output-expression`,
+          message: `La salida "${nodeName}" tiene una expresion no valida: ${outputValidation.message}`,
+        });
+      }
     }
 
     if (node.type === "return" && currentDiagramId === "main") {
@@ -229,6 +287,23 @@ function validateNodeConfigs(
         id: `${node.id}-return-in-main`,
         message: `El bloque Retorno "${nodeName}" solo debe usarse dentro de una funcion.`,
       });
+    }
+
+    if (
+      node.type === "return" &&
+      "expression" in node.data.config &&
+      node.data.config.expression.trim()
+    ) {
+      const returnValidation = validateExpressionSupport(
+        node.data.config.expression.replace(/^return\b\s*/, ""),
+      );
+
+      if (!returnValidation.ok) {
+        issues.push({
+          id: `${node.id}-return-expression`,
+          message: `El retorno "${nodeName}" tiene una expresion no valida: ${returnValidation.message}`,
+        });
+      }
     }
   }
 
@@ -360,6 +435,23 @@ function validateFunctionDefinitions(
     }
 
     names.set(name, (names.get(name) ?? 0) + 1);
+
+    getFunctionParameterDefinitions(flowFunction).forEach((parameter) => {
+      if (!parameter.defaultValue) {
+        return;
+      }
+
+      const defaultValidation = validateExpressionSupport(
+        parameter.defaultValue,
+      );
+
+      if (!defaultValidation.ok) {
+        issues.push({
+          id: `${flowFunction.id}-parameter-${parameter.name}-default`,
+          message: `El valor por defecto del parametro "${parameter.name}" en "${name}" no es valido: ${defaultValidation.message}`,
+        });
+      }
+    });
   }
 
   for (const [name, count] of names) {
