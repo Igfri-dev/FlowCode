@@ -72,6 +72,7 @@ The main workspace is organized around the diagram canvas:
 - Drag a block to move it.
 - Drag from one block handle/port to another to create a connection.
 - Click a block to select it and reveal its port controls.
+- Select a block or connection and press **Backspace** to delete it.
 - Edit a block's text directly in its textarea-like content.
 - Use the mouse wheel to zoom.
 - Use pinch gestures to zoom on supported devices.
@@ -346,6 +347,7 @@ El espacio principal se organiza alrededor del lienzo del diagrama:
 - Arrastra desde un handle/puerto de un bloque hacia otro para crear una
   conexión.
 - Haz clic en un bloque para seleccionarlo y mostrar sus controles de puertos.
+- Selecciona un bloque o una conexión y presiona **Backspace** para eliminarlo.
 - Edita el texto de un bloque directamente en su contenido editable.
 - Usa la rueda del mouse para hacer zoom.
 - Usa gestos de pellizco para hacer zoom en dispositivos compatibles.
