@@ -67,6 +67,10 @@ import type {
   FlowNodeType,
 } from "@/types/flow";
 import { FlowCodePanel } from "./FlowCodePanel";
+import {
+  FlowDialogModal,
+  type FlowDialogRequest,
+} from "./FlowDialogModal";
 import { FlowExecutionHistoryPanel } from "./FlowExecutionHistoryPanel";
 import { FlowExecutionPanel } from "./FlowExecutionPanel";
 import { FlowFunctionPanel } from "./FlowFunctionPanel";
@@ -85,6 +89,9 @@ const initialCodeGenerationResult: FlowCodeGenerationResult = {
 };
 
 type ImportStatus = "idle" | "success" | "error";
+type PendingFlowDialog = FlowDialogRequest & {
+  onConfirm: () => void;
+};
 
 export function FlowWorkspace() {
   const nextNodeId = useRef(initialFlowNodes.length);
@@ -108,6 +115,8 @@ export function FlowWorkspace() {
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     null,
   );
+  const [dialogRequest, setDialogRequest] =
+    useState<PendingFlowDialog | null>(null);
   const [activeDiagramId, setActiveDiagramId] = useState("main");
   const [mainDiagram, setMainDiagram] = useState<FlowProgram["main"]>({
     nodes: initialFlowNodes,
@@ -262,6 +271,19 @@ export function FlowWorkspace() {
     executionState.currentDiagramId,
     executionState.history,
   ]);
+
+  const handleDialogCancel = useCallback(() => {
+    setDialogRequest(null);
+  }, []);
+
+  const handleDialogConfirm = useCallback(() => {
+    if (!dialogRequest) {
+      return;
+    }
+
+    setDialogRequest(null);
+    dialogRequest.onConfirm();
+  }, [dialogRequest]);
 
   useEffect(() => {
     if (!isAutoExecutionActive) {
@@ -452,35 +474,42 @@ export function FlowWorkspace() {
         exercise.starterDiagram !== undefined &&
         hasDiagramContent(currentProgram);
 
-      if (
-        (replacesEditedStarterCode || replacesDiagram) &&
-        !window.confirm(
-          "Seleccionar este ejercicio reemplazara contenido actual del espacio de trabajo. Continuar?",
-        )
-      ) {
+      const applyExerciseSelection = () => {
+        setSelectedExerciseId(exercise.id);
+        setBlockedConnectionMessage(null);
+        setIsAutoRunning(false);
+        setCodeGenerationResult(initialCodeGenerationResult);
+
+        if (exercise.starterCode !== undefined) {
+          setImportCode(exercise.starterCode);
+          setImportStatus("success");
+          setImportMessage(
+            "Codigo inicial del ejercicio cargado en el importador.",
+          );
+          setImportWarnings([]);
+          loadedExerciseStarterCode.current = exercise.starterCode;
+        } else {
+          loadedExerciseStarterCode.current = null;
+        }
+
+        if (exercise.starterDiagram) {
+          loadStarterDiagram(exercise.starterDiagram);
+        }
+      };
+
+      if (replacesEditedStarterCode || replacesDiagram) {
+        setDialogRequest({
+          title: "Reemplazar espacio de trabajo",
+          message:
+            "Seleccionar este ejercicio reemplazara contenido actual del espacio de trabajo.",
+          confirmLabel: "Reemplazar",
+          tone: "warning",
+          onConfirm: applyExerciseSelection,
+        });
         return;
       }
 
-      setSelectedExerciseId(exercise.id);
-      setBlockedConnectionMessage(null);
-      setIsAutoRunning(false);
-      setCodeGenerationResult(initialCodeGenerationResult);
-
-      if (exercise.starterCode !== undefined) {
-        setImportCode(exercise.starterCode);
-        setImportStatus("success");
-        setImportMessage(
-          "Codigo inicial del ejercicio cargado en el importador.",
-        );
-        setImportWarnings([]);
-        loadedExerciseStarterCode.current = exercise.starterCode;
-      } else {
-        loadedExerciseStarterCode.current = null;
-      }
-
-      if (exercise.starterDiagram) {
-        loadStarterDiagram(exercise.starterDiagram);
-      }
+      applyExerciseSelection();
     },
     [
       currentProgram,
@@ -550,42 +579,45 @@ export function FlowWorkspace() {
       return;
     }
 
-    if (
-      !window.confirm(
-        `Limpiar el diagrama "${activeDiagramName}"? Se eliminaran todos los bloques y conexiones.`,
-      )
-    ) {
-      return;
-    }
+    const clearActiveDiagram = () => {
+      const emptyDiagram: FlowProgram["main"] = {
+        nodes: [],
+        edges: [],
+      };
 
-    const emptyDiagram: FlowProgram["main"] = {
-      nodes: [],
-      edges: [],
+      setBlockedConnectionMessage(null);
+      setIsAutoRunning(false);
+      setCodeGenerationResult(initialCodeGenerationResult);
+      setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
+      setNodes(emptyDiagram.nodes);
+      setEdges(emptyDiagram.edges);
+
+      if (activeDiagramId === "main") {
+        setMainDiagram(emptyDiagram);
+        return;
+      }
+
+      setMainDiagram(currentProgram.main);
+      setFunctions(
+        currentProgram.functions.map((flowFunction) =>
+          flowFunction.id === activeDiagramId
+            ? {
+                ...flowFunction,
+                ...emptyDiagram,
+              }
+            : flowFunction,
+        ),
+      );
     };
 
-    setBlockedConnectionMessage(null);
-    setIsAutoRunning(false);
-    setCodeGenerationResult(initialCodeGenerationResult);
-    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
-    setNodes(emptyDiagram.nodes);
-    setEdges(emptyDiagram.edges);
-
-    if (activeDiagramId === "main") {
-      setMainDiagram(emptyDiagram);
-      return;
-    }
-
-    setMainDiagram(currentProgram.main);
-    setFunctions(
-      currentProgram.functions.map((flowFunction) =>
-        flowFunction.id === activeDiagramId
-          ? {
-              ...flowFunction,
-              ...emptyDiagram,
-            }
-          : flowFunction,
-      ),
-    );
+    setDialogRequest({
+      title: `Limpiar ${activeDiagramName}`,
+      message:
+        "Se eliminaran todos los bloques y conexiones de este diagrama.",
+      confirmLabel: "Limpiar",
+      tone: "danger",
+      onConfirm: clearActiveDiagram,
+    });
   }, [
     activeDiagramId,
     activeDiagramName,
@@ -917,6 +949,25 @@ export function FlowWorkspace() {
               onEdgesChange={onEdgesChange}
               onConnect={handleConnect}
               isValidConnection={isValidConnection}
+              editorOverlays={
+                <>
+                  <FlowInputModal
+                    pendingInput={executionState.pendingInput}
+                    onConfirm={handleInputConfirm}
+                  />
+                  <FlowFunctionParameterModal
+                    pendingFunctionParameters={
+                      executionState.pendingFunctionParameters
+                    }
+                    onConfirm={handleFunctionParameterConfirm}
+                  />
+                  <FlowDialogModal
+                    request={dialogRequest}
+                    onCancel={handleDialogCancel}
+                    onConfirm={handleDialogConfirm}
+                  />
+                </>
+              }
               fullscreenLeftItems={[
                 {
                   id: "execution",
@@ -1020,14 +1071,6 @@ export function FlowWorkspace() {
         <FlowOutputPanel outputs={executionState.outputs} />
         <FlowExecutionHistoryPanel history={executionState.history} />
       </aside>
-      <FlowInputModal
-        pendingInput={executionState.pendingInput}
-        onConfirm={handleInputConfirm}
-      />
-      <FlowFunctionParameterModal
-        pendingFunctionParameters={executionState.pendingFunctionParameters}
-        onConfirm={handleFunctionParameterConfirm}
-      />
     </section>
   );
 }

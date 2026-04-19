@@ -190,6 +190,7 @@ type FlowEditorProps = {
   onEdgesChange: OnEdgesChange<FlowEditorEdge>;
   onConnect: OnConnect;
   isValidConnection: IsValidConnection<FlowEditorEdge>;
+  editorOverlays?: ReactNode;
   fullscreenBottomItem?: FullscreenFloatingPanelItem;
   fullscreenLeftItems?: FullscreenFloatingPanelItem[];
   fullscreenRightItems?: FullscreenFloatingPanelItem[];
@@ -212,6 +213,7 @@ export function FlowEditor({
   onEdgesChange,
   onConnect,
   isValidConnection,
+  editorOverlays,
   fullscreenBottomItem,
   fullscreenLeftItems = [],
   fullscreenRightItems = [],
@@ -445,6 +447,7 @@ export function FlowEditor({
           ) : null}
         </>
       ) : null}
+      {editorOverlays}
     </div>
   );
 }
