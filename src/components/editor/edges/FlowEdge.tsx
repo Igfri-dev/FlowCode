@@ -14,6 +14,7 @@ import {
 } from "./edge-bridges";
 
 const defaultEdgeStroke = "#525252";
+const defaultEdgeStrokeWidth = 3;
 const selectedEdgeStroke = "#2563eb";
 const selectedEdgeHalo = "#bfdbfe";
 
@@ -78,11 +79,14 @@ export function FlowEdge({
         ? selectedEdgeStroke
         : defaultEdgeStroke;
   const strokeWidth =
-    typeof style?.strokeWidth === "number" ? style.strokeWidth : 2;
+    typeof style?.strokeWidth === "number"
+      ? style.strokeWidth
+      : defaultEdgeStrokeWidth;
   const displayPath =
     bridgeRenderData.bridgePoints.length > 0
       ? bridgeRenderData.displayPath
       : edgePath;
+  const displayStrokeWidth = selected ? strokeWidth + 1.5 : strokeWidth;
 
   useEffect(() => {
     const animationFrameId = window.requestAnimationFrame(() => {
@@ -141,7 +145,11 @@ export function FlowEdge({
         stroke={stroke}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={selected ? strokeWidth + 1.5 : strokeWidth}
+        strokeWidth={displayStrokeWidth}
+        style={{
+          stroke,
+          strokeWidth: displayStrokeWidth,
+        }}
         pointerEvents="none"
       />
       <EdgeText

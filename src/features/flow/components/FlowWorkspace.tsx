@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   addEdge,
   type Connection,
@@ -911,6 +917,85 @@ export function FlowWorkspace() {
               onEdgesChange={onEdgesChange}
               onConnect={handleConnect}
               isValidConnection={isValidConnection}
+              fullscreenLeftItems={[
+                {
+                  id: "execution",
+                  label: "ejecucion",
+                  buttonLabel: "e",
+                  children: (
+                    <FlowExecutionPanel
+                      executionState={executionState}
+                      isAutoRunning={isAutoExecutionActive}
+                      layout="vertical"
+                      onStep={handleStepExecution}
+                      onRun={handleRunExecution}
+                      onPause={handlePauseExecution}
+                      onReset={handleResetExecution}
+                    />
+                  ),
+                },
+                {
+                  id: "functions",
+                  label: "funciones",
+                  buttonLabel: "f",
+                  children: (
+                    <FlowFunctionPanel
+                      activeDiagramId={activeDiagramId}
+                      functions={currentProgram.functions}
+                      onSelectDiagram={handleSelectDiagram}
+                      onCreateFunction={handleCreateFunction}
+                      onUpdateFunction={handleUpdateFunction}
+                      onDeleteFunction={handleDeleteFunction}
+                    />
+                  ),
+                },
+                {
+                  id: "validation",
+                  label: "validacion",
+                  buttonLabel: "v",
+                  children: (
+                    <FlowValidationPanel
+                      issues={validationIssues}
+                      hasLoops={hasLoops}
+                      blockedConnectionMessage={blockedConnectionMessage}
+                    />
+                  ),
+                },
+              ]}
+              fullscreenRightItems={[
+                {
+                  id: "variables",
+                  label: "variables",
+                  buttonLabel: "v",
+                  children: (
+                    <FlowVariablesPanel variables={executionState.variables} />
+                  ),
+                },
+                {
+                  id: "outputs",
+                  label: "salidas",
+                  buttonLabel: "s",
+                  children: <FlowOutputPanel outputs={executionState.outputs} />,
+                },
+                {
+                  id: "history",
+                  label: "historial",
+                  buttonLabel: "h",
+                  children: (
+                    <FlowExecutionHistoryPanel
+                      history={executionState.history}
+                    />
+                  ),
+                },
+              ]}
+              fullscreenBottomItem={{
+                id: "blocks",
+                label: "bloques",
+                buttonLabel: "B",
+                children: (
+                  <FlowSidebar layout="horizontal" onAddNode={handleAddNode} />
+                ),
+              }}
             />
           </div>
         </div>

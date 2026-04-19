@@ -19,7 +19,7 @@ export function createFlowEditorEdge(connection: Connection): FlowEditorEdge {
     },
     style: {
       stroke: "#525252",
-      strokeWidth: 2,
+      strokeWidth: 3,
     },
     labelStyle: {
       fill: "#262626",

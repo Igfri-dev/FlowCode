@@ -56,3 +56,32 @@ body {
 .flow-editor-canvas .react-flow__node-output.selectable:focus-visible {
   box-shadow: none;
 }
+
+/* Fullscreen panels already provide the outer surface for their content. */
+.fullscreen-overlay-content > div > section,
+.fullscreen-overlay-content > div > aside,
+.fullscreen-overlay-content > div > div[aria-label="Controles de ejecucion"],
+.fullscreen-overlay-content > aside {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.fullscreen-overlay-content > div > section:hover,
+.fullscreen-overlay-content > div > aside:hover,
+.fullscreen-overlay-content > aside:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.fullscreen-scroll-content,
+.fullscreen-scroll-content * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.fullscreen-scroll-content::-webkit-scrollbar,
+.fullscreen-scroll-content *::-webkit-scrollbar {
+  display: none;
+}

@@ -101,10 +101,23 @@ type ImportPlan = {
   mainStatements: Statement[];
 };
 
-const columnWidth = 260;
-const rowHeight = 150;
-const originX = 360;
-const originY = 60;
+const columnWidth = 200;
+const rowHeight = 120;
+const originX = 280;
+const originY = 40;
+const branchJoinRowGap = 0.6;
+const ifEntryRowGap = 0.45;
+
+const nodeRowSpans: Record<FlowNodeType, number> = {
+  start: 0.75,
+  end: 0.75,
+  process: 0.85,
+  decision: 1.25,
+  input: 1.1,
+  output: 1.25,
+  functionCall: 1.1,
+  return: 0.85,
+};
 
 export function importJavaScriptToFlow(code: string): JavaScriptImportResult {
   try {
@@ -933,6 +946,8 @@ function buildIfStatement(
   builder: DiagramBuilder,
   column: number,
 ): BuildResult {
+  builder.nextRow += ifEntryRowGap;
+
   const condition = expressionToCode(statement.test);
   const decisionNode = addNode(
     builder,
@@ -941,11 +956,16 @@ function buildIfStatement(
     { condition },
     column,
   );
+  const branchStartRow = builder.nextRow;
   const yesResult = buildStatementSequence(
     getStatementsFromBranch(statement.consequent),
     builder,
     column - 1,
   );
+  const yesEndRow = builder.nextRow;
+
+  builder.nextRow = branchStartRow;
+
   const noResult = statement.alternate
     ? buildStatementSequence(
         getStatementsFromBranch(statement.alternate),
@@ -957,6 +977,10 @@ function buildIfStatement(
         breaks: [] satisfies PendingConnection[],
         continues: [] satisfies PendingConnection[],
       };
+  const noEndRow = builder.nextRow;
+
+  builder.nextRow = Math.max(yesEndRow, noEndRow) + branchJoinRowGap;
+
   const pending: PendingConnection[] = [];
   const breaks: PendingConnection[] = [
     ...yesResult.breaks,
@@ -1530,7 +1554,7 @@ function addNode<TType extends FlowNodeType>(
     },
   } as Extract<ImportedFlowNode, { type: TType }>;
 
-  builder.nextRow += 1;
+  builder.nextRow += nodeRowSpans[type];
   builder.nodes.push(node);
 
   return node;

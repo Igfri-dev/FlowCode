@@ -1,6 +1,7 @@
 import type { FlowNodeType } from "@/types/flow";
 
 type FlowSidebarProps = {
+  layout?: "vertical" | "horizontal";
   onAddNode: (type: FlowNodeType) => void;
 };
 
@@ -51,29 +52,51 @@ const blockActions: Array<{
   },
 ];
 
-export function FlowSidebar({ onAddNode }: FlowSidebarProps) {
+export function FlowSidebar({
+  layout = "vertical",
+  onAddNode,
+}: FlowSidebarProps) {
+  const isHorizontal = layout === "horizontal";
+  const rootClassName = isHorizontal
+    ? "flex flex-col gap-3 rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50"
+    : "flex flex-col gap-4 rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50";
+  const actionListClassName = isHorizontal
+    ? "flex max-w-[calc(100vw-5rem)] gap-2 overflow-x-auto pb-1"
+    : "flex flex-col gap-2";
+  const buttonClassName = isHorizontal
+    ? "group flex shrink-0 items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+    : "group flex items-center gap-3 rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm";
+
   return (
-    <aside className="flex flex-col gap-4 rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
-      <div>
+    <aside className={rootClassName}>
+      <div className={isHorizontal ? "flex items-center gap-3" : ""}>
         <h2 className="text-base font-semibold text-neutral-950">Bloques</h2>
-        <p className="mt-1 text-sm text-neutral-600">
+        <p
+          className={
+            isHorizontal
+              ? "text-xs text-neutral-600"
+              : "mt-1 text-sm text-neutral-600"
+          }
+        >
           Inserta bloques en el lienzo.
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className={actionListClassName}>
         {blockActions.map((action) => (
           <button
             key={action.type}
             type="button"
             onClick={() => onAddNode(action.type)}
-            className="group flex items-center gap-3 rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+            className={buttonClassName}
           >
             <span
               className={`h-2.5 w-2.5 rounded-full transition-transform group-hover:scale-125 ${action.markerClassName}`}
               aria-hidden="true"
             />
-            {action.label}
+            {isHorizontal
+              ? action.label.replace("Agregar ", "")
+              : action.label}
           </button>
         ))}
       </div>
