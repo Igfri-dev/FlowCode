@@ -186,9 +186,14 @@ describe("JavaScript import parser", () => {
     assert.equal(result.nodes.some((node) => node.type === "process"), true);
   });
 
-  it("imports every exercise starter code", () => {
-    const exercisesWithCode = getExercises().filter(
-      (exercise) => exercise.starterCode,
+  it("imports every exercise starter code in every supported language", () => {
+    const exercisesWithCode = ["es", "en"].flatMap((language) =>
+      getExercises(language as "es" | "en")
+        .filter((exercise) => exercise.starterCode)
+        .map((exercise) => ({
+          ...exercise,
+          language,
+        })),
     );
 
     for (const exercise of exercisesWithCode) {
@@ -197,7 +202,7 @@ describe("JavaScript import parser", () => {
       assert.equal(
         result.ok,
         true,
-        result.ok ? "" : `${exercise.id}: ${result.message}`,
+        result.ok ? "" : `${exercise.language}/${exercise.id}: ${result.message}`,
       );
     }
   });

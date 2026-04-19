@@ -103,6 +103,222 @@ const englishTags: Record<string, string> = {
   return: "return",
 };
 
+const localizedStarterCode: Partial<Record<Language, Record<string, string>>> = {
+  en: {
+    "count-1-to-5": `let i = 1;
+while (i <= 5) {
+  console.log(i);
+  i++;
+}`,
+    "even-number": `let number = 8;
+if (number % 2 === 0) {
+  console.log("The number is even");
+} else {
+  console.log("The number is odd");
+}`,
+    "sum-1-to-n": `let n = 5;
+let sum = 0;
+let i = 1;
+while (i <= n) {
+  sum = sum + i;
+  i++;
+}
+console.log("The sum is " + sum);`,
+    "positive-negative-zero": `async function leerEntrada(mensaje, tipo = "text") {
+  const valor = prompt(mensaje);
+  if (tipo === "number") return Number(valor);
+  if (tipo === "boolean") return valor === "true" || valor === "yes";
+  return valor ?? "";
+}
+
+async function main() {
+  let number = await leerEntrada("Enter a number", "number");
+  if (number > 0) {
+    console.log("Positive");
+  } else {
+    if (number < 0) {
+      console.log("Negative");
+    } else {
+      console.log("Zero");
+    }
+  }
+}
+
+main();`,
+    "multiplication-table": `let number = 7;
+for (let i = 1; i <= 10; i++) {
+  console.log(\`\${number} x \${i} = \${number * i}\`);
+}`,
+    "operation-menu": `let operation = "multiply";
+let a = 12;
+let b = 4;
+
+switch (operation) {
+  case "add":
+    console.log(a + b);
+    break;
+  case "subtract":
+    console.log(a - b);
+    break;
+  case "multiply":
+    console.log(a * b);
+    break;
+  case "divide":
+    console.log(a / b);
+    break;
+  default:
+    console.log("Invalid operation");
+}`,
+    "access-attempts": `let attempt = 1;
+let password = "1234";
+let enteredPassword = "0000";
+let access = false;
+
+do {
+  if (enteredPassword === password) {
+    access = true;
+    console.log("Access granted");
+  } else {
+    console.log("Attempt " + attempt + " failed");
+    enteredPassword = attempt === 2 ? "1234" : "1111";
+  }
+  attempt++;
+} while (!access && attempt <= 3);
+
+if (!access) {
+  console.log("Account locked");
+}`,
+    "normalize-user-profile": `let user = {
+  name: "  Ana ",
+  profile: {
+    level: "admin",
+  },
+};
+
+let cleanName = user.name.trim();
+let level = user.profile?.level ?? "guest";
+console.log("User " + cleanName + " - " + level.toUpperCase());`,
+    "shipping-quote": `function calculateShipping(kilos, zone) {
+  let base = Math.ceil(kilos) * 1200;
+
+  switch (zone) {
+    case "north":
+      return base + 3500;
+    case "south":
+      return base + 2500;
+    case "center":
+      return base + 1500;
+    default:
+      return base + 5000;
+  }
+}
+
+let order = {
+  subtotal: 42000,
+  kilos: 3.4,
+  zone: "south",
+  coupon: 0.15,
+};
+
+let shipping = calculateShipping(order.kilos, order.zone);
+let discount = order.subtotal * order.coupon;
+let total = order.subtotal + shipping - discount;
+console.log("Total: " + Math.round(total));`,
+    "prime-number-function": `function isPrime(number) {
+  if (number < 2) {
+    return false;
+  }
+
+  for (let divisor = 2; divisor * divisor <= number; divisor++) {
+    if (number % divisor === 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+let number = 29;
+let prime = isPrime(number);
+
+if (prime) {
+  console.log(number + " is prime");
+} else {
+  console.log(number + " is not prime");
+}`,
+    "grade-report": `function calculateAverage(grades) {
+  let sum = 0;
+
+  for (let i = 0; i < grades.length; i++) {
+    sum += grades[i];
+  }
+
+  return sum / grades.length;
+}
+
+function classifyAverage(average) {
+  if (average >= 6) {
+    return "excellent";
+  }
+
+  if (average >= 4) {
+    return "passing";
+  }
+
+  return "risk";
+}
+
+let grades = [5, 6, 4, 7];
+let average = calculateAverage(grades);
+let category = classifyAverage(average);
+
+switch (category) {
+  case "excellent":
+    console.log("Average " + average + ": congratulate");
+    break;
+  case "passing":
+    console.log("Average " + average + ": reinforce");
+    break;
+  default:
+    console.log("Average " + average + ": support plan");
+}`,
+    "atm-with-validations": `function validateWithdrawal(balance, amount) {
+  if (amount <= 0) {
+    return "invalid amount";
+  }
+
+  if (amount > balance) {
+    return "insufficient balance";
+  }
+
+  if (amount % 1000 !== 0) {
+    return "invalid multiple";
+  }
+
+  return "approved";
+}
+
+let balance = 50000;
+let amount = 18000;
+let status = validateWithdrawal(balance, amount);
+
+switch (status) {
+  case "approved":
+    balance -= amount;
+    console.log("Withdrawal approved. Balance: " + balance);
+    break;
+  case "insufficient balance":
+    console.log("Available balance is not enough");
+    break;
+  case "invalid multiple":
+    console.log("The amount must be a multiple of 1000");
+    break;
+  default:
+    console.log("Invalid amount");
+}`,
+  },
+};
+
 const exercises = [
   {
     id: "count-1-to-5",
@@ -453,6 +669,8 @@ export function getExercises(language: Language = "es"): Exercise[] {
       title: textSet[textKeys.title],
       description: textSet[textKeys.description],
       objective: textSet[textKeys.objective],
+      starterCode:
+        localizedStarterCode[language]?.[exercise.id] ?? exercise.starterCode,
       tags:
         language === "en"
           ? exercise.tags?.map((tag) => englishTags[tag] ?? tag)

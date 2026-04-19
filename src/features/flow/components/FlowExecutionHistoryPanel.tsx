@@ -75,7 +75,7 @@ export function FlowExecutionHistoryPanel({
                 {getLocalizedDiagramName(item.diagramName, t)}
               </p>
               <p className="mt-1 font-mono text-xs text-neutral-700">
-                {item.content}
+                {getLocalizedHistoryContent(item.content, item.nodeType, t)}
               </p>
             </li>
           ))}
@@ -100,4 +100,26 @@ function getLocalizedDiagramName(
   }
 
   return diagramName;
+}
+
+function getLocalizedHistoryContent(
+  content: string,
+  nodeType: FlowExecutionHistoryItem["nodeType"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (nodeType === "start") {
+    return t("flow.start");
+  }
+
+  if (nodeType === "end") {
+    return t("flow.end");
+  }
+
+  const functionCallMatch = content.match(/^llamar funcion\((.*)\)$/);
+
+  if (functionCallMatch) {
+    return `${t("flow.callFunctionHistory")}(${functionCallMatch[1]})`;
+  }
+
+  return content;
 }
