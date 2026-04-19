@@ -1,4 +1,6 @@
 import type { FlowNodeType } from "@/types/flow";
+import { useI18n } from "@/features/i18n/I18nProvider";
+import type { TranslationKey } from "@/features/i18n/translations";
 
 type FlowSidebarProps = {
   layout?: "vertical" | "horizontal";
@@ -6,47 +8,47 @@ type FlowSidebarProps = {
 };
 
 const blockActions: Array<{
-  label: string;
+  labelKey: TranslationKey;
   type: FlowNodeType;
   markerClassName: string;
 }> = [
   {
-    label: "Agregar Inicio",
+    labelKey: "flow.addStart",
     type: "start",
     markerClassName: "bg-emerald-500",
   },
   {
-    label: "Agregar Fin",
+    labelKey: "flow.addEnd",
     type: "end",
     markerClassName: "bg-red-600",
   },
   {
-    label: "Agregar Proceso",
+    labelKey: "flow.addProcess",
     type: "process",
     markerClassName: "bg-neutral-500",
   },
   {
-    label: "Agregar Entrada",
+    labelKey: "flow.addInput",
     type: "input",
     markerClassName: "bg-sky-500",
   },
   {
-    label: "Agregar Salida",
+    labelKey: "flow.addOutput",
     type: "output",
     markerClassName: "bg-amber-500",
   },
   {
-    label: "Agregar Decision",
+    labelKey: "flow.addDecision",
     type: "decision",
     markerClassName: "bg-cyan-500",
   },
   {
-    label: "Agregar Llamada a funcion",
+    labelKey: "flow.addFunctionCall",
     type: "functionCall",
     markerClassName: "bg-violet-500",
   },
   {
-    label: "Agregar Retorno",
+    labelKey: "flow.addReturn",
     type: "return",
     markerClassName: "bg-rose-500",
   },
@@ -56,6 +58,7 @@ export function FlowSidebar({
   layout = "vertical",
   onAddNode,
 }: FlowSidebarProps) {
+  const { t } = useI18n();
   const isHorizontal = layout === "horizontal";
   const rootClassName = isHorizontal
     ? "flex flex-col gap-3 rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50"
@@ -70,7 +73,9 @@ export function FlowSidebar({
   return (
     <aside className={rootClassName}>
       <div className={isHorizontal ? "flex items-center gap-3" : ""}>
-        <h2 className="text-base font-semibold text-neutral-950">Bloques</h2>
+        <h2 className="text-base font-semibold text-neutral-950">
+          {t("flow.blocks")}
+        </h2>
         <p
           className={
             isHorizontal
@@ -78,7 +83,7 @@ export function FlowSidebar({
               : "mt-1 text-sm text-neutral-600"
           }
         >
-          Inserta bloques en el lienzo.
+          {t("flow.blocksHelp")}
         </p>
       </div>
 
@@ -95,8 +100,8 @@ export function FlowSidebar({
               aria-hidden="true"
             />
             {isHorizontal
-              ? action.label.replace("Agregar ", "")
-              : action.label}
+              ? t(action.labelKey).replace(/^Agregar |^Add /, "")
+              : t(action.labelKey)}
           </button>
         ))}
       </div>

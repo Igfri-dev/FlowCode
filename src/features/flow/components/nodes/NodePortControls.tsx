@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useUpdateNodeInternals } from "@xyflow/react";
 import { flowHandlePositionOptions } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type {
   FlowHandlePosition,
   FlowNodeHandleId,
@@ -31,6 +32,7 @@ export function NodePortControls({
   controls,
   onHandlePositionsChange,
 }: NodePortControlsProps) {
+  const { t } = useI18n();
   const updateNodeInternals = useUpdateNodeInternals();
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function NodePortControls({
   return (
     <div className="nodrag nopan nowheel absolute left-1/2 top-full z-30 mt-2 w-44 -translate-x-1/2 rounded-md border border-neutral-300 bg-white p-2 text-left text-[11px] font-medium text-neutral-700 shadow-md">
       <p className="mb-1 text-[10px] font-semibold uppercase text-neutral-500">
-        Puertos
+        {t("flow.ports")}
       </p>
       <div className="flex flex-col gap-1.5">
         {controls.map((control) => (
@@ -65,7 +67,7 @@ export function NodePortControls({
             >
               {flowHandlePositionOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </select>

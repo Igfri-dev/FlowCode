@@ -1,4 +1,107 @@
 import type { Exercise } from "@/features/exercises/types";
+import {
+  translations,
+  type Language,
+  type TranslationKey,
+} from "@/features/i18n/translations";
+
+const exerciseTextKeys = {
+  "count-1-to-5": {
+    title: "exercise.count.title",
+    description: "exercise.count.description",
+    objective: "exercise.count.objective",
+  },
+  "even-number": {
+    title: "exercise.even.title",
+    description: "exercise.even.description",
+    objective: "exercise.even.objective",
+  },
+  "sum-1-to-n": {
+    title: "exercise.sum.title",
+    description: "exercise.sum.description",
+    objective: "exercise.sum.objective",
+  },
+  "positive-negative-zero": {
+    title: "exercise.sign.title",
+    description: "exercise.sign.description",
+    objective: "exercise.sign.objective",
+  },
+  "multiplication-table": {
+    title: "exercise.table.title",
+    description: "exercise.table.description",
+    objective: "exercise.table.objective",
+  },
+  "operation-menu": {
+    title: "exercise.menu.title",
+    description: "exercise.menu.description",
+    objective: "exercise.menu.objective",
+  },
+  "access-attempts": {
+    title: "exercise.access.title",
+    description: "exercise.access.description",
+    objective: "exercise.access.objective",
+  },
+  "normalize-user-profile": {
+    title: "exercise.profile.title",
+    description: "exercise.profile.description",
+    objective: "exercise.profile.objective",
+  },
+  "shipping-quote": {
+    title: "exercise.shipping.title",
+    description: "exercise.shipping.description",
+    objective: "exercise.shipping.objective",
+  },
+  "prime-number-function": {
+    title: "exercise.prime.title",
+    description: "exercise.prime.description",
+    objective: "exercise.prime.objective",
+  },
+  "grade-report": {
+    title: "exercise.grades.title",
+    description: "exercise.grades.description",
+    objective: "exercise.grades.objective",
+  },
+  "atm-with-validations": {
+    title: "exercise.atm.title",
+    description: "exercise.atm.description",
+    objective: "exercise.atm.objective",
+  },
+} as const satisfies Record<
+  string,
+  {
+    title: TranslationKey;
+    description: TranslationKey;
+    objective: TranslationKey;
+  }
+>;
+
+const englishTags: Record<string, string> = {
+  acumulador: "accumulator",
+  arreglos: "arrays",
+  booleano: "boolean",
+  ciclo: "loop",
+  comparaciones: "comparisons",
+  entrada: "input",
+  for: "for",
+  funciones: "functions",
+  if: "if",
+  Math: "Math",
+  metodos: "methods",
+  modulo: "modulo",
+  objetos: "objects",
+  operadores: "operators",
+  "optional chaining": "optional chaining",
+  salida: "output",
+  switch: "switch",
+  template: "template",
+  ternario: "ternary",
+  texto: "text",
+  validacion: "validation",
+  variables: "variables",
+  "do while": "do while",
+  break: "break",
+  return: "return",
+};
 
 const exercises = [
   {
@@ -334,6 +437,26 @@ switch (estado) {
   },
 ] satisfies Exercise[];
 
-export function getExercises(): Exercise[] {
-  return exercises;
+export function getExercises(language: Language = "es"): Exercise[] {
+  const textSet = translations[language];
+
+  return exercises.map((exercise) => {
+    const textKeys =
+      exerciseTextKeys[exercise.id as keyof typeof exerciseTextKeys];
+
+    if (!textKeys) {
+      return exercise;
+    }
+
+    return {
+      ...exercise,
+      title: textSet[textKeys.title],
+      description: textSet[textKeys.description],
+      objective: textSet[textKeys.objective],
+      tags:
+        language === "en"
+          ? exercise.tags?.map((tag) => englishTags[tag] ?? tag)
+          : exercise.tags,
+    };
+  });
 }

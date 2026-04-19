@@ -1,18 +1,24 @@
 import type { ExecutionVariables } from "@/features/flow/execution";
+import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowVariablesPanelProps = {
   variables: ExecutionVariables;
 };
 
 export function FlowVariablesPanel({ variables }: FlowVariablesPanelProps) {
+  const { t } = useI18n();
   const variableEntries = Object.entries(variables);
 
   return (
     <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
-      <h2 className="text-base font-semibold text-neutral-950">Variables</h2>
+      <h2 className="text-base font-semibold text-neutral-950">
+        {t("flow.variables")}
+      </h2>
 
       {variableEntries.length === 0 ? (
-        <p className="mt-3 text-sm text-neutral-500">Sin variables todavía.</p>
+        <p className="mt-3 text-sm text-neutral-500">
+          {t("flow.variablesEmpty")}
+        </p>
       ) : (
         <dl className="mt-3 space-y-2 text-sm">
           {variableEntries.map(([name, value]) => (

@@ -5,15 +5,16 @@ import type {
   FlowNodeHandlePositions,
   FlowNodeType,
 } from "@/types/flow";
+import type { TranslationKey } from "@/features/i18n/translations";
 
 export const flowHandlePositionOptions: {
   value: FlowHandlePosition;
-  label: string;
+  labelKey: TranslationKey;
 }[] = [
-  { value: "top", label: "Arriba" },
-  { value: "right", label: "Derecha" },
-  { value: "bottom", label: "Abajo" },
-  { value: "left", label: "Izquierda" },
+  { value: "top", labelKey: "flow.top" },
+  { value: "right", labelKey: "flow.right" },
+  { value: "bottom", labelKey: "flow.bottom" },
+  { value: "left", labelKey: "flow.left" },
 ];
 
 export function getDefaultFlowNodeHandlePositions(

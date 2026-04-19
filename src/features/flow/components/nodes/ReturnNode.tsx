@@ -3,6 +3,7 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, ReturnNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
@@ -10,7 +11,8 @@ const fieldClassName =
   "nodrag nopan nowheel w-full rounded border border-rose-200 bg-white/90 px-2 py-1 text-xs text-rose-950 outline-none focus:border-rose-500";
 
 export function ReturnNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
-  const config = getReturnConfig(data.config);
+  const { t } = useI18n();
+  const config = getReturnConfig(data.config, t);
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -36,10 +38,10 @@ export function ReturnNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         className="!h-3 !w-3 !border-2 !border-white !bg-rose-700"
       />
       <p className="mb-2 text-xs font-semibold uppercase text-rose-700">
-        Retorno
+        {t("flow.return")}
       </p>
       <input
-        aria-label="Expresion de retorno"
+        aria-label={t("node.returnExpressionAria")}
         className={`${fieldClassName} font-mono`}
         value={config.expression}
         onChange={(event) =>
@@ -47,7 +49,7 @@ export function ReturnNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
             expression: event.target.value,
           })
         }
-        placeholder="resultado"
+        placeholder={t("flow.resultPlaceholder")}
       />
       <NodePortControls
         nodeId={id}
@@ -56,7 +58,7 @@ export function ReturnNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
         ]}
@@ -66,12 +68,15 @@ export function ReturnNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   );
 }
 
-function getReturnConfig(config: FlowEditorNode["data"]["config"]) {
+function getReturnConfig(
+  config: FlowEditorNode["data"]["config"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
   if ("expression" in config && !("outputMode" in config)) {
     return config as ReturnNodeConfig;
   }
 
   return {
-    expression: "resultado",
+    expression: t("flow.returnFallback"),
   } satisfies ReturnNodeConfig;
 }

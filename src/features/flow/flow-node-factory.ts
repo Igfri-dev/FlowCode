@@ -1,5 +1,6 @@
 import type { XYPosition } from "@xyflow/react";
 import { getDefaultFlowNodeHandlePositions } from "@/features/flow/handle-positions";
+import { translations, type Language } from "@/features/i18n/translations";
 import type {
   FlowEditorNode,
   FlowNodeConfig,
@@ -10,7 +11,7 @@ import type {
   FlowNodeType,
 } from "@/types/flow";
 
-const flowNodeData: {
+const baseFlowNodeData: {
   [TType in FlowNodeType]: FlowNodeDataByType[TType];
 } = {
   start: {
@@ -76,6 +77,7 @@ type CreateFlowNodeInput = {
   id: string;
   type: FlowNodeType;
   index: number;
+  language?: Language;
   onLabelChange: FlowNodeLabelChangeHandler;
   onConfigChange: FlowNodeConfigChangeHandler;
   onHandlePositionsChange: FlowNodeHandlePositionsChangeHandler;
@@ -85,6 +87,7 @@ export function createFlowEditorNode({
   id,
   type,
   index,
+  language = "es",
   onLabelChange,
   onConfigChange,
   onHandlePositionsChange,
@@ -94,7 +97,7 @@ export function createFlowEditorNode({
     type,
     position: getFlowNodePosition(index),
     data: {
-      ...flowNodeData[type],
+      ...getFlowNodeData(type, language),
       onLabelChange,
       onConfigChange,
       onHandlePositionsChange,
@@ -106,7 +109,10 @@ export function getFlowNodeLabelFromConfig(
   type: FlowNodeType,
   config: FlowNodeConfig,
   fallbackLabel: string,
+  language: Language = "es",
 ) {
+  const textSet = translations[language];
+
   if (type === "process" && "instruction" in config) {
     return config.instruction;
   }
@@ -116,22 +122,93 @@ export function getFlowNodeLabelFromConfig(
   }
 
   if (type === "input" && "variableName" in config) {
-    return `Leer ${config.variableName || "variable"}`;
+    return `${language === "en" ? "Read" : "Leer"} ${
+      config.variableName || textSet["flow.variablePlaceholder"]
+    }`;
   }
 
   if (type === "output" && "expression" in config) {
-    return `Mostrar ${config.expression || "salida"}`;
+    return `${language === "en" ? "Show" : "Mostrar"} ${
+      config.expression || textSet["flow.output"]
+    }`;
   }
 
   if (type === "functionCall" && "functionId" in config) {
-    return "Llamar funcion";
+    return textSet["flow.callFunctionFallback"];
   }
 
   if (type === "return" && "expression" in config) {
-    return `Retornar ${config.expression || "valor"}`;
+    return `${language === "en" ? "Return" : "Retornar"} ${
+      config.expression || textSet["flow.inputVariableFallback"]
+    }`;
   }
 
   return fallbackLabel;
+}
+
+function getFlowNodeData(type: FlowNodeType, language: Language) {
+  const textSet = translations[language];
+  const data = baseFlowNodeData[type];
+
+  if (type === "start") {
+    return {
+      ...data,
+      label: textSet["flow.start"],
+    };
+  }
+
+  if (type === "end") {
+    return {
+      ...data,
+      label: textSet["flow.end"],
+    };
+  }
+
+  if (type === "input" && "prompt" in data.config) {
+    return {
+      ...data,
+      label: `${language === "en" ? "Read" : "Leer"} edad`,
+      config: {
+        ...data.config,
+        prompt:
+          language === "en"
+            ? "Enter your age"
+            : "Ingresa tu edad",
+      },
+    };
+  }
+
+  if (type === "output" && "expression" in data.config) {
+    return {
+      ...data,
+      label: language === "en" ? "Show result" : "Mostrar resultado",
+      config: {
+        ...data.config,
+        expression:
+          language === "en" ? '"Result: " + x' : '"Resultado: " + x',
+      },
+    };
+  }
+
+  if (type === "functionCall") {
+    return {
+      ...data,
+      label: textSet["flow.callFunctionFallback"],
+    };
+  }
+
+  if (type === "return" && "expression" in data.config) {
+    return {
+      ...data,
+      label: textSet["flow.returnValueFallback"],
+      config: {
+        ...data.config,
+        expression: textSet["flow.returnFallback"],
+      },
+    };
+  }
+
+  return data;
 }
 
 function getFlowNodePosition(index: number): XYPosition {

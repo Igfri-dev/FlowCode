@@ -25,6 +25,7 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
 
 const fitViewOptions = {
@@ -218,6 +219,7 @@ export function FlowEditor({
   fullscreenLeftItems = [],
   fullscreenRightItems = [],
 }: FlowEditorProps) {
+  const { t } = useI18n();
   const editorShellRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMiniMapCollapsed, setIsMiniMapCollapsed] = useState(false);
@@ -338,10 +340,10 @@ export function FlowEditor({
             type="button"
             className={editorButtonClassName}
             title={
-              isFullscreen ? "Salir pantalla completa" : "Pantalla completa"
+              isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
             }
             aria-label={
-              isFullscreen ? "Salir pantalla completa" : "Pantalla completa"
+              isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
             }
             aria-pressed={isFullscreen}
             onClick={() => {
@@ -356,15 +358,15 @@ export function FlowEditor({
           showFitView
           fitViewOptions={fitViewOptions}
           className="!rounded-md !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
-          aria-label="Controles del diagrama"
+          aria-label={t("flow.diagramControls")}
         />
         {isMiniMapCollapsed ? (
           <Panel position="bottom-right" className="!m-4">
             <button
               type="button"
               className="nodrag nopan nowheel bg-transparent px-1 text-lg font-semibold leading-none text-neutral-700 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-              title="Mostrar minimapa"
-              aria-label="Mostrar minimapa"
+              title={t("flow.showMiniMap")}
+              aria-label={t("flow.showMiniMap")}
               aria-expanded="false"
               onClick={handleToggleMiniMap}
             >
@@ -387,7 +389,7 @@ export function FlowEditor({
               maskStrokeWidth={1}
               offsetScale={8}
               zoomStep={12}
-              ariaLabel="Mini mapa del diagrama"
+              ariaLabel={t("flow.miniMap")}
               className="!m-4 !rounded-md !border !border-neutral-300 !bg-white !shadow-lg"
               style={miniMapSize}
             />
@@ -399,8 +401,8 @@ export function FlowEditor({
               <button
                 type="button"
                 className={miniMapButtonClassName}
-                title="Minimizar minimapa"
-                aria-label="Minimizar minimapa"
+                title={t("flow.hideMiniMap")}
+                aria-label={t("flow.hideMiniMap")}
                 aria-expanded="true"
                 onClick={handleToggleMiniMap}
               >
@@ -467,6 +469,7 @@ function FullscreenFloatingPanel({
   onOpenChange,
   side,
 }: FullscreenFloatingPanelProps) {
+  const { t } = useI18n();
   const top = `${getFullscreenPanelTopOffset(side, index)}px`;
   const contentMaxHeight = getFullscreenPanelContentMaxHeight(side, index);
   const edgeStyle: CSSProperties = {
@@ -511,8 +514,8 @@ function FullscreenFloatingPanel({
         <button
           type="button"
           className={openButtonClassName}
-          title={`Ocultar ${item.label}`}
-          aria-label={`Ocultar ${item.label}`}
+          title={t("flow.hidePanel", { label: item.label })}
+          aria-label={t("flow.hidePanel", { label: item.label })}
           aria-expanded="true"
           onClick={() => onOpenChange(false)}
         >
@@ -530,8 +533,8 @@ function FullscreenFloatingPanel({
       <button
         type="button"
         className={closedButtonClassName}
-        title={`Mostrar ${item.label}`}
-        aria-label={`Mostrar ${item.label}`}
+        title={t("flow.showPanel", { label: item.label })}
+        aria-label={t("flow.showPanel", { label: item.label })}
         aria-expanded="false"
         onClick={() => onOpenChange(true)}
       >
@@ -667,14 +670,16 @@ function FullscreenBottomFloatingPanel({
   item,
   onOpenChange,
 }: FullscreenBottomFloatingPanelProps) {
+  const { t } = useI18n();
+
   if (isOpen) {
     return (
       <aside className="fullscreen-overlay-content pointer-events-auto absolute bottom-4 left-1/2 z-30 w-[min(68rem,calc(100vw-18rem))] -translate-x-1/2 rounded-[28px] border border-neutral-300 bg-white/95 p-4 pr-10 shadow-xl backdrop-blur">
         <button
           type="button"
           className="nodrag nopan nowheel absolute right-3 top-3 flex h-6 w-6 items-center justify-center bg-transparent text-neutral-600 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
-          title={`Ocultar ${item.label}`}
-          aria-label={`Ocultar ${item.label}`}
+          title={t("flow.hidePanel", { label: item.label })}
+          aria-label={t("flow.hidePanel", { label: item.label })}
           aria-expanded="true"
           onClick={() => onOpenChange(false)}
         >
@@ -704,8 +709,8 @@ function FullscreenBottomFloatingPanel({
       <button
         type="button"
         className={`${fullscreenDrawerButtonClassName} absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 opacity-0 duration-200 ease-out group-hover/fullscreen-bottom:translate-y-0 group-hover/fullscreen-bottom:opacity-100`}
-        title={`Mostrar ${item.label}`}
-        aria-label={`Mostrar ${item.label}`}
+        title={t("flow.showPanel", { label: item.label })}
+        aria-label={t("flow.showPanel", { label: item.label })}
         aria-expanded="false"
         onClick={() => onOpenChange(true)}
       >

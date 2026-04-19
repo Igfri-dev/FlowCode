@@ -3,6 +3,7 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, OutputNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
@@ -10,7 +11,8 @@ const fieldClassName =
   "nodrag nopan nowheel w-full rounded border border-amber-200 bg-white/90 px-2 py-1 text-xs text-amber-950 outline-none focus:border-amber-500";
 
 export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
-  const config = getOutputConfig(data.config);
+  const { t } = useI18n();
+  const config = getOutputConfig(data.config, t);
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -42,11 +44,11 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
       />
       <div className="[transform:skew(8deg)]">
         <p className="mb-2 text-center text-xs font-semibold uppercase text-amber-700">
-          Salida
+          {t("flow.output")}
         </p>
         <div className="space-y-2">
           <textarea
-            aria-label="Texto o expresion de salida"
+            aria-label={t("node.outputExpressionAria")}
             className={`${fieldClassName} resize-none font-mono`}
             rows={2}
             value={config.expression}
@@ -58,7 +60,7 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
             }
           />
           <select
-            aria-label="Modo de salida"
+            aria-label={t("node.outputModeAria")}
             className={fieldClassName}
             value={config.outputMode}
             onChange={(event) =>
@@ -68,8 +70,8 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
               })
             }
           >
-            <option value="expression">Expresion</option>
-            <option value="text">Texto literal</option>
+            <option value="expression">{t("flow.expression")}</option>
+            <option value="text">{t("flow.literalText")}</option>
           </select>
         </div>
       </div>
@@ -86,12 +88,12 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
           {
             id: "out",
-            label: "Salida",
+            label: t("flow.outPort"),
             fallback: "bottom",
           },
         ]}
@@ -101,13 +103,16 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   );
 }
 
-function getOutputConfig(config: FlowEditorNode["data"]["config"]) {
+function getOutputConfig(
+  config: FlowEditorNode["data"]["config"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
   if ("outputMode" in config) {
     return config as OutputNodeConfig;
   }
 
   return {
-    expression: '"Hola"',
+    expression: t("flow.outputFallback"),
     outputMode: "expression",
   } satisfies OutputNodeConfig;
 }

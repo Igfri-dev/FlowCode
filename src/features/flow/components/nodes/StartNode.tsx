@@ -3,11 +3,12 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode } from "@/types/flow";
-import { EditableNodeLabel } from "./EditableNodeLabel";
 import { NodePortControls } from "./NodePortControls";
 
 export function StartNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
+  const { t } = useI18n();
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -26,12 +27,9 @@ export function StartNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
     <div
       className={`relative min-w-40 cursor-grab select-none rounded-full border-2 border-emerald-600 bg-emerald-50 px-6 py-3 text-center text-sm font-semibold text-emerald-950 shadow-sm active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
     >
-      <EditableNodeLabel
-        ariaLabel="Texto del bloque de inicio"
-        className="font-semibold text-emerald-950"
-        value={data.label}
-        onValueChange={(label) => data.onLabelChange(id, label)}
-      />
+      <span className="block px-2 font-semibold text-emerald-950">
+        {t("flow.start")}
+      </span>
       <Handle
         id="out"
         type="source"
@@ -45,7 +43,7 @@ export function StartNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "out",
-            label: "Salida",
+            label: t("flow.outPort"),
             fallback: "bottom",
           },
         ]}

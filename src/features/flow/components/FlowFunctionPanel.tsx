@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowFunctionDefinition } from "@/types/flow";
 
 type FlowFunctionPanelProps = {
@@ -21,6 +22,7 @@ export function FlowFunctionPanel({
   onUpdateFunction,
   onDeleteFunction,
 }: FlowFunctionPanelProps) {
+  const { t } = useI18n();
   const [parameterDrafts, setParameterDrafts] = useState<
     Record<string, string>
   >({});
@@ -79,9 +81,11 @@ export function FlowFunctionPanel({
   return (
     <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
       <div>
-        <h2 className="text-base font-semibold text-neutral-950">Funciones</h2>
+        <h2 className="text-base font-semibold text-neutral-950">
+          {t("flow.functions")}
+        </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Edita el flujo principal o un subflujo reutilizable.
+          {t("flow.functionsHelp")}
         </p>
       </div>
 
@@ -94,7 +98,7 @@ export function FlowFunctionPanel({
           }}
           className={getDiagramButtonClassName(activeDiagramId === "main")}
         >
-          Principal
+          {t("flow.main")}
         </button>
 
         {functions.map((flowFunction) => {
@@ -154,8 +158,10 @@ export function FlowFunctionPanel({
                 {isActive ? (
                   <button
                     type="button"
-                    aria-label={`Editar nombre de ${flowFunction.name}`}
-                    title="Editar nombre"
+                    aria-label={t("flow.editFunctionNameAria", {
+                      name: flowFunction.name,
+                    })}
+                    title={t("flow.editFunctionName")}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
                       onSelectDiagram(flowFunction.id);
@@ -169,8 +175,10 @@ export function FlowFunctionPanel({
 
                 <button
                   type="button"
-                  aria-label={`Eliminar funcion ${flowFunction.name}`}
-                  title="Eliminar funcion"
+                  aria-label={t("flow.deleteFunctionAria", {
+                    name: flowFunction.name,
+                  })}
+                  title={t("flow.deleteFunction")}
                   onClick={() => handleDeleteFunction(flowFunction.id)}
                   className="flex w-9 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-semibold text-red-700 transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
                 >
@@ -180,7 +188,7 @@ export function FlowFunctionPanel({
 
               {isActive ? (
                 <label className="mt-2 block px-2 pb-1 text-xs font-semibold text-violet-950">
-                  Parametros
+                  {t("flow.parameters")}
                   <input
                     className="mt-1 w-full rounded-md border border-violet-200 bg-white px-2 py-1 text-sm font-mono text-violet-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
                     value={parameterValue}
@@ -200,7 +208,7 @@ export function FlowFunctionPanel({
           onClick={handleCreateFunction}
           className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
         >
-          Nueva funcion
+          {t("flow.newFunction")}
         </button>
       </div>
     </section>

@@ -3,11 +3,13 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode } from "@/types/flow";
 import { EditableNodeLabel } from "./EditableNodeLabel";
 import { NodePortControls } from "./NodePortControls";
 
 export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
+  const { t } = useI18n();
   const instruction =
     "instruction" in data.config ? data.config.instruction : data.label;
   const executionClassName = data.execution?.isCurrent
@@ -40,7 +42,7 @@ export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         className="!h-3 !w-3 !border-2 !border-white !bg-neutral-600"
       />
       <EditableNodeLabel
-        ariaLabel="Instrucción del bloque de proceso"
+        ariaLabel={t("node.processInstructionAria")}
         className="font-mono text-xs leading-5 text-neutral-900 [overflow-wrap:anywhere]"
         value={instruction}
         onValueChange={(instruction) =>
@@ -65,12 +67,12 @@ export function ProcessNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
           {
             id: "out",
-            label: "Salida",
+            label: t("flow.outPort"),
             fallback: "bottom",
           },
         ]}

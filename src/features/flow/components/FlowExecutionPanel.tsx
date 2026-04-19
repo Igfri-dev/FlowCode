@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { FlowExecutionState } from "@/features/flow/execution";
+import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowExecutionPanelProps = {
   executionState: FlowExecutionState;
@@ -20,6 +21,11 @@ export function FlowExecutionPanel({
   onPause,
   onReset,
 }: FlowExecutionPanelProps) {
+  const { t } = useI18n();
+  const localizedMessage = getLocalizedExecutionMessage(
+    executionState.message,
+    t,
+  );
   const isVertical = layout === "vertical";
   const cannotContinue =
     executionState.status === "finished" ||
@@ -38,22 +44,25 @@ export function FlowExecutionPanel({
 
   return (
     <div
-      aria-label="Controles de ejecucion"
+      aria-label={t("flow.executionControls")}
       className={rootClassName}
     >
       <span
         className={messageClassName}
-        title={executionState.message}
+        title={localizedMessage}
       >
-        {executionState.message}
+        {localizedMessage}
       </span>
       <span className="whitespace-nowrap rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-500">
-        Paso {executionState.stepCount} de {executionState.maxSteps}
+        {t("flow.stepOf", {
+          max: executionState.maxSteps,
+          step: executionState.stepCount,
+        })}
       </span>
 
       <div className={buttonGroupClassName}>
         <IconButton
-          label="Ejecutar paso"
+          label={t("flow.stepAction")}
           onClick={onStep}
           disabled={cannotContinue || isAutoRunning}
           variant="primary"
@@ -62,7 +71,7 @@ export function FlowExecutionPanel({
           <StepIcon />
         </IconButton>
         <IconButton
-          label={isAutoRunning ? "Pausar" : "Ejecutar automatico"}
+          label={isAutoRunning ? t("flow.pause") : t("flow.run")}
           onClick={isAutoRunning ? onPause : onRun}
           disabled={cannotContinue && !isAutoRunning}
           variant="secondary"
@@ -71,7 +80,7 @@ export function FlowExecutionPanel({
           {isAutoRunning ? <PauseIcon /> : <PlayIcon />}
         </IconButton>
         <IconButton
-          label="Reiniciar"
+          label={t("flow.reset")}
           onClick={onReset}
           variant="secondary"
           wide={isVertical}
@@ -81,6 +90,29 @@ export function FlowExecutionPanel({
       </div>
     </div>
   );
+}
+
+function getLocalizedExecutionMessage(
+  message: string,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (message === "Listo para ejecutar.") {
+    return t("execution.ready");
+  }
+
+  if (message === "Ejecucion reiniciada.") {
+    return t("execution.reset");
+  }
+
+  if (message === "Ejecucion finalizada.") {
+    return t("execution.finished");
+  }
+
+  if (message === "Inicio.") {
+    return t("execution.started");
+  }
+
+  return message;
 }
 
 type IconButtonProps = {

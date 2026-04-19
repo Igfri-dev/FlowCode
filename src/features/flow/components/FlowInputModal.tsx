@@ -3,6 +3,7 @@ import type {
   ExecutionValue,
   FlowExecutionPendingInput,
 } from "@/features/flow/execution";
+import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowInputModalProps = {
   pendingInput: FlowExecutionPendingInput | null;
@@ -33,13 +34,14 @@ function FlowInputModalContent({
   pendingInput: FlowExecutionPendingInput;
   onConfirm: (value: ExecutionValue) => void;
 }) {
+  const { t } = useI18n();
   const [value, setValue] = useState(
     pendingInput.inputType === "boolean" ? "true" : "",
   );
   const [error, setError] = useState<string | null>(null);
 
   const handleConfirm = () => {
-    const result = parseInputValue(value, pendingInput.inputType);
+    const result = parseInputValue(value, pendingInput.inputType, t);
 
     if (!result.ok) {
       setError(result.message);
@@ -53,11 +55,11 @@ function FlowInputModalContent({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/50 px-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-lg border border-neutral-300 bg-white p-5 shadow-2xl shadow-neutral-950/20">
         <h2 className="text-lg font-semibold text-neutral-950">
-          Entrada requerida
+          {t("modal.inputTitle")}
         </h2>
         <p className="mt-2 text-sm text-neutral-700">{pendingInput.prompt}</p>
         <p className="mt-1 text-xs font-medium text-neutral-500">
-          Se guardara en: {pendingInput.variableName}
+          {t("modal.inputSavedIn")} {pendingInput.variableName}
         </p>
 
         <div className="mt-4">
@@ -67,8 +69,8 @@ function FlowInputModalContent({
               value={value}
               onChange={(event) => setValue(event.target.value)}
             >
-              <option value="true">Verdadero</option>
-              <option value="false">Falso</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
             </select>
           ) : (
             <input
@@ -93,7 +95,7 @@ function FlowInputModalContent({
             onClick={handleConfirm}
             className="rounded-md border border-neutral-950 bg-neutral-950 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
           >
-            Confirmar
+            {t("modal.confirm")}
           </button>
         </div>
       </div>
@@ -104,12 +106,13 @@ function FlowInputModalContent({
 function parseInputValue(
   value: string,
   inputType: FlowExecutionPendingInput["inputType"],
+  t: ReturnType<typeof useI18n>["t"],
 ): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
   if (inputType === "number") {
     if (value.trim() === "" || Number.isNaN(Number(value))) {
       return {
         ok: false,
-        message: "Ingresa un numero valido.",
+        message: t("modal.validNumber"),
       };
     }
 
@@ -129,7 +132,7 @@ function parseInputValue(
   if (!value.trim()) {
     return {
       ok: false,
-      message: "Ingresa un texto.",
+      message: t("modal.validText"),
     };
   }
 

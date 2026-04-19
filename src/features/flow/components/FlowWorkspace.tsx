@@ -19,6 +19,7 @@ import { FlowEditor } from "@/components/editor/FlowEditor";
 import { flowEdgeComponents } from "@/components/editor/edges";
 import { ExerciseModePanel } from "@/features/exercises/components/ExerciseModePanel";
 import { getExercises } from "@/features/exercises/data/exercises";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type {
   ExerciseStarterDiagram,
   ExerciseStarterEdge,
@@ -94,10 +95,11 @@ type PendingFlowDialog = FlowDialogRequest & {
 };
 
 export function FlowWorkspace() {
+  const { language, t } = useI18n();
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
   const loadedExerciseStarterCode = useRef<string | null>(null);
-  const exerciseCatalog = useMemo(() => getExercises(), []);
+  const exerciseCatalog = useMemo(() => getExercises(language), [language]);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
   >(null);
@@ -156,11 +158,11 @@ export function FlowWorkspace() {
   );
   const activeDiagramName =
     activeDiagramId === "main"
-      ? "Principal"
-      : `Funcion ${
+      ? t("flow.main")
+      : `${t("flow.function")} ${
           currentProgram.functions.find(
             (flowFunction) => flowFunction.id === activeDiagramId,
-          )?.name ?? "sin nombre"
+          )?.name ?? t("flow.unnamed")
         }`;
   const graph = useMemo(() => createFlowGraph(nodes, edges), [edges, nodes]);
   const validationIssues = useMemo(
@@ -236,14 +238,19 @@ export function FlowWorkspace() {
         isCurrentExecutionDiagram && edge.id === executionState.activeEdgeId;
       const isVisited = isCurrentExecutionDiagram && visitedEdgeIds.has(edge.id);
 
-      if (!isActive && !isVisited) {
-        return edge;
-      }
-
       const stroke = isActive ? "#ca8a04" : "#059669";
+      const localizedLabel = getLocalizedEdgeLabel(edge.sourceHandle, t);
+
+      if (!isActive && !isVisited) {
+        return {
+          ...edge,
+          label: localizedLabel ?? edge.label,
+        };
+      }
 
       return {
         ...edge,
+        label: localizedLabel ?? edge.label,
         animated: isActive,
         style: {
           ...edge.style,
@@ -270,6 +277,7 @@ export function FlowWorkspace() {
     executionState.activeEdgeId,
     executionState.currentDiagramId,
     executionState.history,
+    t,
   ]);
 
   const handleDialogCancel = useCallback(() => {
@@ -341,6 +349,7 @@ export function FlowWorkspace() {
                     node.type,
                     config,
                     node.data.label,
+                    language,
                   ),
                 },
               }
@@ -348,7 +357,7 @@ export function FlowWorkspace() {
         ),
       );
     },
-    [setNodes],
+    [language, setNodes],
   );
 
   const handleNodeHandlePositionsChange = useCallback(
@@ -446,7 +455,7 @@ export function FlowWorkspace() {
       setFunctions(starterFunctions);
       setNodes(nextMainDiagram.nodes);
       setEdges(nextMainDiagram.edges);
-      setExecutionState(resetFlowExecution("main", "Principal"));
+      setExecutionState(resetFlowExecution("main", t("flow.main")));
       nextNodeId.current = loadedNodeCount;
     },
     [
@@ -454,6 +463,7 @@ export function FlowWorkspace() {
       createFunctionDefinitionFromStarter,
       setEdges,
       setNodes,
+      t,
     ],
   );
 
@@ -483,9 +493,7 @@ export function FlowWorkspace() {
         if (exercise.starterCode !== undefined) {
           setImportCode(exercise.starterCode);
           setImportStatus("success");
-          setImportMessage(
-            "Codigo inicial del ejercicio cargado en el importador.",
-          );
+          setImportMessage(t("flow.importLoaded"));
           setImportWarnings([]);
           loadedExerciseStarterCode.current = exercise.starterCode;
         } else {
@@ -499,10 +507,9 @@ export function FlowWorkspace() {
 
       if (replacesEditedStarterCode || replacesDiagram) {
         setDialogRequest({
-          title: "Reemplazar espacio de trabajo",
-          message:
-            "Seleccionar este ejercicio reemplazara contenido actual del espacio de trabajo.",
-          confirmLabel: "Reemplazar",
+          title: t("flow.replaceDialogTitle"),
+          message: t("flow.replaceDialogMessage"),
+          confirmLabel: t("flow.replace"),
           tone: "warning",
           onConfirm: applyExerciseSelection,
         });
@@ -517,6 +524,7 @@ export function FlowWorkspace() {
       importCode,
       loadStarterDiagram,
       selectedExerciseId,
+      t,
     ],
   );
 
@@ -535,6 +543,7 @@ export function FlowWorkspace() {
           onLabelChange: handleNodeLabelChange,
           onConfigChange: handleNodeConfigChange,
           onHandlePositionsChange: handleNodeHandlePositionsChange,
+          language,
         });
 
         return [...currentNodes, node];
@@ -546,6 +555,7 @@ export function FlowWorkspace() {
       handleNodeConfigChange,
       handleNodeHandlePositionsChange,
       handleNodeLabelChange,
+      language,
       setNodes,
     ],
   );
@@ -611,10 +621,9 @@ export function FlowWorkspace() {
     };
 
     setDialogRequest({
-      title: `Limpiar ${activeDiagramName}`,
-      message:
-        "Se eliminaran todos los bloques y conexiones de este diagrama.",
-      confirmLabel: "Limpiar",
+      title: t("flow.clearDialogTitle", { name: activeDiagramName }),
+      message: t("flow.clearDialogMessage"),
+      confirmLabel: t("flow.clear"),
       tone: "danger",
       onConfirm: clearActiveDiagram,
     });
@@ -626,6 +635,7 @@ export function FlowWorkspace() {
     hasActiveDiagramContent,
     setEdges,
     setNodes,
+    t,
   ]);
 
   const handleGenerateCode = useCallback(() => {
@@ -665,13 +675,13 @@ export function FlowWorkspace() {
 
     setBlockedConnectionMessage(null);
     setIsAutoRunning(false);
-    setExecutionState(resetFlowExecution("main", "Principal"));
+    setExecutionState(resetFlowExecution("main", t("flow.main")));
     setCodeGenerationResult(initialCodeGenerationResult);
     setImportStatus("success");
     setImportMessage(
       importedFunctions.length > 0
-        ? "Diagrama y funciones generados desde el codigo JavaScript."
-        : "Diagrama generado desde el codigo JavaScript.",
+        ? t("flow.importGeneratedWithFunctions")
+        : t("flow.importGenerated"),
     );
     setImportWarnings(importResult.warnings);
     nextNodeId.current = importedNodeCount;
@@ -686,6 +696,7 @@ export function FlowWorkspace() {
     importCode,
     setEdges,
     setNodes,
+    t,
   ]);
 
   const handleConnect = useCallback<OnConnect>(
@@ -773,16 +784,16 @@ export function FlowWorkspace() {
         resetFlowExecution(
           diagramId,
           diagramId === "main"
-            ? "Principal"
-            : `Funcion ${
+            ? t("flow.main")
+            : `${t("flow.function")} ${
                 currentProgram.functions.find(
                   (flowFunction) => flowFunction.id === diagramId,
-                )?.name ?? "sin nombre"
+                )?.name ?? t("flow.unnamed")
               }`,
         ),
       );
     },
-    [currentProgram, setEdges, setNodes],
+    [currentProgram, setEdges, setNodes, t],
   );
 
   const handleCreateFunction = useCallback(() => {
@@ -791,7 +802,7 @@ export function FlowWorkspace() {
 
     const flowFunction: FlowFunctionDefinition = {
       id: `function-${nextFunctionId.current}`,
-      name: `funcion${functionIndex}`,
+      name: `${t("flow.defaultFunctionPrefix")}${functionIndex}`,
       parameters: [],
       nodes: [],
       edges: [],
@@ -804,9 +815,12 @@ export function FlowWorkspace() {
     setEdges(flowFunction.edges);
     setIsAutoRunning(false);
     setExecutionState(
-      resetFlowExecution(flowFunction.id, `Funcion ${flowFunction.name}`),
+      resetFlowExecution(
+        flowFunction.id,
+        `${t("flow.function")} ${flowFunction.name}`,
+      ),
     );
-  }, [currentProgram, setEdges, setNodes]);
+  }, [currentProgram, setEdges, setNodes, t]);
 
   const handleUpdateFunction = useCallback(
     (
@@ -860,7 +874,7 @@ export function FlowWorkspace() {
         setActiveDiagramId("main");
         setNodes(nextMainDiagram.nodes);
         setEdges(nextMainDiagram.edges);
-        setExecutionState(resetFlowExecution("main", "Principal"));
+        setExecutionState(resetFlowExecution("main", t("flow.main")));
         return;
       }
 
@@ -875,10 +889,13 @@ export function FlowWorkspace() {
       setNodes(activeFunction.nodes);
       setEdges(activeFunction.edges);
       setExecutionState(
-        resetFlowExecution(activeFunction.id, `Funcion ${activeFunction.name}`),
+        resetFlowExecution(
+          activeFunction.id,
+          `${t("flow.function")} ${activeFunction.name}`,
+        ),
       );
     },
-    [activeDiagramId, currentProgram, setEdges, setNodes],
+    [activeDiagramId, currentProgram, setEdges, setNodes, t],
   );
 
   return (
@@ -910,10 +927,10 @@ export function FlowWorkspace() {
           <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-950">
-                Diagrama: {activeDiagramName}
+                {t("flow.diagram")} {activeDiagramName}
               </p>
               <p className="text-xs text-neutral-500">
-                Agrega bloques desde la barra lateral
+                {t("flow.diagramHelp")}
               </p>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
@@ -923,7 +940,7 @@ export function FlowWorkspace() {
                 disabled={!hasActiveDiagramContent}
                 className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
               >
-                Limpiar
+                {t("flow.clear")}
               </button>
               <FlowExecutionPanel
                 executionState={executionState}
@@ -934,7 +951,7 @@ export function FlowWorkspace() {
                 onReset={handleResetExecution}
               />
               <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 shadow-sm">
-                {nodes.length} bloques
+                {t("flow.blockCount", { count: nodes.length })}
               </span>
             </div>
           </div>
@@ -971,7 +988,7 @@ export function FlowWorkspace() {
               fullscreenLeftItems={[
                 {
                   id: "execution",
-                  label: "ejecucion",
+                  label: t("flow.executionPanel"),
                   buttonLabel: "e",
                   children: (
                     <FlowExecutionPanel
@@ -987,7 +1004,7 @@ export function FlowWorkspace() {
                 },
                 {
                   id: "functions",
-                  label: "funciones",
+                  label: t("flow.functionsPanel"),
                   buttonLabel: "f",
                   children: (
                     <FlowFunctionPanel
@@ -1002,7 +1019,7 @@ export function FlowWorkspace() {
                 },
                 {
                   id: "validation",
-                  label: "validacion",
+                  label: t("flow.validationPanel"),
                   buttonLabel: "v",
                   children: (
                     <FlowValidationPanel
@@ -1016,7 +1033,7 @@ export function FlowWorkspace() {
               fullscreenRightItems={[
                 {
                   id: "variables",
-                  label: "variables",
+                  label: t("flow.variablesPanel"),
                   buttonLabel: "v",
                   children: (
                     <FlowVariablesPanel variables={executionState.variables} />
@@ -1024,13 +1041,13 @@ export function FlowWorkspace() {
                 },
                 {
                   id: "outputs",
-                  label: "salidas",
+                  label: t("flow.outputsPanel"),
                   buttonLabel: "s",
                   children: <FlowOutputPanel outputs={executionState.outputs} />,
                 },
                 {
                   id: "history",
-                  label: "historial",
+                  label: t("flow.historyPanel"),
                   buttonLabel: "h",
                   children: (
                     <FlowExecutionHistoryPanel
@@ -1041,7 +1058,7 @@ export function FlowWorkspace() {
               ]}
               fullscreenBottomItem={{
                 id: "blocks",
-                label: "bloques",
+                label: t("flow.blocksPanel"),
                 buttonLabel: "B",
                 children: (
                   <FlowSidebar layout="horizontal" onAddNode={handleAddNode} />
@@ -1092,6 +1109,21 @@ function createEditorEdgeFromStarter(
         id: edge.id,
       }
     : editorEdge;
+}
+
+function getLocalizedEdgeLabel(
+  sourceHandle: FlowEditorEdge["sourceHandle"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (sourceHandle === "yes") {
+    return t("flow.yes");
+  }
+
+  if (sourceHandle === "no") {
+    return t("flow.no");
+  }
+
+  return undefined;
 }
 
 function hasDiagramContent(program: FlowProgram) {

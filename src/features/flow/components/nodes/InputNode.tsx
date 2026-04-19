@@ -3,6 +3,7 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, InputNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
@@ -10,7 +11,8 @@ const fieldClassName =
   "nodrag nopan nowheel h-6 w-full rounded border border-sky-200 bg-white/90 px-1.5 py-0.5 text-[11px] text-sky-950 outline-none focus:border-sky-500";
 
 export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
-  const config = getInputConfig(data.config);
+  const { t } = useI18n();
+  const config = getInputConfig(data.config, t);
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -42,11 +44,11 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
       />
       <div className="[transform:skew(8deg)]">
         <p className="mb-1 text-center text-[11px] font-semibold uppercase text-sky-700">
-          Entrada
+          {t("flow.input")}
         </p>
         <div className="space-y-1.5">
           <textarea
-            aria-label="Texto de la pregunta"
+            aria-label={t("node.inputPromptAria")}
             className={`${fieldClassName} resize-none overflow-hidden`}
             rows={1}
             value={config.prompt}
@@ -58,7 +60,7 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
             }
           />
           <input
-            aria-label="Variable donde se guarda la entrada"
+            aria-label={t("node.inputVariableAria")}
             className={fieldClassName}
             value={config.variableName}
             onChange={(event) =>
@@ -67,10 +69,10 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
                 variableName: event.target.value,
               })
             }
-            placeholder="variable"
+            placeholder={t("flow.variablePlaceholder")}
           />
           <select
-            aria-label="Tipo de entrada"
+            aria-label={t("node.inputTypeAria")}
             className={fieldClassName}
             value={config.inputType}
             onChange={(event) =>
@@ -80,9 +82,9 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
               })
             }
           >
-            <option value="text">Texto</option>
-            <option value="number">Numero</option>
-            <option value="boolean">Booleano</option>
+            <option value="text">{t("flow.text")}</option>
+            <option value="number">{t("flow.number")}</option>
+            <option value="boolean">{t("flow.boolean")}</option>
           </select>
         </div>
       </div>
@@ -99,12 +101,12 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
           {
             id: "out",
-            label: "Salida",
+            label: t("flow.outPort"),
             fallback: "bottom",
           },
         ]}
@@ -114,14 +116,17 @@ export function InputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   );
 }
 
-function getInputConfig(config: FlowEditorNode["data"]["config"]) {
+function getInputConfig(
+  config: FlowEditorNode["data"]["config"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
   if ("prompt" in config) {
     return config as InputNodeConfig;
   }
 
   return {
-    prompt: "Ingresa un valor",
-    variableName: "valor",
+    prompt: t("flow.inputPromptFallback"),
+    variableName: t("flow.inputVariableFallback"),
     inputType: "text",
   } satisfies InputNodeConfig;
 }

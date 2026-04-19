@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseDifficulty } from "@/features/exercises/types";
+import { useI18n } from "@/features/i18n/I18nProvider";
 
 type ExerciseModePanelProps = {
   exercises: Exercise[];
@@ -6,17 +7,18 @@ type ExerciseModePanelProps = {
   onSelectExercise: (exerciseId: string) => void;
 };
 
-const difficultyLabels: Record<ExerciseDifficulty, string> = {
-  facil: "Facil",
-  media: "Media",
-  dificil: "Dificil",
-};
-
 export function ExerciseModePanel({
   exercises,
   selectedExercise,
   onSelectExercise,
 }: ExerciseModePanelProps) {
+  const { t } = useI18n();
+  const localizedDifficultyLabels: Record<ExerciseDifficulty, string> = {
+    facil: t("difficulty.facil"),
+    media: t("difficulty.media"),
+    dificil: t("difficulty.dificil"),
+  };
+
   return (
     <section className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-stretch">
       <div className="min-w-0 rounded-md border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50 sm:w-72 sm:shrink-0">
@@ -24,10 +26,10 @@ export function ExerciseModePanel({
           className="block text-sm font-semibold text-neutral-950"
           htmlFor="exercise-mode-select"
         >
-          Modo ejercicios
+          {t("exercise.mode")}
         </label>
         <p className="mt-1 text-xs text-neutral-600">
-          Elige un desafio para cargar su codigo inicial.
+          {t("exercise.modeHelp")}
         </p>
         <select
           id="exercise-mode-select"
@@ -36,11 +38,11 @@ export function ExerciseModePanel({
           onChange={(event) => onSelectExercise(event.target.value)}
         >
           <option value="" disabled>
-            Selecciona un ejercicio
+            {t("exercise.select")}
           </option>
           {exercises.map((exercise) => (
             <option key={exercise.id} value={exercise.id}>
-              {exercise.title} - {difficultyLabels[exercise.difficulty]}
+              {exercise.title} - {localizedDifficultyLabels[exercise.difficulty]}
             </option>
           ))}
         </select>
@@ -50,20 +52,20 @@ export function ExerciseModePanel({
         <article className="min-w-0 flex-1 rounded-md border border-emerald-300 bg-white p-3 shadow-md shadow-emerald-100/70 transition hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded border border-emerald-500 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-              Activo
+              {t("exercise.active")}
             </span>
             <p className="text-sm font-semibold text-neutral-950">
               {selectedExercise.title}
             </p>
             <span className="rounded border border-neutral-300 bg-neutral-50 px-2 py-0.5 text-xs font-semibold text-neutral-700">
-              {difficultyLabels[selectedExercise.difficulty]}
+              {localizedDifficultyLabels[selectedExercise.difficulty]}
             </span>
           </div>
           <p className="mt-2 text-sm text-neutral-700">
             {selectedExercise.description}
           </p>
           <p className="mt-2 text-sm text-neutral-950">
-            <span className="font-semibold">Objetivo: </span>
+            <span className="font-semibold">{t("exercise.objective")} </span>
             {selectedExercise.objective}
           </p>
           {selectedExercise.tags && selectedExercise.tags.length > 0 ? (
@@ -81,7 +83,7 @@ export function ExerciseModePanel({
         </article>
       ) : (
         <p className="min-w-0 flex-1 rounded-md border border-neutral-300/80 bg-white px-3 py-3 text-sm text-neutral-600 shadow-md shadow-neutral-200/70">
-          Selecciona un ejercicio para ver las instrucciones.
+          {t("exercise.empty")}
         </p>
       )}
     </section>

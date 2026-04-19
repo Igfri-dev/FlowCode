@@ -3,6 +3,7 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, FunctionCallNodeConfig } from "@/types/flow";
 import { NodePortControls } from "./NodePortControls";
 
@@ -14,6 +15,7 @@ export function FunctionCallNode({
   id,
   selected,
 }: NodeProps<FlowEditorNode>) {
+  const { t } = useI18n();
   const config = getFunctionCallConfig(data.config);
   const argumentText = config.argsText ?? config.args.join(", ");
   const selectedFunction = data.availableFunctions?.find(
@@ -49,11 +51,11 @@ export function FunctionCallNode({
         className="!h-3 !w-3 !border-2 !border-white !bg-violet-700"
       />
       <p className="mb-1 text-center text-[11px] font-semibold uppercase text-violet-700">
-        Llamada
+        {t("flow.functionCall")}
       </p>
       <div className="space-y-1.5">
         <select
-          aria-label="Funcion a llamar"
+          aria-label={t("node.functionToCallAria")}
           className={fieldClassName}
           value={config.functionId}
           onChange={(event) =>
@@ -63,7 +65,7 @@ export function FunctionCallNode({
             })
           }
         >
-          <option value="">Selecciona funcion</option>
+          <option value="">{t("flow.selectFunction")}</option>
           {data.availableFunctions?.map((flowFunction) => (
             <option key={flowFunction.id} value={flowFunction.id}>
               {flowFunction.name}
@@ -71,7 +73,7 @@ export function FunctionCallNode({
           ))}
         </select>
         <input
-          aria-label="Argumentos de la llamada"
+          aria-label={t("node.callArgumentsAria")}
           className={`${fieldClassName} font-mono`}
           value={argumentText}
           onChange={(event) => {
@@ -82,13 +84,11 @@ export function FunctionCallNode({
             });
           }}
           placeholder={
-            selectedFunction
-              ? selectedFunction.parameters.join(", ")
-              : "a, b"
+            selectedFunction ? selectedFunction.parameters.join(", ") : "a, b"
           }
         />
         <input
-          aria-label="Variable para guardar el retorno"
+          aria-label={t("node.callReturnVariableAria")}
           className={fieldClassName}
           value={config.assignTo ?? ""}
           onChange={(event) =>
@@ -97,7 +97,7 @@ export function FunctionCallNode({
               assignTo: event.target.value,
             })
           }
-          placeholder="guardar en..."
+          placeholder={t("flow.saveReturnPlaceholder")}
         />
       </div>
       <Handle
@@ -113,12 +113,12 @@ export function FunctionCallNode({
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
           {
             id: "out",
-            label: "Salida",
+            label: t("flow.outPort"),
             fallback: "bottom",
           },
         ]}

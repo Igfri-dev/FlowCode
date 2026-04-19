@@ -3,11 +3,12 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode } from "@/types/flow";
-import { EditableNodeLabel } from "./EditableNodeLabel";
 import { NodePortControls } from "./NodePortControls";
 
 export function EndNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
+  const { t } = useI18n();
   const executionClassName = data.execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
     : data.execution?.isVisited
@@ -32,12 +33,9 @@ export function EndNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         position={toReactFlowPosition(inputPosition)}
         className="!h-3 !w-3 !border-2 !border-white !bg-red-700"
       />
-      <EditableNodeLabel
-        ariaLabel="Texto del bloque de fin"
-        className="font-semibold text-red-950"
-        value={data.label}
-        onValueChange={(label) => data.onLabelChange(id, label)}
-      />
+      <span className="block px-2 font-semibold text-red-950">
+        {t("flow.end")}
+      </span>
       <NodePortControls
         nodeId={id}
         selected={selected}
@@ -45,7 +43,7 @@ export function EndNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
         ]}

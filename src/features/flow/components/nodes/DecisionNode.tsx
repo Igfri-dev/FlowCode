@@ -3,11 +3,13 @@ import {
   getFlowHandlePosition,
   toReactFlowPosition,
 } from "@/features/flow/handle-positions";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, FlowHandlePosition } from "@/types/flow";
 import { EditableNodeLabel } from "./EditableNodeLabel";
 import { NodePortControls } from "./NodePortControls";
 
 export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
+  const { t } = useI18n();
   const activeBranch = data.execution?.activeBranch;
   const inputPosition = getFlowHandlePosition({
     fallback: "top",
@@ -53,7 +55,7 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
         className="!z-20 !h-4 !w-4 !border-2 !border-white !bg-cyan-700"
       />
       <EditableNodeLabel
-        ariaLabel="Condici\u00f3n del bloque de decisi\u00f3n"
+        ariaLabel={t("node.decisionConditionAria")}
         className="relative z-10 max-w-24 text-sm font-semibold leading-5 text-cyan-950"
         value={"condition" in data.config ? data.config.condition : data.label}
         onValueChange={(condition) =>
@@ -72,12 +74,12 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
       <span
         className={`absolute z-10 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${getBranchLabelClassName(yesPosition, "yes")} ${yesBranchClassName}`}
       >
-        {"S\u00ed"}
+        {t("flow.yes")}
       </span>
       <span
         className={`absolute z-10 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${getBranchLabelClassName(noPosition, "no")} ${noBranchClassName}`}
       >
-        No
+        {t("flow.no")}
       </span>
       <Handle
         id="no"
@@ -92,17 +94,17 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
         controls={[
           {
             id: "in",
-            label: "Entrada",
+            label: t("flow.inPort"),
             fallback: "top",
           },
           {
             id: "yes",
-            label: "S\u00ed",
+            label: t("flow.yes"),
             fallback: "left",
           },
           {
             id: "no",
-            label: "No",
+            label: t("flow.no"),
             fallback: "right",
           },
         ]}

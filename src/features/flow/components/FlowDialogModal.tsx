@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowDialogTone = "danger" | "warning";
 
@@ -21,6 +22,8 @@ export function FlowDialogModal({
   onCancel,
   onConfirm,
 }: FlowDialogModalProps) {
+  const { t } = useI18n();
+
   useEffect(() => {
     if (!request) {
       return;
@@ -76,7 +79,7 @@ export function FlowDialogModal({
             className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
             onClick={onCancel}
           >
-            {request.cancelLabel ?? "Cancelar"}
+            {request.cancelLabel ?? t("flow.cancel")}
           </button>
           <button
             type="button"

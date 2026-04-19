@@ -5,6 +5,7 @@ import {
   type FlowExecutionFunctionParameterValues,
   type FlowExecutionPendingFunctionParameters,
 } from "@/features/flow/execution";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowFunctionParameterDefinition } from "@/types/flow";
 
 type FlowFunctionParameterModalProps = {
@@ -36,6 +37,7 @@ function FlowFunctionParameterModalContent({
   pendingFunctionParameters: FlowExecutionPendingFunctionParameters;
   onConfirm: (values: FlowExecutionFunctionParameterValues) => void;
 }) {
+  const { t } = useI18n();
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       pendingFunctionParameters.parameters.map((parameter) => [
@@ -50,6 +52,7 @@ function FlowFunctionParameterModalContent({
     const result = parseParameterValues(
       pendingFunctionParameters.parameters,
       values,
+      t,
     );
 
     if (!result.ok) {
@@ -64,13 +67,15 @@ function FlowFunctionParameterModalContent({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/50 px-4 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-lg border border-neutral-300 bg-white p-5 shadow-2xl shadow-neutral-950/20">
         <h2 className="text-lg font-semibold text-neutral-950">
-          Parametros requeridos
+          {t("modal.parametersTitle")}
         </h2>
         <p className="mt-2 text-sm text-neutral-700">
-          Ingresa los valores para ejecutar {pendingFunctionParameters.functionName}.
+          {t("modal.parametersFor", {
+            name: pendingFunctionParameters.functionName,
+          })}
         </p>
         <p className="mt-1 text-xs font-medium text-neutral-500">
-          Puedes usar numeros, booleanos, texto, arreglos u objetos.
+          {t("modal.parametersHelp")}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -83,7 +88,7 @@ function FlowFunctionParameterModalContent({
                 </span>
                 {parameter.defaultValue !== undefined ? (
                   <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[11px] text-neutral-500">
-                    defecto: {parameter.defaultValue}
+                    {t("modal.defaultValue")} {parameter.defaultValue}
                   </span>
                 ) : null}
               </span>
@@ -92,7 +97,7 @@ function FlowFunctionParameterModalContent({
                   parameter === pendingFunctionParameters.parameters[0]
                 }
                 className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 font-mono text-sm text-neutral-900 outline-none transition hover:border-neutral-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                placeholder={getParameterPlaceholder(parameter)}
+                placeholder={getParameterPlaceholder(parameter, t)}
                 value={values[parameter.name] ?? ""}
                 onChange={(event) => {
                   setValues((currentValues) => ({
@@ -117,7 +122,7 @@ function FlowFunctionParameterModalContent({
             onClick={handleConfirm}
             className="rounded-md border border-neutral-950 bg-neutral-950 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
           >
-            Ejecutar funcion
+            {t("modal.runFunction")}
           </button>
         </div>
       </div>
@@ -125,21 +130,25 @@ function FlowFunctionParameterModalContent({
   );
 }
 
-function getParameterPlaceholder(parameter: FlowFunctionParameterDefinition) {
+function getParameterPlaceholder(
+  parameter: FlowFunctionParameterDefinition,
+  t: ReturnType<typeof useI18n>["t"],
+) {
   if (parameter.rest) {
-    return "[1, 2, 3]";
+    return t("modal.restPlaceholder");
   }
 
   if (parameter.defaultValue !== undefined) {
-    return "Deja vacio para usar el valor por defecto";
+    return t("modal.defaultPlaceholder");
   }
 
-  return '5, true o "texto"';
+  return t("modal.valuePlaceholder");
 }
 
 function parseParameterValues(
   parameters: FlowFunctionParameterDefinition[],
   rawValues: Record<string, string>,
+  t: ReturnType<typeof useI18n>["t"],
 ):
   | { ok: true; values: FlowExecutionFunctionParameterValues }
   | { ok: false; message: string } {
@@ -161,23 +170,26 @@ function parseParameterValues(
     if (!trimmedValue) {
       return {
         ok: false,
-        message: `Ingresa un valor para "${parameter.name}".`,
+        message: t("modal.valueRequired", { name: parameter.name }),
       };
     }
 
-    const parsedValue = parseParameterValue(rawValue);
+    const parsedValue = parseParameterValue(rawValue, t);
 
     if (!parsedValue.ok) {
       return {
         ok: false,
-        message: `Parametro "${parameter.name}": ${parsedValue.message}`,
+        message: t("modal.parameterError", {
+          message: parsedValue.message,
+          name: parameter.name,
+        }),
       };
     }
 
     if (parameter.rest && !Array.isArray(parsedValue.value)) {
       return {
         ok: false,
-        message: `Parametro "${parameter.name}": ingresa un arreglo como [1, 2, 3].`,
+        message: t("modal.restArray", { name: parameter.name }),
       };
     }
 
@@ -192,6 +204,7 @@ function parseParameterValues(
 
 function parseParameterValue(
   value: string,
+  t: ReturnType<typeof useI18n>["t"],
 ): { ok: true; value: ExecutionValue } | { ok: false; message: string } {
   const trimmedValue = value.trim();
   const expressionResult = evaluateExpression(trimmedValue, {});
@@ -209,8 +222,7 @@ function parseParameterValue(
 
   return {
     ok: false,
-    message:
-      "no se pudo interpretar el valor. Usa comillas para texto literal o una expresion valida.",
+    message: t("modal.parseValueError"),
   };
 }
 
