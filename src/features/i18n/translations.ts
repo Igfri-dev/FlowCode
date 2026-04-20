@@ -83,6 +83,32 @@ const es = {
   "flow.diagram": "Diagrama:",
   "flow.diagramHelp": "Agrega bloques desde la barra lateral",
   "flow.blockCount": "{count} bloques",
+  "flow.export": "Exportar",
+  "flow.importJson": "Importar JSON",
+  "flow.importJsonAria": "Archivo JSON del diagrama",
+  "flow.exportDialogTitle": "Exportar diagrama",
+  "flow.exportDialogHelp":
+    "Elige los archivos que quieres descargar desde el diagrama actual.",
+  "flow.closeExportDialog": "Cerrar exportacion",
+  "flow.exportAsImage": "Imagen del diagrama",
+  "flow.exportAsImageHelp":
+    "Descarga una captura ajustada a los bloques visibles del lienzo.",
+  "flow.exportImageFormat": "Formato de imagen",
+  "flow.exportJavaScript": "Archivo JavaScript",
+  "flow.exportJavaScriptHelp":
+    "Guarda el codigo generado desde el flujo principal y sus funciones.",
+  "flow.exportJson": "Archivo JSON del editor",
+  "flow.exportJsonHelp":
+    "Incluye bloques, posiciones, puertos, conexiones, funciones y codigo.",
+  "flow.exportConfirm": "Exportar",
+  "flow.exporting": "Exportando...",
+  "flow.exportImageError":
+    "No se pudo exportar la imagen del diagrama.",
+  "flow.exportNoDiagram": "Agrega bloques antes de exportar una imagen.",
+  "flow.importJsonSuccess":
+    "Diagrama importado desde JSON. Codigo cargado en el importador.",
+  "flow.importJsonInvalid": "El archivo JSON no tiene un diagrama valido.",
+  "flow.importJsonReadError": "No se pudo leer el archivo JSON.",
   "flow.clear": "Limpiar",
   "flow.clearDialogTitle": "Limpiar {name}",
   "flow.clearDialogMessage":
@@ -318,6 +344,32 @@ const en: Record<keyof typeof es, string> = {
   "flow.diagram": "Diagram:",
   "flow.diagramHelp": "Add blocks from the sidebar",
   "flow.blockCount": "{count} blocks",
+  "flow.export": "Export",
+  "flow.importJson": "Import JSON",
+  "flow.importJsonAria": "Diagram JSON file",
+  "flow.exportDialogTitle": "Export diagram",
+  "flow.exportDialogHelp":
+    "Choose the files you want to download from the current diagram.",
+  "flow.closeExportDialog": "Close export",
+  "flow.exportAsImage": "Diagram image",
+  "flow.exportAsImageHelp":
+    "Downloads a capture fitted to the visible blocks in the canvas.",
+  "flow.exportImageFormat": "Image format",
+  "flow.exportJavaScript": "JavaScript file",
+  "flow.exportJavaScriptHelp":
+    "Saves the code generated from the main flow and its functions.",
+  "flow.exportJson": "Editor JSON file",
+  "flow.exportJsonHelp":
+    "Includes blocks, positions, ports, connections, functions, and code.",
+  "flow.exportConfirm": "Export",
+  "flow.exporting": "Exporting...",
+  "flow.exportImageError":
+    "The diagram image could not be exported.",
+  "flow.exportNoDiagram": "Add blocks before exporting an image.",
+  "flow.importJsonSuccess":
+    "Diagram imported from JSON. Code loaded into the importer.",
+  "flow.importJsonInvalid": "The JSON file does not contain a valid diagram.",
+  "flow.importJsonReadError": "The JSON file could not be read.",
   "flow.clear": "Clear",
   "flow.clearDialogTitle": "Clear {name}",
   "flow.clearDialogMessage":

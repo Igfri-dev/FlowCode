@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -204,6 +205,7 @@ type FlowEditorProps = {
   onEdgesChange: OnEdgesChange<FlowEditorEdge>;
   onConnect: OnConnect;
   isValidConnection: IsValidConnection<FlowEditorEdge>;
+  editorShellRef?: MutableRefObject<HTMLDivElement | null>;
   editorOverlays?: ReactNode;
   fullscreenBottomItem?: FullscreenFloatingPanelItem;
   fullscreenLeftItems?: FullscreenFloatingPanelItem[];
@@ -227,13 +229,14 @@ export function FlowEditor({
   onEdgesChange,
   onConnect,
   isValidConnection,
+  editorShellRef: externalEditorShellRef,
   editorOverlays,
   fullscreenBottomItem,
   fullscreenLeftItems = [],
   fullscreenRightItems = [],
 }: FlowEditorProps) {
   const { t } = useI18n();
-  const editorShellRef = useRef<HTMLDivElement>(null);
+  const internalEditorShellRef = useRef<HTMLDivElement>(null);
   const [areEdgeBridgesDisabled, setAreEdgeBridgesDisabled] =
     useState(false);
   const [nodeDragBridgeRevision, setNodeDragBridgeRevision] = useState(0);
@@ -252,9 +255,22 @@ export function FlowEditor({
     [areEdgeBridgesDisabled, edgeTopologyKey, nodeDragBridgeRevision],
   );
 
+  const setEditorShellRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      internalEditorShellRef.current = element;
+
+      if (externalEditorShellRef) {
+        externalEditorShellRef.current = element;
+      }
+    },
+    [externalEditorShellRef],
+  );
+
   useEffect(() => {
     const syncFullscreenState = () => {
-      setIsFullscreen(document.fullscreenElement === editorShellRef.current);
+      setIsFullscreen(
+        document.fullscreenElement === internalEditorShellRef.current,
+      );
     };
 
     syncFullscreenState();
@@ -266,7 +282,7 @@ export function FlowEditor({
   }, []);
 
   const handleToggleFullscreen = useCallback(async () => {
-    const editorShell = editorShellRef.current;
+    const editorShell = internalEditorShellRef.current;
 
     if (!editorShell) {
       return;
@@ -317,7 +333,7 @@ export function FlowEditor({
 
   return (
     <div
-      ref={editorShellRef}
+      ref={setEditorShellRef}
       className={`relative h-full min-h-[580px] bg-neutral-100 ${
         isFullscreen ? "h-screen min-h-screen" : ""
       }`}
