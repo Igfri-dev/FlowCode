@@ -6,6 +6,7 @@ export type FlowImageExportFormat = "png" | "jpg" | "svg";
 export type FlowExportOptions = {
   includeImage: boolean;
   imageFormat: FlowImageExportFormat;
+  transparentBackground: boolean;
   includeJavaScript: boolean;
   includeJson: boolean;
 };
@@ -21,6 +22,7 @@ type FlowExportModalProps = {
 const defaultExportOptions: FlowExportOptions = {
   includeImage: true,
   imageFormat: "png",
+  transparentBackground: false,
   includeJavaScript: false,
   includeJson: true,
 };
@@ -37,6 +39,8 @@ export function FlowExportModal({
     useState<FlowExportOptions>(defaultExportOptions);
   const hasSelectedOption =
     options.includeImage || options.includeJavaScript || options.includeJson;
+  const canUseTransparentBackground =
+    options.includeImage && options.imageFormat !== "jpg";
 
   if (!isOpen) {
     return null;
@@ -101,6 +105,10 @@ export function FlowExportModal({
                 setOptions((currentOptions) => ({
                   ...currentOptions,
                   imageFormat: event.target.value as FlowImageExportFormat,
+                  transparentBackground:
+                    event.target.value === "jpg"
+                      ? false
+                      : currentOptions.transparentBackground,
                 }))
               }
             >
@@ -108,6 +116,29 @@ export function FlowExportModal({
               <option value="jpg">JPG</option>
               <option value="svg">SVG</option>
             </select>
+          </label>
+
+          <label className="flex items-start gap-3 pl-7 text-sm text-neutral-900">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-emerald-700 disabled:cursor-not-allowed"
+              checked={options.transparentBackground}
+              disabled={!canUseTransparentBackground}
+              onChange={(event) =>
+                setOptions((currentOptions) => ({
+                  ...currentOptions,
+                  transparentBackground: event.target.checked,
+                }))
+              }
+            />
+            <span>
+              <span className="block font-semibold">
+                {t("flow.exportTransparentBackground")}
+              </span>
+              <span className="mt-1 block text-xs text-neutral-600">
+                {t("flow.exportTransparentBackgroundHelp")}
+              </span>
+            </span>
           </label>
 
           <label className="flex items-start gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-900">

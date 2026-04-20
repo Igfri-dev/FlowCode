@@ -94,6 +94,9 @@ const es = {
   "flow.exportAsImageHelp":
     "Descarga una captura ajustada a los bloques visibles del lienzo.",
   "flow.exportImageFormat": "Formato de imagen",
+  "flow.exportTransparentBackground": "Imagen sin fondo",
+  "flow.exportTransparentBackgroundHelp":
+    "Disponible para PNG y SVG. JPG siempre se exporta con fondo.",
   "flow.exportJavaScript": "Archivo JavaScript",
   "flow.exportJavaScriptHelp":
     "Guarda el codigo generado desde el flujo principal y sus funciones.",
@@ -355,6 +358,9 @@ const en: Record<keyof typeof es, string> = {
   "flow.exportAsImageHelp":
     "Downloads a capture fitted to the visible blocks in the canvas.",
   "flow.exportImageFormat": "Image format",
+  "flow.exportTransparentBackground": "Transparent background",
+  "flow.exportTransparentBackgroundHelp":
+    "Available for PNG and SVG. JPG is always exported with a background.",
   "flow.exportJavaScript": "JavaScript file",
   "flow.exportJavaScriptHelp":
     "Saves the code generated from the main flow and its functions.",

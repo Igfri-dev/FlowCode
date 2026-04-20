@@ -811,6 +811,7 @@ export function FlowWorkspace() {
             format: options.imageFormat,
             nodes,
             noDiagramMessage: t("flow.exportNoDiagram"),
+            transparentBackground: options.transparentBackground,
           });
         }
 
@@ -1516,12 +1517,14 @@ async function exportDiagramImage({
   format,
   nodes,
   noDiagramMessage,
+  transparentBackground,
 }: {
   editorShell: HTMLDivElement | null;
   fileName: string;
   format: FlowExportOptions["imageFormat"];
   nodes: FlowEditorNode[];
   noDiagramMessage: string;
+  transparentBackground: boolean;
 }) {
   if (nodes.length === 0) {
     throw new Error(noDiagramMessage);
@@ -1547,7 +1550,8 @@ async function exportDiagramImage({
     0.14,
   );
   const imageOptions = {
-    backgroundColor: "#f5f5f5",
+    backgroundColor:
+      transparentBackground && format !== "jpg" ? undefined : "#f5f5f5",
     cacheBust: true,
     height: imageHeight,
     pixelRatio: 2,
