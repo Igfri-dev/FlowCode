@@ -32,6 +32,7 @@ import type {
   WhileStatement,
 } from "@babel/types";
 import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
+import { applySmartFlowLayout } from "@/features/flow/auto-layout";
 import type {
   FlowEditorEdge,
   FlowFunctionDefinition,
@@ -167,10 +168,15 @@ export function importJavaScriptToFlow(code: string): JavaScriptImportResult {
       );
     }
 
-    return {
-      ok: true,
+    const mainDiagram = applySmartFlowLayout({
       nodes: builder.nodes,
       edges: builder.edges,
+    });
+
+    return {
+      ok: true,
+      nodes: mainDiagram.nodes,
+      edges: mainDiagram.edges,
       functions: Array.from(functionsByName.values()),
       warnings: builder.warnings,
     };
@@ -356,8 +362,13 @@ function buildFunctionDefinition(
     );
   }
 
-  flowFunction.nodes = builder.nodes;
-  flowFunction.edges = builder.edges;
+  const functionDiagram = applySmartFlowLayout({
+    nodes: builder.nodes,
+    edges: builder.edges,
+  });
+
+  flowFunction.nodes = functionDiagram.nodes;
+  flowFunction.edges = functionDiagram.edges;
 }
 
 function buildStatementSequence(

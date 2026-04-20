@@ -2,7 +2,9 @@ import { createContext, useContext, useEffect, useState } from "react";
 import {
   BaseEdge,
   EdgeText,
+  Position,
   getSmoothStepPath,
+  getStraightPath,
   type EdgeProps,
 } from "@xyflow/react";
 import type { FlowEditorEdge } from "@/types/flow";
@@ -16,6 +18,7 @@ const defaultEdgeStroke = "#525252";
 const defaultEdgeStrokeWidth = 3;
 const selectedEdgeStroke = "#2563eb";
 const selectedEdgeHalo = "#bfdbfe";
+const straightEdgeAlignmentTolerance = 6;
 
 export type EdgeBridgeRenderState = {
   disabled: boolean;
@@ -50,7 +53,7 @@ export function FlowEdge({
   labelBgBorderRadius,
 }: EdgeProps<FlowEditorEdge>) {
   const bridgeRenderState = useContext(EdgeBridgeRenderContext);
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  const [edgePath, labelX, labelY] = getFlowEdgePath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -167,5 +170,83 @@ export function FlowEdge({
         labelBgBorderRadius={labelBgBorderRadius ?? 4}
       />
     </>
+  );
+}
+
+function getFlowEdgePath({
+  sourceX,
+  sourceY,
+  sourcePosition,
+  targetX,
+  targetY,
+  targetPosition,
+}: {
+  sourceX: number;
+  sourceY: number;
+  sourcePosition: Position;
+  targetX: number;
+  targetY: number;
+  targetPosition: Position;
+}) {
+  if (
+    shouldUseStraightEdge({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    })
+  ) {
+    return getStraightPath({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+    });
+  }
+
+  return getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+}
+
+function shouldUseStraightEdge({
+  sourceX,
+  sourceY,
+  sourcePosition,
+  targetX,
+  targetY,
+  targetPosition,
+}: {
+  sourceX: number;
+  sourceY: number;
+  sourcePosition: Position;
+  targetX: number;
+  targetY: number;
+  targetPosition: Position;
+}) {
+  const isVerticalConnection =
+    (sourcePosition === Position.Bottom && targetPosition === Position.Top) ||
+    (sourcePosition === Position.Top && targetPosition === Position.Bottom);
+  const isHorizontalConnection =
+    (sourcePosition === Position.Right && targetPosition === Position.Left) ||
+    (sourcePosition === Position.Left && targetPosition === Position.Right);
+
+  if (
+    isVerticalConnection &&
+    Math.abs(sourceX - targetX) <= straightEdgeAlignmentTolerance
+  ) {
+    return true;
+  }
+
+  return (
+    isHorizontalConnection &&
+    Math.abs(sourceY - targetY) <= straightEdgeAlignmentTolerance
   );
 }

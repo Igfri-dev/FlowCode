@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "layout:preview": "tsx scripts/flow-layout-preview.ts",
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/**/*.test.ts"

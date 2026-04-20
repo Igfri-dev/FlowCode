@@ -207,6 +207,82 @@ describe("JavaScript import parser", () => {
       );
     }
   });
+
+  it("keeps decision branch handles visually distinct", () => {
+    for (const exercise of getExercises("es").filter(
+      (item) => item.starterCode,
+    )) {
+      const result = importJavaScriptToFlow(exercise.starterCode ?? "");
+
+      if (!result.ok) {
+        assert.fail(`${exercise.id}: ${result.message}`);
+      }
+
+      const diagrams = [
+        {
+          name: "main",
+          nodes: result.nodes,
+        },
+        ...result.functions.map((flowFunction) => ({
+          name: flowFunction.name,
+          nodes: flowFunction.nodes,
+        })),
+      ];
+
+      for (const diagram of diagrams) {
+        for (const node of diagram.nodes) {
+          if (node.type !== "decision") {
+            continue;
+          }
+
+          assert.notEqual(
+            node.data.handlePositions?.yes,
+            node.data.handlePositions?.no,
+            `${exercise.id}/${diagram.name}/${node.id}`,
+          );
+        }
+      }
+    }
+  });
+
+  it("keeps short linear setup sequences on a straight spine", () => {
+    const exercise = getExercises("es").find(
+      (item) => item.id === "operation-menu",
+    );
+
+    assert.ok(exercise?.starterCode);
+
+    const result = importJavaScriptToFlow(exercise.starterCode);
+
+    if (!result.ok) {
+      assert.fail(result.message);
+    }
+
+    const setupNodes = [
+      'let operacion = "multiplicar"',
+      "let a = 12",
+      "let b = 4",
+    ].map((label) => {
+      const node = result.nodes.find((item) => item.data.label === label);
+
+      assert.ok(node, label);
+
+      return node;
+    });
+
+    for (const node of setupNodes) {
+      assert.equal(node.data.handlePositions?.in, "top");
+      assert.equal(node.data.handlePositions?.out, "bottom");
+    }
+
+    assert.ok(setupNodes[0].position.y < setupNodes[1].position.y);
+    assert.ok(setupNodes[1].position.y < setupNodes[2].position.y);
+    assert.ok(
+      Math.max(...setupNodes.map((node) => node.position.x)) -
+        Math.min(...setupNodes.map((node) => node.position.x)) <
+        90,
+    );
+  });
 });
 
 describe("Flow JavaScript code generation", () => {
