@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -25,6 +26,7 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
+import { EdgeBridgeRenderContext } from "@/components/editor/edges/FlowEdge";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
 
@@ -182,6 +184,17 @@ function getMiniMapNodeStrokeColor(node: FlowEditorNode) {
   return "#525252";
 }
 
+function getEdgeTopologyKey(edges: FlowEditorEdge[]) {
+  return edges
+    .map(
+      (edge) =>
+        `${edge.id}:${edge.source}:${edge.sourceHandle ?? ""}:${
+          edge.target
+        }:${edge.targetHandle ?? ""}`,
+    )
+    .join("|");
+}
+
 type FlowEditorProps = {
   nodes: FlowEditorNode[];
   edges: FlowEditorEdge[];
@@ -221,11 +234,23 @@ export function FlowEditor({
 }: FlowEditorProps) {
   const { t } = useI18n();
   const editorShellRef = useRef<HTMLDivElement>(null);
+  const [areEdgeBridgesDisabled, setAreEdgeBridgesDisabled] =
+    useState(false);
+  const [nodeDragBridgeRevision, setNodeDragBridgeRevision] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMiniMapCollapsed, setIsMiniMapCollapsed] = useState(false);
   const [openFullscreenPanels, setOpenFullscreenPanels] = useState<
     Record<string, boolean>
   >({});
+  const edgeTopologyKey = useMemo(() => getEdgeTopologyKey(edges), [edges]);
+
+  const edgeBridgeRenderState = useMemo(
+    () => ({
+      disabled: areEdgeBridgesDisabled,
+      revision: `${nodeDragBridgeRevision}:${edgeTopologyKey}`,
+    }),
+    [areEdgeBridgesDisabled, edgeTopologyKey, nodeDragBridgeRevision],
+  );
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -265,6 +290,15 @@ export function FlowEditor({
     );
   }, []);
 
+  const handleNodeDragStart = useCallback(() => {
+    setAreEdgeBridgesDisabled(true);
+  }, []);
+
+  const handleNodeDragStop = useCallback(() => {
+    setAreEdgeBridgesDisabled(false);
+    setNodeDragBridgeRevision((currentRevision) => currentRevision + 1);
+  }, []);
+
   const isFullscreenPanelOpen = useCallback(
     (item: FullscreenFloatingPanelItem) =>
       openFullscreenPanels[item.id] ?? item.defaultOpen ?? false,
@@ -288,130 +322,134 @@ export function FlowEditor({
         isFullscreen ? "h-screen min-h-screen" : ""
       }`}
     >
-      <ReactFlow<FlowEditorNode, FlowEditorEdge>
-        className={`flow-editor-canvas h-full min-h-[580px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors ${
-          isFullscreen ? "min-h-screen" : ""
-        }`}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        isValidConnection={isValidConnection}
-        connectionMode={ConnectionMode.Loose}
-        connectionLineType={ConnectionLineType.SmoothStep}
-        connectionRadius={32}
-        connectionDragThreshold={6}
-        fitView
-        fitViewOptions={fitViewOptions}
-        minZoom={0.18}
-        maxZoom={2.2}
-        nodesDraggable
-        selectNodesOnDrag={false}
-        nodeDragThreshold={3}
-        nodeClickDistance={3}
-        panOnDrag={[0, 1, 2]}
-        panActivationKeyCode="Space"
-        selectionKeyCode="Shift"
-        selectionOnDrag={false}
-        zoomOnScroll
-        zoomOnPinch
-        zoomOnDoubleClick={false}
-        panOnScroll={false}
-        autoPanOnNodeDrag
-        autoPanOnConnect
-        autoPanSpeed={16}
-        elevateNodesOnSelect
-        elevateEdgesOnSelect
-        snapToGrid={false}
-        snapGrid={[20, 20]}
-        onlyRenderVisibleElements
-        attributionPosition="top-right"
-      >
-        <Background
-          variant={BackgroundVariant.Lines}
-          color="#d4d4d4"
-          gap={24}
-        />
-        <Panel position="top-right" className="!m-4">
-          <button
-            type="button"
-            className={editorButtonClassName}
-            title={
-              isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
-            }
-            aria-label={
-              isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
-            }
-            aria-pressed={isFullscreen}
-            onClick={() => {
-              void handleToggleFullscreen();
-            }}
-          >
-            {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-          </button>
-        </Panel>
-        <Controls
-          position="bottom-left"
-          showFitView
+      <EdgeBridgeRenderContext.Provider value={edgeBridgeRenderState}>
+        <ReactFlow<FlowEditorNode, FlowEditorEdge>
+          className={`flow-editor-canvas h-full min-h-[580px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors ${
+            isFullscreen ? "min-h-screen" : ""
+          }`}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeDragStart={handleNodeDragStart}
+          onNodeDragStop={handleNodeDragStop}
+          isValidConnection={isValidConnection}
+          connectionMode={ConnectionMode.Loose}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionRadius={32}
+          connectionDragThreshold={6}
+          fitView
           fitViewOptions={fitViewOptions}
-          className="!rounded-md !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
-          aria-label={t("flow.diagramControls")}
-        />
-        {isMiniMapCollapsed ? (
-          <Panel position="bottom-right" className="!m-4">
+          minZoom={0.18}
+          maxZoom={2.2}
+          nodesDraggable
+          selectNodesOnDrag={false}
+          nodeDragThreshold={3}
+          nodeClickDistance={3}
+          panOnDrag={[0, 1, 2]}
+          panActivationKeyCode="Space"
+          selectionKeyCode="Shift"
+          selectionOnDrag={false}
+          zoomOnScroll
+          zoomOnPinch
+          zoomOnDoubleClick={false}
+          panOnScroll={false}
+          autoPanOnNodeDrag
+          autoPanOnConnect
+          autoPanSpeed={16}
+          elevateNodesOnSelect
+          elevateEdgesOnSelect
+          snapToGrid={false}
+          snapGrid={[20, 20]}
+          onlyRenderVisibleElements
+          attributionPosition="top-right"
+        >
+          <Background
+            variant={BackgroundVariant.Lines}
+            color="#d4d4d4"
+            gap={24}
+          />
+          <Panel position="top-right" className="!m-4">
             <button
               type="button"
-              className="nodrag nopan nowheel bg-transparent px-1 text-lg font-semibold leading-none text-neutral-700 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-              title={t("flow.showMiniMap")}
-              aria-label={t("flow.showMiniMap")}
-              aria-expanded="false"
-              onClick={handleToggleMiniMap}
+              className={editorButtonClassName}
+              title={
+                isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
+              }
+              aria-label={
+                isFullscreen ? t("flow.exitFullscreen") : t("flow.fullscreen")
+              }
+              aria-pressed={isFullscreen}
+              onClick={() => {
+                void handleToggleFullscreen();
+              }}
             >
-              <MiniMapOpenIcon />
+              {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
             </button>
           </Panel>
-        ) : (
-          <>
-            <MiniMap<FlowEditorNode>
-              position="bottom-right"
-              pannable
-              zoomable
-              nodeColor={getMiniMapNodeColor}
-              nodeStrokeColor={getMiniMapNodeStrokeColor}
-              nodeStrokeWidth={3}
-              nodeBorderRadius={4}
-              bgColor="#ffffff"
-              maskColor="rgba(245, 245, 245, 0.68)"
-              maskStrokeColor="#525252"
-              maskStrokeWidth={1}
-              offsetScale={8}
-              zoomStep={12}
-              ariaLabel={t("flow.miniMap")}
-              className="!m-4 !rounded-md !border !border-neutral-300 !bg-white !shadow-lg"
-              style={miniMapSize}
-            />
-            <Panel
-              position="bottom-right"
-              className="pointer-events-none !m-4 !z-20"
-              style={miniMapSize}
-            >
+          <Controls
+            position="bottom-left"
+            showFitView
+            fitViewOptions={fitViewOptions}
+            className="!rounded-md !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
+            aria-label={t("flow.diagramControls")}
+          />
+          {isMiniMapCollapsed ? (
+            <Panel position="bottom-right" className="!m-4">
               <button
                 type="button"
-                className={miniMapButtonClassName}
-                title={t("flow.hideMiniMap")}
-                aria-label={t("flow.hideMiniMap")}
-                aria-expanded="true"
+                className="nodrag nopan nowheel bg-transparent px-1 text-lg font-semibold leading-none text-neutral-700 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                title={t("flow.showMiniMap")}
+                aria-label={t("flow.showMiniMap")}
+                aria-expanded="false"
                 onClick={handleToggleMiniMap}
               >
-                <MiniMapCollapseIcon />
+                <MiniMapOpenIcon />
               </button>
             </Panel>
-          </>
-        )}
-      </ReactFlow>
+          ) : (
+            <>
+              <MiniMap<FlowEditorNode>
+                position="bottom-right"
+                pannable
+                zoomable
+                nodeColor={getMiniMapNodeColor}
+                nodeStrokeColor={getMiniMapNodeStrokeColor}
+                nodeStrokeWidth={3}
+                nodeBorderRadius={4}
+                bgColor="#ffffff"
+                maskColor="rgba(245, 245, 245, 0.68)"
+                maskStrokeColor="#525252"
+                maskStrokeWidth={1}
+                offsetScale={8}
+                zoomStep={12}
+                ariaLabel={t("flow.miniMap")}
+                className="!m-4 !rounded-md !border !border-neutral-300 !bg-white !shadow-lg"
+                style={miniMapSize}
+              />
+              <Panel
+                position="bottom-right"
+                className="pointer-events-none !m-4 !z-20"
+                style={miniMapSize}
+              >
+                <button
+                  type="button"
+                  className={miniMapButtonClassName}
+                  title={t("flow.hideMiniMap")}
+                  aria-label={t("flow.hideMiniMap")}
+                  aria-expanded="true"
+                  onClick={handleToggleMiniMap}
+                >
+                  <MiniMapCollapseIcon />
+                </button>
+              </Panel>
+            </>
+          )}
+        </ReactFlow>
+      </EdgeBridgeRenderContext.Provider>
       {isFullscreen ? (
         <>
           {fullscreenLeftItems.map((item, index) => (

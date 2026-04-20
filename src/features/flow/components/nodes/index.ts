@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { NodeTypes } from "@xyflow/react";
 import { DecisionNode } from "./DecisionNode";
 import { EndNode } from "./EndNode";
@@ -9,12 +10,12 @@ import { ReturnNode } from "./ReturnNode";
 import { StartNode } from "./StartNode";
 
 export const flowNodeComponents = {
-  start: StartNode,
-  end: EndNode,
-  process: ProcessNode,
-  decision: DecisionNode,
-  input: InputNode,
-  output: OutputNode,
-  functionCall: FunctionCallNode,
-  return: ReturnNode,
+  start: memo(StartNode),
+  end: memo(EndNode),
+  process: memo(ProcessNode),
+  decision: memo(DecisionNode),
+  input: memo(InputNode),
+  output: memo(OutputNode),
+  functionCall: memo(FunctionCallNode),
+  return: memo(ReturnNode),
 } satisfies NodeTypes;

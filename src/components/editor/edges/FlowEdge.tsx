@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import {
   BaseEdge,
   EdgeText,
   getSmoothStepPath,
-  useStore,
   type EdgeProps,
 } from "@xyflow/react";
 import type { FlowEditorEdge } from "@/types/flow";
@@ -17,6 +16,17 @@ const defaultEdgeStroke = "#525252";
 const defaultEdgeStrokeWidth = 3;
 const selectedEdgeStroke = "#2563eb";
 const selectedEdgeHalo = "#bfdbfe";
+
+export type EdgeBridgeRenderState = {
+  disabled: boolean;
+  revision: string;
+};
+
+export const EdgeBridgeRenderContext =
+  createContext<EdgeBridgeRenderState>({
+    disabled: false,
+    revision: "0",
+  });
 
 export function FlowEdge({
   id,
@@ -39,26 +49,7 @@ export function FlowEdge({
   labelBgPadding,
   labelBgBorderRadius,
 }: EdgeProps<FlowEditorEdge>) {
-  const layoutRevision = useStore((store) =>
-    [
-      store.nodes
-        .map(
-          (node) =>
-            `${node.id}:${node.position.x}:${node.position.y}:${
-              node.measured?.width ?? node.width ?? ""
-            }:${node.measured?.height ?? node.height ?? ""}`,
-        )
-        .join("|"),
-      store.edges
-        .map(
-          (edge) =>
-            `${edge.id}:${edge.source}:${edge.target}:${
-              edge.sourceHandle ?? ""
-            }:${edge.targetHandle ?? ""}`,
-        )
-        .join("|"),
-    ].join("::"),
-  );
+  const bridgeRenderState = useContext(EdgeBridgeRenderContext);
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -83,12 +74,16 @@ export function FlowEdge({
       ? style.strokeWidth
       : defaultEdgeStrokeWidth;
   const displayPath =
-    bridgeRenderData.bridgePoints.length > 0
+    !bridgeRenderState.disabled && bridgeRenderData.bridgePoints.length > 0
       ? bridgeRenderData.displayPath
       : edgePath;
   const displayStrokeWidth = selected ? strokeWidth + 1.5 : strokeWidth;
 
   useEffect(() => {
+    if (bridgeRenderState.disabled) {
+      return;
+    }
+
     const animationFrameId = window.requestAnimationFrame(() => {
       const nextBridgeRenderData = getEdgeBridgeRenderData({
         currentEdgeId: id,
@@ -106,7 +101,7 @@ export function FlowEdge({
     });
 
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [edgePath, id, layoutRevision]);
+  }, [bridgeRenderState.disabled, bridgeRenderState.revision, edgePath, id]);
 
   return (
     <>

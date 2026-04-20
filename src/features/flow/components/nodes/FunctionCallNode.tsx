@@ -5,6 +5,7 @@ import {
 } from "@/features/flow/handle-positions";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, FunctionCallNodeConfig } from "@/types/flow";
+import { useFlowNodeRenderContext } from "./FlowNodeRenderContext";
 import { NodePortControls } from "./NodePortControls";
 
 const fieldClassName =
@@ -16,14 +17,17 @@ export function FunctionCallNode({
   selected,
 }: NodeProps<FlowEditorNode>) {
   const { t } = useI18n();
+  const { availableFunctions, getExecution } = useFlowNodeRenderContext();
+  const execution = getExecution(id);
+  const functionReferences = availableFunctions;
   const config = getFunctionCallConfig(data.config);
   const argumentText = config.argsText ?? config.args.join(", ");
-  const selectedFunction = data.availableFunctions?.find(
+  const selectedFunction = functionReferences.find(
     (flowFunction) => flowFunction.id === config.functionId,
   );
-  const executionClassName = data.execution?.isCurrent
+  const executionClassName = execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
-    : data.execution?.isVisited
+    : execution?.isVisited
       ? "ring-2 ring-violet-200 ring-offset-1"
       : "";
   const selectionClassName = selected
@@ -66,7 +70,7 @@ export function FunctionCallNode({
           }
         >
           <option value="">{t("flow.selectFunction")}</option>
-          {data.availableFunctions?.map((flowFunction) => (
+          {functionReferences.map((flowFunction) => (
             <option key={flowFunction.id} value={flowFunction.id}>
               {flowFunction.name}
             </option>

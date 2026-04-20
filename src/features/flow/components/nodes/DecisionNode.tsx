@@ -6,11 +6,14 @@ import {
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode, FlowHandlePosition } from "@/types/flow";
 import { EditableNodeLabel } from "./EditableNodeLabel";
+import { useFlowNodeRenderContext } from "./FlowNodeRenderContext";
 import { NodePortControls } from "./NodePortControls";
 
 export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   const { t } = useI18n();
-  const activeBranch = data.execution?.activeBranch;
+  const { getExecution } = useFlowNodeRenderContext();
+  const execution = getExecution(id);
+  const activeBranch = execution?.activeBranch;
   const inputPosition = getFlowHandlePosition({
     fallback: "top",
     handleId: "in",
@@ -40,10 +43,10 @@ export function DecisionNode({ data, id, selected }: NodeProps<FlowEditorNode>) 
       {selected ? (
         <div className="absolute -inset-4 bg-blue-500 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />
       ) : null}
-      {data.execution?.isCurrent ? (
+      {execution?.isCurrent ? (
         <div className="absolute -inset-2 bg-yellow-300 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />
       ) : null}
-      {data.execution?.isVisited && !data.execution.isCurrent ? (
+      {execution?.isVisited && !execution.isCurrent ? (
         <div className="absolute -inset-1 bg-cyan-200 [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />
       ) : null}
       <div className="absolute inset-0 bg-cyan-600 shadow-sm [clip-path:polygon(50%_0%,100%_50%,50%_100%,0%_50%)]" />

@@ -38,6 +38,7 @@ import {
   resumeFlowExecutionWithFunctionParameters,
   resetFlowExecution,
   stepFlowExecution,
+  type FlowExecutionState,
 } from "@/features/flow/execution";
 import { createFlowGraph, hasFlowCycles } from "@/features/flow/flow-graph";
 import {
@@ -83,6 +84,7 @@ import { FlowSidebar } from "./FlowSidebar";
 import { FlowValidationPanel } from "./FlowValidationPanel";
 import { FlowVariablesPanel } from "./FlowVariablesPanel";
 import { flowNodeComponents } from "./nodes";
+import { FlowNodeRenderProvider } from "./nodes/FlowNodeRenderContext";
 
 const initialCodeGenerationResult: FlowCodeGenerationResult = {
   code: "",
@@ -93,6 +95,12 @@ type ImportStatus = "idle" | "success" | "error";
 type PendingFlowDialog = FlowDialogRequest & {
   onConfirm: () => void;
 };
+type AvailableFlowFunctions = NonNullable<
+  FlowEditorNode["data"]["availableFunctions"]
+>;
+type RenderedNodeExecution = NonNullable<
+  FlowEditorNode["data"]["execution"]
+>;
 
 export function FlowWorkspace() {
   const { language, t } = useI18n();
@@ -129,6 +137,16 @@ export function FlowWorkspace() {
     useNodesState<FlowEditorNode>(initialFlowNodes);
   const [edges, setEdges, onEdgesChange] =
     useEdgesState<FlowEditorEdge>(initialFlowEdges);
+  const availableFunctions = useMemo<AvailableFlowFunctions>(
+    () =>
+      functions.map(({ id, name, parameters, parameterDefinitions }) => ({
+        id,
+        name,
+        parameters,
+        parameterDefinitions,
+      })),
+    [functions],
+  );
   const currentProgram = useMemo<FlowProgram>(
     () => ({
       main:
@@ -150,6 +168,31 @@ export function FlowWorkspace() {
     }),
     [activeDiagramId, edges, functions, mainDiagram, nodes],
   );
+  const analysisNodeSignature = useMemo(
+    () => getPositionAgnosticNodeSignature(nodes),
+    [nodes],
+  );
+  const analysisNodes = useMemo(
+    () => nodes,
+    // Reuse the previous node snapshot when React Flow only changes position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [analysisNodeSignature],
+  );
+  const analysisFunctions = useMemo(
+    () =>
+      activeDiagramId === "main"
+        ? functions
+        : functions.map((flowFunction) =>
+            flowFunction.id === activeDiagramId
+              ? {
+                  ...flowFunction,
+                  nodes: analysisNodes,
+                  edges,
+                }
+              : flowFunction,
+          ),
+    [activeDiagramId, analysisNodes, edges, functions],
+  );
   const selectedExercise = useMemo(
     () =>
       exerciseCatalog.find((exercise) => exercise.id === selectedExerciseId) ??
@@ -160,20 +203,23 @@ export function FlowWorkspace() {
     activeDiagramId === "main"
       ? t("flow.main")
       : `${t("flow.function")} ${
-          currentProgram.functions.find(
+          functions.find(
             (flowFunction) => flowFunction.id === activeDiagramId,
           )?.name ?? t("flow.unnamed")
         }`;
-  const graph = useMemo(() => createFlowGraph(nodes, edges), [edges, nodes]);
+  const graph = useMemo(
+    () => createFlowGraph(analysisNodes, edges),
+    [analysisNodes, edges],
+  );
   const validationIssues = useMemo(
     () =>
       validateFlowDiagram({
-        nodes,
+        nodes: analysisNodes,
         edges,
-        functions: currentProgram.functions,
+        functions: analysisFunctions,
         currentDiagramId: activeDiagramId,
       }),
-    [activeDiagramId, currentProgram.functions, edges, nodes],
+    [activeDiagramId, analysisFunctions, analysisNodes, edges],
   );
   const hasLoops = useMemo(() => hasFlowCycles(graph), [graph]);
   const canContinueExecution =
@@ -183,47 +229,34 @@ export function FlowWorkspace() {
     executionState.status !== "waitingFunctionParameters";
   const isAutoExecutionActive = isAutoRunning && canContinueExecution;
   const hasActiveDiagramContent = nodes.length > 0 || edges.length > 0;
-  const renderedNodes = useMemo(() => {
-    const visitedNodeIds = new Set(
-      executionState.history.map((item) => item.nodeId),
-    );
-    const availableFunctions = currentProgram.functions.map(
-      ({ id, name, parameters }) => ({
-        id,
-        name,
-        parameters,
+  const nodeExecutionById = useMemo(
+    () =>
+      getRenderedNodeExecutions({
+        activeDecision: executionState.activeDecision,
+        activeDiagramId,
+        currentDiagramId: executionState.currentDiagramId,
+        currentNodeId: executionState.currentNodeId,
+        history: executionState.history,
       }),
-    );
-    const isCurrentExecutionDiagram =
-      executionState.currentDiagramId === activeDiagramId;
-
-    return nodes.map((node) => ({
-      ...node,
-      data: {
-        ...node.data,
-        availableFunctions,
-        execution: {
-          isCurrent:
-            isCurrentExecutionDiagram &&
-            node.id === executionState.currentNodeId,
-          isVisited: isCurrentExecutionDiagram && visitedNodeIds.has(node.id),
-          activeBranch:
-            isCurrentExecutionDiagram &&
-            executionState.activeDecision?.nodeId === node.id
-              ? executionState.activeDecision.branch
-              : null,
-        },
-      },
-    }));
-  }, [
-    activeDiagramId,
-    currentProgram.functions,
-    executionState.activeDecision,
-    executionState.currentDiagramId,
-    executionState.currentNodeId,
-    executionState.history,
-    nodes,
-  ]);
+    [
+      activeDiagramId,
+      executionState.activeDecision,
+      executionState.currentDiagramId,
+      executionState.currentNodeId,
+      executionState.history,
+    ],
+  );
+  const getNodeExecution = useCallback(
+    (nodeId: string) => nodeExecutionById.get(nodeId),
+    [nodeExecutionById],
+  );
+  const flowNodeRenderContextValue = useMemo(
+    () => ({
+      availableFunctions,
+      getExecution: getNodeExecution,
+    }),
+    [availableFunctions, getNodeExecution],
+  );
   const renderedEdges = useMemo(() => {
     const visitedEdgeIds = new Set(
       executionState.history.flatMap((item) =>
@@ -702,7 +735,7 @@ export function FlowWorkspace() {
   const handleConnect = useCallback<OnConnect>(
     (connection) => {
       const validationIssuesForConnection = validateFlowConnection({
-        nodes,
+        nodes: analysisNodes,
         edges,
         connection,
       });
@@ -720,17 +753,17 @@ export function FlowWorkspace() {
         addEdge(createFlowEditorEdge(connection), currentEdges),
       );
     },
-    [activeDiagramId, activeDiagramName, edges, nodes, setEdges],
+    [activeDiagramId, activeDiagramName, analysisNodes, edges, setEdges],
   );
 
   const isValidConnection = useCallback<IsValidConnection<FlowEditorEdge>>(
     (connection) =>
       validateFlowConnection({
-        nodes,
+        nodes: analysisNodes,
         edges,
         connection,
       }).length === 0,
-    [edges, nodes],
+    [analysisNodes, edges],
   );
 
   const handleInputConfirm = useCallback(
@@ -908,7 +941,7 @@ export function FlowWorkspace() {
         />
         <FlowFunctionPanel
           activeDiagramId={activeDiagramId}
-          functions={currentProgram.functions}
+          functions={functions}
           onSelectDiagram={handleSelectDiagram}
           onCreateFunction={handleCreateFunction}
           onUpdateFunction={handleUpdateFunction}
@@ -957,114 +990,121 @@ export function FlowWorkspace() {
           </div>
 
           <div className="min-h-0 flex-1 bg-neutral-100">
-            <FlowEditor
-              nodes={renderedNodes}
-              edges={renderedEdges}
-              nodeTypes={flowNodeComponents}
-              edgeTypes={flowEdgeComponents}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={handleConnect}
-              isValidConnection={isValidConnection}
-              editorOverlays={
-                <>
-                  <FlowInputModal
-                    pendingInput={executionState.pendingInput}
-                    onConfirm={handleInputConfirm}
-                  />
-                  <FlowFunctionParameterModal
-                    pendingFunctionParameters={
-                      executionState.pendingFunctionParameters
-                    }
-                    onConfirm={handleFunctionParameterConfirm}
-                  />
-                  <FlowDialogModal
-                    request={dialogRequest}
-                    onCancel={handleDialogCancel}
-                    onConfirm={handleDialogConfirm}
-                  />
-                </>
-              }
-              fullscreenLeftItems={[
-                {
-                  id: "execution",
-                  label: t("flow.executionPanel"),
-                  buttonLabel: "e",
+            <FlowNodeRenderProvider value={flowNodeRenderContextValue}>
+              <FlowEditor
+                nodes={nodes}
+                edges={renderedEdges}
+                nodeTypes={flowNodeComponents}
+                edgeTypes={flowEdgeComponents}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={handleConnect}
+                isValidConnection={isValidConnection}
+                editorOverlays={
+                  <>
+                    <FlowInputModal
+                      pendingInput={executionState.pendingInput}
+                      onConfirm={handleInputConfirm}
+                    />
+                    <FlowFunctionParameterModal
+                      pendingFunctionParameters={
+                        executionState.pendingFunctionParameters
+                      }
+                      onConfirm={handleFunctionParameterConfirm}
+                    />
+                    <FlowDialogModal
+                      request={dialogRequest}
+                      onCancel={handleDialogCancel}
+                      onConfirm={handleDialogConfirm}
+                    />
+                  </>
+                }
+                fullscreenLeftItems={[
+                  {
+                    id: "execution",
+                    label: t("flow.executionPanel"),
+                    buttonLabel: "e",
+                    children: (
+                      <FlowExecutionPanel
+                        executionState={executionState}
+                        isAutoRunning={isAutoExecutionActive}
+                        layout="vertical"
+                        onStep={handleStepExecution}
+                        onRun={handleRunExecution}
+                        onPause={handlePauseExecution}
+                        onReset={handleResetExecution}
+                      />
+                    ),
+                  },
+                  {
+                    id: "functions",
+                    label: t("flow.functionsPanel"),
+                    buttonLabel: "f",
+                    children: (
+                      <FlowFunctionPanel
+                        activeDiagramId={activeDiagramId}
+                        functions={functions}
+                        onSelectDiagram={handleSelectDiagram}
+                        onCreateFunction={handleCreateFunction}
+                        onUpdateFunction={handleUpdateFunction}
+                        onDeleteFunction={handleDeleteFunction}
+                      />
+                    ),
+                  },
+                  {
+                    id: "validation",
+                    label: t("flow.validationPanel"),
+                    buttonLabel: "v",
+                    children: (
+                      <FlowValidationPanel
+                        issues={validationIssues}
+                        hasLoops={hasLoops}
+                        blockedConnectionMessage={blockedConnectionMessage}
+                      />
+                    ),
+                  },
+                ]}
+                fullscreenRightItems={[
+                  {
+                    id: "variables",
+                    label: t("flow.variablesPanel"),
+                    buttonLabel: "v",
+                    children: (
+                      <FlowVariablesPanel variables={executionState.variables} />
+                    ),
+                  },
+                  {
+                    id: "outputs",
+                    label: t("flow.outputsPanel"),
+                    buttonLabel: "s",
+                    children: (
+                      <FlowOutputPanel outputs={executionState.outputs} />
+                    ),
+                  },
+                  {
+                    id: "history",
+                    label: t("flow.historyPanel"),
+                    buttonLabel: "h",
+                    children: (
+                      <FlowExecutionHistoryPanel
+                        history={executionState.history}
+                      />
+                    ),
+                  },
+                ]}
+                fullscreenBottomItem={{
+                  id: "blocks",
+                  label: t("flow.blocksPanel"),
+                  buttonLabel: "B",
                   children: (
-                    <FlowExecutionPanel
-                      executionState={executionState}
-                      isAutoRunning={isAutoExecutionActive}
-                      layout="vertical"
-                      onStep={handleStepExecution}
-                      onRun={handleRunExecution}
-                      onPause={handlePauseExecution}
-                      onReset={handleResetExecution}
+                    <FlowSidebar
+                      layout="horizontal"
+                      onAddNode={handleAddNode}
                     />
                   ),
-                },
-                {
-                  id: "functions",
-                  label: t("flow.functionsPanel"),
-                  buttonLabel: "f",
-                  children: (
-                    <FlowFunctionPanel
-                      activeDiagramId={activeDiagramId}
-                      functions={currentProgram.functions}
-                      onSelectDiagram={handleSelectDiagram}
-                      onCreateFunction={handleCreateFunction}
-                      onUpdateFunction={handleUpdateFunction}
-                      onDeleteFunction={handleDeleteFunction}
-                    />
-                  ),
-                },
-                {
-                  id: "validation",
-                  label: t("flow.validationPanel"),
-                  buttonLabel: "v",
-                  children: (
-                    <FlowValidationPanel
-                      issues={validationIssues}
-                      hasLoops={hasLoops}
-                      blockedConnectionMessage={blockedConnectionMessage}
-                    />
-                  ),
-                },
-              ]}
-              fullscreenRightItems={[
-                {
-                  id: "variables",
-                  label: t("flow.variablesPanel"),
-                  buttonLabel: "v",
-                  children: (
-                    <FlowVariablesPanel variables={executionState.variables} />
-                  ),
-                },
-                {
-                  id: "outputs",
-                  label: t("flow.outputsPanel"),
-                  buttonLabel: "s",
-                  children: <FlowOutputPanel outputs={executionState.outputs} />,
-                },
-                {
-                  id: "history",
-                  label: t("flow.historyPanel"),
-                  buttonLabel: "h",
-                  children: (
-                    <FlowExecutionHistoryPanel
-                      history={executionState.history}
-                    />
-                  ),
-                },
-              ]}
-              fullscreenBottomItem={{
-                id: "blocks",
-                label: t("flow.blocksPanel"),
-                buttonLabel: "B",
-                children: (
-                  <FlowSidebar layout="horizontal" onAddNode={handleAddNode} />
-                ),
-              }}
-            />
+                }}
+              />
+            </FlowNodeRenderProvider>
           </div>
         </div>
 
@@ -1090,6 +1130,68 @@ export function FlowWorkspace() {
       </aside>
     </section>
   );
+}
+
+function getPositionAgnosticNodeSignature(nodes: FlowEditorNode[]) {
+  return JSON.stringify(
+    nodes.map((node) => [
+      node.id,
+      node.type,
+      node.data.label,
+      node.data.config,
+      node.data.handlePositions ?? null,
+    ]),
+  );
+}
+
+function getRenderedNodeExecutions({
+  activeDecision,
+  activeDiagramId,
+  currentNodeId,
+  currentDiagramId,
+  history,
+}: {
+  activeDecision: FlowExecutionState["activeDecision"];
+  activeDiagramId: string;
+  currentNodeId: FlowExecutionState["currentNodeId"];
+  currentDiagramId: string;
+  history: FlowExecutionState["history"];
+}) {
+  const executionsByNodeId = new Map<string, RenderedNodeExecution>();
+
+  if (currentDiagramId !== activeDiagramId) {
+    return executionsByNodeId;
+  }
+
+  for (const item of history) {
+    executionsByNodeId.set(item.nodeId, {
+      isCurrent: false,
+      isVisited: true,
+      activeBranch: null,
+    });
+  }
+
+  if (currentNodeId) {
+    const currentExecution = executionsByNodeId.get(currentNodeId);
+
+    executionsByNodeId.set(currentNodeId, {
+      isCurrent: true,
+      isVisited: currentExecution?.isVisited ?? false,
+      activeBranch: currentExecution?.activeBranch ?? null,
+    });
+  }
+
+  if (activeDecision) {
+    const decisionExecution = executionsByNodeId.get(activeDecision.nodeId);
+
+    executionsByNodeId.set(activeDecision.nodeId, {
+      isCurrent: decisionExecution?.isCurrent ?? false,
+      isVisited: decisionExecution?.isVisited ?? false,
+      activeBranch: activeDecision.branch,
+    });
+  }
+
+  return executionsByNodeId;
 }
 
 function createEditorEdgeFromStarter(

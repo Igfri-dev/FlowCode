@@ -5,13 +5,16 @@ import {
 } from "@/features/flow/handle-positions";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowEditorNode } from "@/types/flow";
+import { useFlowNodeRenderContext } from "./FlowNodeRenderContext";
 import { NodePortControls } from "./NodePortControls";
 
 export function EndNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
   const { t } = useI18n();
-  const executionClassName = data.execution?.isCurrent
+  const { getExecution } = useFlowNodeRenderContext();
+  const execution = getExecution(id);
+  const executionClassName = execution?.isCurrent
     ? "ring-4 ring-yellow-300 ring-offset-2"
-    : data.execution?.isVisited
+    : execution?.isVisited
       ? "ring-2 ring-red-200 ring-offset-1"
       : "";
   const selectionClassName = selected
