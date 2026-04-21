@@ -10,9 +10,12 @@ import {
 } from "react";
 import {
   addEdge,
+  applyNodeChanges,
   getNodesBounds,
   getViewportForBounds,
   type Connection,
+  type NodeChange,
+  type OnNodeDrag,
   useEdgesState,
   useNodesState,
   type IsValidConnection,
@@ -53,6 +56,11 @@ import {
   validateFlowConnection,
   validateFlowDiagram,
 } from "@/features/flow/flow-validation";
+import {
+  constrainFlowNodeChange,
+  createFlowNodeDragSession,
+  type FlowNodeDragAxisLock,
+} from "@/features/flow/node-drag-positioning";
 import {
   initialFlowEdges,
   initialFlowNodes,
@@ -141,6 +149,7 @@ type FlowDiagramExportFile = {
     functions: ExportedFlowFunction[];
   };
 };
+type DragAxisKey = "KeyX" | "KeyY";
 
 export function FlowWorkspace() {
   const { language, t } = useI18n();
@@ -149,6 +158,12 @@ export function FlowWorkspace() {
   const loadedExerciseStarterCode = useRef<string | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
   const importJsonInputRef = useRef<HTMLInputElement | null>(null);
+  const dragSessionRef = useRef<ReturnType<typeof createFlowNodeDragSession> | null>(
+    null,
+  );
+  const dragAxisLockRef = useRef<FlowNodeDragAxisLock | null>(null);
+  const pressedDragAxisKeysRef = useRef<Set<DragAxisKey>>(new Set());
+  const dragSessionClearFrameRef = useRef<number | null>(null);
   const exerciseCatalog = useMemo(() => getExercises(language), [language]);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
@@ -178,8 +193,7 @@ export function FlowWorkspace() {
     edges: initialFlowEdges,
   });
   const [functions, setFunctions] = useState<FlowFunctionDefinition[]>([]);
-  const [nodes, setNodes, onNodesChange] =
-    useNodesState<FlowEditorNode>(initialFlowNodes);
+  const [nodes, setNodes] = useNodesState<FlowEditorNode>(initialFlowNodes);
   const [edges, setEdges, onEdgesChange] =
     useEdgesState<FlowEditorEdge>(initialFlowEdges);
   const availableFunctions = useMemo<AvailableFlowFunctions>(
@@ -371,6 +385,15 @@ export function FlowWorkspace() {
     dialogRequest.onConfirm();
   }, [dialogRequest]);
 
+  const clearScheduledDragSessionReset = useCallback(() => {
+    if (dragSessionClearFrameRef.current === null) {
+      return;
+    }
+
+    window.cancelAnimationFrame(dragSessionClearFrameRef.current);
+    dragSessionClearFrameRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (!isAutoExecutionActive) {
       return;
@@ -392,7 +415,110 @@ export function FlowWorkspace() {
     currentProgram,
     executionState.stepCount,
     isAutoExecutionActive,
-  ]);
+    ]);
+
+  useEffect(() => {
+    const syncDragAxisLock = () => {
+      dragAxisLockRef.current = getFlowNodeDragAxisLock(
+        pressedDragAxisKeysRef.current,
+      );
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isDragAxisKey(event.code) || isEditableKeyboardTarget(event.target)) {
+        return;
+      }
+
+      pressedDragAxisKeysRef.current.add(event.code);
+      syncDragAxisLock();
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (!isDragAxisKey(event.code)) {
+        return;
+      }
+
+      pressedDragAxisKeysRef.current.delete(event.code);
+      syncDragAxisLock();
+    };
+    const handleWindowBlur = () => {
+      pressedDragAxisKeysRef.current.clear();
+      dragAxisLockRef.current = null;
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      clearScheduledDragSessionReset();
+    },
+    [clearScheduledDragSessionReset],
+  );
+
+  const handleNodeDragStart = useCallback<OnNodeDrag<FlowEditorNode>>(
+    (_event, node, draggedNodes) => {
+      clearScheduledDragSessionReset();
+      dragSessionRef.current = createFlowNodeDragSession(
+        draggedNodes.length > 0 ? draggedNodes : [node],
+      );
+    },
+    [clearScheduledDragSessionReset],
+  );
+
+  const handleNodeDragStop = useCallback<OnNodeDrag<FlowEditorNode>>(
+    () => {
+      clearScheduledDragSessionReset();
+      dragSessionClearFrameRef.current = window.requestAnimationFrame(() => {
+        dragSessionRef.current = null;
+        dragSessionClearFrameRef.current = null;
+      });
+    },
+    [clearScheduledDragSessionReset],
+  );
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<FlowEditorNode>[]) => {
+      const dragSession = dragSessionRef.current;
+
+      setNodes((currentNodes) => {
+        const nextChanges =
+          dragSession === null
+            ? changes
+            : changes.map((change) =>
+                constrainFlowNodeChange({
+                  axisLock: dragAxisLockRef.current,
+                  change,
+                  dragSession,
+                  edges,
+                  nodes: currentNodes,
+                }),
+              );
+
+        return applyNodeChanges(nextChanges, currentNodes);
+      });
+
+      if (
+        dragSession &&
+        changes.some(
+          (change) =>
+            change.type === "position" &&
+            change.dragging === false &&
+            dragSession.draggedNodeIds.has(change.id),
+        )
+      ) {
+        clearScheduledDragSessionReset();
+        dragSessionRef.current = null;
+      }
+    },
+    [clearScheduledDragSessionReset, edges, setNodes],
+  );
 
   const handleNodeLabelChange = useCallback(
     (nodeId: string, label: string) => {
@@ -1246,9 +1372,11 @@ export function FlowWorkspace() {
                 edges={renderedEdges}
                 nodeTypes={flowNodeComponents}
                 edgeTypes={flowEdgeComponents}
-                onNodesChange={onNodesChange}
+                onNodesChange={handleNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={handleConnect}
+                onNodeDragStart={handleNodeDragStart}
+                onNodeDragStop={handleNodeDragStop}
                 isValidConnection={isValidConnection}
                 editorOverlays={
                   <>
@@ -1452,6 +1580,29 @@ function getRenderedNodeExecutions({
   }
 
   return executionsByNodeId;
+}
+
+function getFlowNodeDragAxisLock(pressedKeys: Set<DragAxisKey>) {
+  if (pressedKeys.has("KeyX") === pressedKeys.has("KeyY")) {
+    return null;
+  }
+
+  return pressedKeys.has("KeyX") ? "fixX" : "fixY";
+}
+
+function isDragAxisKey(code: string): code is DragAxisKey {
+  return code === "KeyX" || code === "KeyY";
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(
+      target.closest(
+        "input, select, textarea, [contenteditable='true'], [role='textbox']",
+      ),
+    )
+  );
 }
 
 function createFlowDiagramExportFile({

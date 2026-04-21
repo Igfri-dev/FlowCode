@@ -24,6 +24,7 @@ import {
   type IsValidConnection,
   type NodeTypes,
   type OnConnect,
+  type OnNodeDrag,
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
@@ -204,6 +205,8 @@ type FlowEditorProps = {
   onNodesChange: OnNodesChange<FlowEditorNode>;
   onEdgesChange: OnEdgesChange<FlowEditorEdge>;
   onConnect: OnConnect;
+  onNodeDragStart?: OnNodeDrag<FlowEditorNode>;
+  onNodeDragStop?: OnNodeDrag<FlowEditorNode>;
   isValidConnection: IsValidConnection<FlowEditorEdge>;
   editorShellRef?: MutableRefObject<HTMLDivElement | null>;
   editorOverlays?: ReactNode;
@@ -228,6 +231,8 @@ export function FlowEditor({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onNodeDragStart,
+  onNodeDragStop,
   isValidConnection,
   editorShellRef: externalEditorShellRef,
   editorOverlays,
@@ -306,14 +311,22 @@ export function FlowEditor({
     );
   }, []);
 
-  const handleNodeDragStart = useCallback(() => {
-    setAreEdgeBridgesDisabled(true);
-  }, []);
+  const handleNodeDragStart = useCallback<OnNodeDrag<FlowEditorNode>>(
+    (event, node, draggedNodes) => {
+      setAreEdgeBridgesDisabled(true);
+      onNodeDragStart?.(event, node, draggedNodes);
+    },
+    [onNodeDragStart],
+  );
 
-  const handleNodeDragStop = useCallback(() => {
-    setAreEdgeBridgesDisabled(false);
-    setNodeDragBridgeRevision((currentRevision) => currentRevision + 1);
-  }, []);
+  const handleNodeDragStop = useCallback<OnNodeDrag<FlowEditorNode>>(
+    (event, node, draggedNodes) => {
+      setAreEdgeBridgesDisabled(false);
+      setNodeDragBridgeRevision((currentRevision) => currentRevision + 1);
+      onNodeDragStop?.(event, node, draggedNodes);
+    },
+    [onNodeDragStop],
+  );
 
   const isFullscreenPanelOpen = useCallback(
     (item: FullscreenFloatingPanelItem) =>
