@@ -86,6 +86,9 @@ type SwitchLayoutMode = "branching" | "returning";
 // Change this value to tune the minimum visual gap between any two blocks.
 export const autoLayoutMinimumBlockGap = 72;
 
+// Connected blocks closer than this are snapped onto the same visual axis.
+export const autoLayoutSnapAlignmentDistance = 48;
+
 // Sequences shorter than this stay as a straight line instead of being packed.
 export const autoLayoutLinearPackThreshold = 5;
 
@@ -109,6 +112,7 @@ const layoutSpacing = {
   nodeGapY: 118,
   orphanGapX: 420,
   orphanGapY: 190,
+  snapAlignmentDistance: autoLayoutSnapAlignmentDistance,
   switchExitGapX: 520,
   switchExitGapY: 190,
 } as const;
@@ -164,6 +168,9 @@ export function applySmartFlowLayout<
 
   placeUnreachableNodes(context);
   resolveMinimumBlockSpacing(context);
+  snapNearbyConnectedBlocks(context);
+  resolveMinimumBlockSpacing(context);
+  snapNearbyConnectedBlocks(context);
 
   const nodesWithPositions = nodes.map((node) => {
     const center = context.placements.get(node.id) ?? {
@@ -907,6 +914,184 @@ function resolveMinimumBlockSpacing<
       return;
     }
   }
+}
+
+function snapNearbyConnectedBlocks<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>(context: LayoutContext<TNode, TEdge>) {
+  const sortedEdges = [...context.graph.edges].sort(
+    (left, right) =>
+      (context.graph.nodeOrder.get(left.source) ?? 0) -
+      (context.graph.nodeOrder.get(right.source) ?? 0),
+  );
+  const maxIterations = Math.max(1, sortedEdges.length * 2);
+
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    let changed = false;
+
+    for (const edge of sortedEdges) {
+      const adjustment = getNearbyConnectedBlockSnapAdjustment(context, edge);
+
+      if (!adjustment) {
+        continue;
+      }
+
+      const targetCenter = context.placements.get(edge.target);
+
+      if (!targetCenter) {
+        continue;
+      }
+
+      context.placements.set(edge.target, {
+        x:
+          targetCenter.x +
+          (adjustment.axis === "x" ? adjustment.amount : 0),
+        y:
+          targetCenter.y +
+          (adjustment.axis === "y" ? adjustment.amount : 0),
+      });
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+  }
+}
+
+function getNearbyConnectedBlockSnapAdjustment<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>(context: LayoutContext<TNode, TEdge>, edge: TEdge) {
+  if (!canSnapConnectedBlocks(context, edge)) {
+    return null;
+  }
+
+  const sourceNode = context.graph.nodeById.get(edge.source);
+  const targetNode = context.graph.nodeById.get(edge.target);
+  const sourceCenter = sourceNode
+    ? context.placements.get(sourceNode.id)
+    : undefined;
+  const targetCenter = targetNode
+    ? context.placements.get(targetNode.id)
+    : undefined;
+
+  if (!sourceNode || !targetNode || !sourceCenter || !targetCenter) {
+    return null;
+  }
+
+  const { sourceSide, targetSide } = getPredictedEdgeHandleSides({
+    context,
+    edge,
+    sourceCenter,
+    sourceNode,
+    targetCenter,
+    targetNode,
+  });
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+  const isVerticalConnection =
+    (sourceSide === "bottom" && targetSide === "top") ||
+    (sourceSide === "top" && targetSide === "bottom");
+  const isHorizontalConnection =
+    (sourceSide === "right" && targetSide === "left") ||
+    (sourceSide === "left" && targetSide === "right");
+
+  if (
+    isVerticalConnection &&
+    Math.abs(dx) > 0.5 &&
+    Math.abs(dx) <= layoutSpacing.snapAlignmentDistance
+  ) {
+    return {
+      amount: -dx,
+      axis: "x" as const,
+    };
+  }
+
+  if (
+    isHorizontalConnection &&
+    Math.abs(dy) > 0.5 &&
+    Math.abs(dy) <= layoutSpacing.snapAlignmentDistance
+  ) {
+    return {
+      amount: -dy,
+      axis: "y" as const,
+    };
+  }
+
+  return null;
+}
+
+function canSnapConnectedBlocks<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>(context: LayoutContext<TNode, TEdge>, edge: TEdge) {
+  const sourceOrder = context.graph.nodeOrder.get(edge.source);
+  const targetOrder = context.graph.nodeOrder.get(edge.target);
+  const targetIncomingCount =
+    context.graph.incomingByTarget.get(edge.target)?.length ?? 0;
+
+  return (
+    sourceOrder !== undefined &&
+    targetOrder !== undefined &&
+    targetOrder > sourceOrder &&
+    targetIncomingCount <= 1
+  );
+}
+
+function getPredictedEdgeHandleSides<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>({
+  context,
+  edge,
+  sourceCenter,
+  sourceNode,
+  targetCenter,
+  targetNode,
+}: {
+  context: LayoutContext<TNode, TEdge>;
+  edge: TEdge;
+  sourceCenter: CenterPoint;
+  sourceNode: TNode;
+  targetCenter: CenterPoint;
+  targetNode: TNode;
+}) {
+  const sourceHandle = getFlowHandleId(edge.sourceHandle ?? "out");
+  const targetHandle = getFlowHandleId(edge.targetHandle ?? "in");
+  const sourceSideFromGeometry = getDominantSide(
+    targetCenter.x - sourceCenter.x,
+    targetCenter.y - sourceCenter.y,
+  );
+  const targetSideFromGeometry = getOppositeSide(sourceSideFromGeometry);
+  const sourceSide =
+    (sourceHandle
+      ? context.forcedHandlesByNodeId.get(sourceNode.id)?.[sourceHandle]
+      : undefined) ??
+    (sourceHandle &&
+    shouldUseEdgeAwareSourceHandle(sourceNode, targetNode)
+      ? sourceSideFromGeometry
+      : getDefaultFlowNodeHandlePositions(sourceNode.type)[
+          sourceHandle ?? "out"
+        ]) ??
+    sourceSideFromGeometry;
+  const targetSide =
+    (targetHandle
+      ? context.forcedHandlesByNodeId.get(targetNode.id)?.[targetHandle]
+      : undefined) ??
+    (targetHandle &&
+    shouldUseEdgeAwareTargetHandle(targetNode, targetSideFromGeometry)
+      ? targetSideFromGeometry
+      : getDefaultFlowNodeHandlePositions(targetNode.type)[
+          targetHandle ?? "in"
+        ]) ??
+    targetSideFromGeometry;
+
+  return {
+    sourceSide,
+    targetSide,
+  };
 }
 
 function getMinimumBlockSpacingAdjustment({

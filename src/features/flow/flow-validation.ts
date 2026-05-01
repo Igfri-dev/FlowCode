@@ -2,6 +2,7 @@ import {
   createFlowGraph,
   getIncomingEdges,
   getOutgoingEdges,
+  getOutgoingEdgesByHandle,
   type FlowConnectionLike,
   type FlowGraph,
 } from "@/features/flow/flow-graph";
@@ -57,6 +58,7 @@ export function validateFlowDiagram({
     ...validateStartCount(graph),
     ...validateInvalidEdges(graph),
     ...validateNodeConnectionLimits(graph),
+    ...validateReachability(graph),
     ...validateNodeConfigs(graph.nodes, functions, currentDiagramId),
     ...validateControlFlowMetadata(graph),
     ...validateFunctionDefinitions(functions),
@@ -73,7 +75,9 @@ export function validateFlowConnection({
 
   return [
     ...validateInvalidEdges(graph),
-    ...validateNodeConnectionLimits(graph, affectedNodeIds),
+    ...validateNodeConnectionLimits(graph, affectedNodeIds, {
+      requireCompleteness: false,
+    }),
   ];
 }
 
@@ -121,6 +125,11 @@ function validateInvalidEdges(graph: FlowGraph): FlowValidationIssue[] {
 function validateNodeConnectionLimits(
   graph: FlowGraph,
   nodeIds?: Set<string>,
+  {
+    requireCompleteness = true,
+  }: {
+    requireCompleteness?: boolean;
+  } = {},
 ): FlowValidationIssue[] {
   const issues: FlowValidationIssue[] = [];
 
@@ -147,15 +156,88 @@ function validateNodeConnectionLimits(
           message: `El bloque Inicio "${nodeName}" puede tener como máximo una conexión de salida.`,
         });
       }
+
+      if (requireCompleteness && outgoing === 0) {
+        issues.push({
+          id: `${node.id}-start-missing-outgoing`,
+          message: `El bloque Inicio "${nodeName}" debe conectar con el primer bloque del flujo.`,
+        });
+      }
+    } else if (requireCompleteness && incoming === 0) {
+      issues.push({
+        id: `${node.id}-missing-incoming`,
+        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de entrada. Conéctalo desde Inicio o elimínalo si no pertenece al flujo.`,
+      });
     }
 
     if (node.type === "decision") {
+      const yesEdges = getOutgoingEdgesByHandle(graph, node.id, "yes");
+      const noEdges = getOutgoingEdgesByHandle(graph, node.id, "no");
+      const ambiguousEdges = getOutgoingEdges(graph, node.id).filter(
+        (edge) => edge.sourceHandle !== "yes" && edge.sourceHandle !== "no",
+      );
+
       if (outgoing > 2) {
         issues.push({
           id: `${node.id}-decision-outgoing`,
           message: `El bloque Decisión "${nodeName}" puede tener como máximo dos conexiones de salida.`,
         });
       }
+
+      if (requireCompleteness && yesEdges.length === 0) {
+        issues.push({
+          id: `${node.id}-decision-missing-yes`,
+          message: `El bloque Decisión "${nodeName}" necesita una rama Sí conectada.`,
+        });
+      }
+
+      if (requireCompleteness && noEdges.length === 0) {
+        issues.push({
+          id: `${node.id}-decision-missing-no`,
+          message: `El bloque Decisión "${nodeName}" necesita una rama No conectada.`,
+        });
+      }
+
+      if (yesEdges.length > 1) {
+        issues.push({
+          id: `${node.id}-decision-duplicate-yes`,
+          message: `El bloque Decisión "${nodeName}" tiene más de una rama Sí. Deja una sola salida Sí para evitar ambigüedad.`,
+        });
+      }
+
+      if (noEdges.length > 1) {
+        issues.push({
+          id: `${node.id}-decision-duplicate-no`,
+          message: `El bloque Decisión "${nodeName}" tiene más de una rama No. Deja una sola salida No para evitar ambigüedad.`,
+        });
+      }
+
+      if (ambiguousEdges.length > 0) {
+        issues.push({
+          id: `${node.id}-decision-ambiguous-branch`,
+          message: `El bloque Decisión "${nodeName}" tiene una salida sin rama Sí/No. Conecta desde el handle correcto.`,
+        });
+      }
+
+      if (branchesShareTargets(yesEdges, noEdges)) {
+        issues.push({
+          id: `${node.id}-decision-shared-target`,
+          message: `El bloque Decisión "${nodeName}" envía Sí y No al mismo bloque. Separa las ramas antes de unirlas para que el flujo sea claro.`,
+        });
+      }
+    }
+
+    if (
+      requireCompleteness &&
+      node.type !== "decision" &&
+      node.type !== "end" &&
+      node.type !== "return" &&
+      outgoing === 0
+    ) {
+      issues.push({
+        id: `${node.id}-missing-outgoing`,
+        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de salida. Conéctalo con el siguiente bloque o usa Fin/Retorno si termina el flujo.`,
+      });
     }
 
     if ((node.type === "end" || node.type === "return") && outgoing > 0) {
@@ -240,10 +322,11 @@ function validateNodeConfigs(
       }
 
       const parameterDefinitions = getFunctionParameterDefinitions(flowFunction);
+      const args = Array.isArray(config.args) ? config.args : [];
       const argumentCountValidation = validateFunctionArgumentCount(
         flowFunction.name,
         parameterDefinitions,
-        config.args.length,
+        args.length,
       );
 
       if (!argumentCountValidation.ok) {
@@ -253,7 +336,7 @@ function validateNodeConfigs(
         });
       }
 
-      config.args.forEach((argument, index) => {
+      args.forEach((argument, index) => {
         const argumentValidation = validateExpressionSupport(argument);
 
         if (!argumentValidation.ok) {
@@ -263,6 +346,13 @@ function validateNodeConfigs(
           });
         }
       });
+
+      if (config.assignTo?.trim() && !functionHasClearReturnPath(flowFunction)) {
+        issues.push({
+          id: `${node.id}-function-call-return-warning`,
+          message: `Aviso: la llamada "${nodeName}" guarda el resultado de "${flowFunction.name}", pero esa función no tiene un camino claro hacia Retorno. Agrega un Retorno alcanzable para evitar valores indefinidos.`,
+        });
+      }
     }
 
     if (
@@ -305,9 +395,29 @@ function validateNodeConfigs(
         });
       }
     }
+
   }
 
   return issues;
+}
+
+function validateReachability(graph: FlowGraph): FlowValidationIssue[] {
+  const startIds = graph.nodes
+    .filter((node) => node.type === "start")
+    .map((node) => node.id);
+
+  if (startIds.length === 0) {
+    return [];
+  }
+
+  const reachableNodeIds = getReachableNodeIds(graph, startIds);
+
+  return graph.nodes
+    .filter((node) => !reachableNodeIds.has(node.id))
+    .map((node) => ({
+      id: `${node.id}-unreachable`,
+      message: `El bloque ${nodeTypeNames[node.type]} "${getNodeName(node)}" no es alcanzable desde Inicio. Conéctalo al flujo principal o elimínalo.`,
+    }));
 }
 
 function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
@@ -436,6 +546,24 @@ function validateFunctionDefinitions(
 
     names.set(name, (names.get(name) ?? 0) + 1);
 
+    const startCount = flowFunction.nodes.filter(
+      (node) => node.type === "start",
+    ).length;
+
+    if (startCount === 0) {
+      issues.push({
+        id: `${flowFunction.id}-function-start-missing`,
+        message: `La función "${name}" necesita un bloque Inicio.`,
+      });
+    }
+
+    if (startCount > 1) {
+      issues.push({
+        id: `${flowFunction.id}-function-start-multiple`,
+        message: `La función "${name}" debe tener un solo bloque Inicio; hay ${startCount}.`,
+      });
+    }
+
     getFunctionParameterDefinitions(flowFunction).forEach((parameter) => {
       if (!parameter.defaultValue) {
         return;
@@ -464,6 +592,79 @@ function validateFunctionDefinitions(
   }
 
   return issues;
+}
+
+function branchesShareTargets(
+  yesEdges: FlowConnectionLike[],
+  noEdges: FlowConnectionLike[],
+) {
+  const yesTargets = new Set(yesEdges.map((edge) => edge.target));
+
+  return noEdges.some((edge) => yesTargets.has(edge.target));
+}
+
+function getReachableNodeIds(graph: FlowGraph, startIds: string[]) {
+  const reachableNodeIds = new Set<string>();
+  const pendingNodeIds = [...startIds];
+
+  while (pendingNodeIds.length > 0) {
+    const nodeId = pendingNodeIds.pop();
+
+    if (!nodeId || reachableNodeIds.has(nodeId)) {
+      continue;
+    }
+
+    reachableNodeIds.add(nodeId);
+
+    for (const edge of getOutgoingEdges(graph, nodeId)) {
+      if (graph.nodeById.has(edge.target)) {
+        pendingNodeIds.push(edge.target);
+      }
+    }
+  }
+
+  return reachableNodeIds;
+}
+
+function functionHasClearReturnPath(flowFunction: FlowFunctionDefinition) {
+  const graph = createFlowGraph(flowFunction.nodes, flowFunction.edges);
+  const startIds = graph.nodes
+    .filter((node) => node.type === "start")
+    .map((node) => node.id);
+
+  if (startIds.length === 0) {
+    return false;
+  }
+
+  const reachableNodeIds = getReachableNodeIds(graph, startIds);
+  let hasReachableReturn = false;
+
+  for (const nodeId of reachableNodeIds) {
+    const node = graph.nodeById.get(nodeId);
+
+    if (!node) {
+      continue;
+    }
+
+    if (node.type === "return") {
+      hasReachableReturn = true;
+      continue;
+    }
+
+    if (node.type === "end") {
+      return false;
+    }
+
+    const validOutgoingEdges = getOutgoingEdges(graph, node.id).filter((edge) =>
+      graph.nodeById.has(edge.target),
+    );
+
+    if (validOutgoingEdges.length === 0) {
+      return false;
+    }
+  }
+
+  return hasReachableReturn;
 }
 
 function getFunctionParameterDefinitions(

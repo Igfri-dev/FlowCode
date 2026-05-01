@@ -29,6 +29,10 @@ It works best for educational algorithms, classroom exercises, debugging
 mental models, and visualizing control flow. It is not intended to run
 arbitrary browser, DOM, network, or system-level JavaScript.
 
+See [docs/javascript-support.md](docs/javascript-support.md) for the tested
+JavaScript subset, partial support, unsupported syntax, and APIs blocked by the
+safe runtime.
+
 ### Main Features
 
 - Visual flow editor with draggable blocks and connectable ports.

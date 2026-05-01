@@ -64,6 +64,36 @@ const fullscreenPanelBottomInset = {
   left: 170,
   right: 220,
 } as const;
+const fullscreenAuraActivation = {
+  edgePreviewDistance: 248,
+  bottomPreviewDistance: 132,
+  buttonPreviewDistance: 180,
+  closedButtonCenterInset: 34,
+} as const;
+const fullscreenSidePreviewStyle: CSSProperties = {
+  width: "var(--fullscreen-side-preview-width)",
+  height: "var(--fullscreen-side-preview-height)",
+};
+const fullscreenSideAuraStyle: CSSProperties = {
+  width: "var(--fullscreen-side-aura-size)",
+  height: "var(--fullscreen-side-aura-size)",
+};
+const fullscreenSideProtrusionStyle: CSSProperties = {
+  width: "var(--fullscreen-side-protrusion-width)",
+  height: "var(--fullscreen-side-protrusion-height)",
+};
+const fullscreenBottomPreviewStyle: CSSProperties = {
+  width: "var(--fullscreen-bottom-preview-width)",
+  height: "var(--fullscreen-bottom-preview-height)",
+};
+const fullscreenBottomAuraStyle: CSSProperties = {
+  width: "var(--fullscreen-bottom-aura-width)",
+  height: "var(--fullscreen-bottom-aura-height)",
+};
+const fullscreenBottomProtrusionStyle: CSSProperties = {
+  width: "var(--fullscreen-bottom-protrusion-width)",
+  height: "var(--fullscreen-bottom-protrusion-height)",
+};
 
 function getFullscreenPanelTopOffset(
   side: "left" | "right",
@@ -120,6 +150,41 @@ function getFullscreenEdgeZoneHeight(
   }
 
   return "128px";
+}
+
+function getFullscreenEdgeZoneSize(
+  side: "left" | "right",
+  index: number,
+) {
+  const outerSpace = getFullscreenPanelOuterSpace(side, index);
+
+  if (typeof outerSpace === "number") {
+    return outerSpace;
+  }
+
+  return 128;
+}
+
+function getFullscreenEdgeZoneCenterOffset(
+  side: "left" | "right",
+  index: number,
+) {
+  return (
+    getFullscreenPanelTopOffset(side, index) +
+    getFullscreenEdgeZoneSize(side, index) / 2
+  );
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function setStyleNumberVariable(
+  element: HTMLElement,
+  propertyName: string,
+  value: number,
+) {
+  element.style.setProperty(propertyName, value.toFixed(3));
 }
 
 function getMiniMapNodeColor(node: FlowEditorNode) {
@@ -223,6 +288,23 @@ export type FullscreenFloatingPanelItem = {
   defaultOpen?: boolean;
 };
 
+type FullscreenPreviewSide = "left" | "right" | "bottom";
+
+function getFullscreenPreviewStrength(
+  edgePreviewStrength: number,
+  cursorX: number,
+  cursorY: number,
+  centerX: number,
+  centerY: number,
+) {
+  const distance = Math.hypot(cursorX - centerX, cursorY - centerY);
+  const normalizedDistance = clamp01(
+    1 - distance / fullscreenAuraActivation.buttonPreviewDistance,
+  );
+
+  return edgePreviewStrength * normalizedDistance * normalizedDistance;
+}
+
 export function FlowEditor({
   nodes,
   edges,
@@ -250,6 +332,16 @@ export function FlowEditor({
   const [openFullscreenPanels, setOpenFullscreenPanels] = useState<
     Record<string, boolean>
   >({});
+  const fullscreenPreviewZoneElementsRef = useRef<
+    Map<
+      string,
+      {
+        element: HTMLDivElement;
+        index: number | null;
+        side: FullscreenPreviewSide;
+      }
+    >
+  >(new Map());
   const edgeTopologyKey = useMemo(() => getEdgeTopologyKey(edges), [edges]);
 
   const edgeBridgeRenderState = useMemo(
@@ -334,6 +426,18 @@ export function FlowEditor({
     [openFullscreenPanels],
   );
 
+  const hiddenFullscreenLeftItems = useMemo(
+    () => fullscreenLeftItems.filter((item) => !isFullscreenPanelOpen(item)),
+    [fullscreenLeftItems, isFullscreenPanelOpen],
+  );
+  const hiddenFullscreenRightItems = useMemo(
+    () => fullscreenRightItems.filter((item) => !isFullscreenPanelOpen(item)),
+    [fullscreenRightItems, isFullscreenPanelOpen],
+  );
+  const isFullscreenBottomItemHidden = fullscreenBottomItem
+    ? !isFullscreenPanelOpen(fullscreenBottomItem)
+    : false;
+
   const setFullscreenPanelOpen = useCallback(
     (itemId: string, isOpen: boolean) => {
       setOpenFullscreenPanels((currentOpenFullscreenPanels) => ({
@@ -344,10 +448,221 @@ export function FlowEditor({
     [],
   );
 
+  const setFullscreenPreviewZoneElement = useCallback(
+    (
+      itemId: string,
+      side: FullscreenPreviewSide,
+      index: number | null,
+      element: HTMLDivElement | null,
+    ) => {
+      const zoneKey = `${side}:${itemId}`;
+
+      if (!element) {
+        fullscreenPreviewZoneElementsRef.current.delete(zoneKey);
+        return;
+      }
+
+      fullscreenPreviewZoneElementsRef.current.set(zoneKey, {
+        element,
+        index,
+        side,
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const editorShell = internalEditorShellRef.current;
+
+    if (!editorShell) {
+      return;
+    }
+
+    const resetPreviewState = () => {
+      setStyleNumberVariable(editorShell, "--fullscreen-left-preview", 0);
+      setStyleNumberVariable(editorShell, "--fullscreen-right-preview", 0);
+      setStyleNumberVariable(editorShell, "--fullscreen-bottom-preview", 0);
+      setStyleNumberVariable(editorShell, "--fullscreen-left-collapse", 0);
+      setStyleNumberVariable(editorShell, "--fullscreen-right-collapse", 0);
+      setStyleNumberVariable(editorShell, "--fullscreen-bottom-collapse", 0);
+
+      for (const { element } of fullscreenPreviewZoneElementsRef.current.values()) {
+        setStyleNumberVariable(element, "--edge-preview-strength", 0);
+      }
+    };
+
+    if (!isFullscreen) {
+      resetPreviewState();
+      return;
+    }
+
+    let animationFrameId = 0;
+    let nextPointerX = 0;
+    let nextPointerY = 0;
+
+    const updatePreviewState = () => {
+      animationFrameId = 0;
+
+      const editorBounds = editorShell.getBoundingClientRect();
+      const hasHiddenLeftPanels = hiddenFullscreenLeftItems.length > 0;
+      const hasHiddenRightPanels = hiddenFullscreenRightItems.length > 0;
+      const hasHiddenBottomPanel = isFullscreenBottomItemHidden;
+      const leftPreviewStrength = hasHiddenLeftPanels
+        ? clamp01(
+            1 -
+              (nextPointerX - editorBounds.left) /
+                fullscreenAuraActivation.edgePreviewDistance,
+          )
+        : 0;
+      const rightPreviewStrength = hasHiddenRightPanels
+        ? clamp01(
+            1 -
+              (editorBounds.right - nextPointerX) /
+                fullscreenAuraActivation.edgePreviewDistance,
+          )
+        : 0;
+      const bottomPreviewStrength = hasHiddenBottomPanel
+        ? clamp01(
+            1 -
+              (editorBounds.bottom - nextPointerY) /
+                fullscreenAuraActivation.bottomPreviewDistance,
+          )
+        : 0;
+      let leftCollapseStrength = 0;
+      let rightCollapseStrength = 0;
+      let bottomCollapseStrength = 0;
+
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-left-preview",
+        leftPreviewStrength,
+      );
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-right-preview",
+        rightPreviewStrength,
+      );
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-bottom-preview",
+        bottomPreviewStrength,
+      );
+
+      for (const {
+        element,
+        index,
+        side,
+      } of fullscreenPreviewZoneElementsRef.current.values()) {
+        let previewStrength = 0;
+
+        if (side === "left" && index !== null) {
+          previewStrength = getFullscreenPreviewStrength(
+            leftPreviewStrength,
+            nextPointerX,
+            nextPointerY,
+            editorBounds.left + fullscreenAuraActivation.closedButtonCenterInset,
+            editorBounds.top + getFullscreenEdgeZoneCenterOffset(side, index),
+          );
+          leftCollapseStrength = Math.max(leftCollapseStrength, previewStrength);
+        }
+
+        if (side === "right" && index !== null) {
+          previewStrength = getFullscreenPreviewStrength(
+            rightPreviewStrength,
+            nextPointerX,
+            nextPointerY,
+            editorBounds.right -
+              fullscreenAuraActivation.closedButtonCenterInset,
+            editorBounds.top + getFullscreenEdgeZoneCenterOffset(side, index),
+          );
+          rightCollapseStrength = Math.max(
+            rightCollapseStrength,
+            previewStrength,
+          );
+        }
+
+        if (side === "bottom") {
+          previewStrength = getFullscreenPreviewStrength(
+            bottomPreviewStrength,
+            nextPointerX,
+            nextPointerY,
+            editorBounds.left + editorBounds.width / 2,
+            editorBounds.bottom -
+              fullscreenAuraActivation.closedButtonCenterInset,
+          );
+          bottomCollapseStrength = Math.max(
+            bottomCollapseStrength,
+            previewStrength,
+          );
+        }
+
+        setStyleNumberVariable(
+          element,
+          "--edge-preview-strength",
+          previewStrength,
+        );
+      }
+
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-left-collapse",
+        leftCollapseStrength,
+      );
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-right-collapse",
+        rightCollapseStrength,
+      );
+      setStyleNumberVariable(
+        editorShell,
+        "--fullscreen-bottom-collapse",
+        bottomCollapseStrength,
+      );
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      nextPointerX = event.clientX;
+      nextPointerY = event.clientY;
+
+      if (animationFrameId !== 0) {
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(updatePreviewState);
+    };
+
+    const handlePointerLeave = () => {
+      if (animationFrameId !== 0) {
+        window.cancelAnimationFrame(animationFrameId);
+        animationFrameId = 0;
+      }
+
+      resetPreviewState();
+    };
+
+    editorShell.addEventListener("pointermove", handlePointerMove);
+    editorShell.addEventListener("pointerleave", handlePointerLeave);
+
+    return () => {
+      if (animationFrameId !== 0) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+
+      editorShell.removeEventListener("pointermove", handlePointerMove);
+      editorShell.removeEventListener("pointerleave", handlePointerLeave);
+      resetPreviewState();
+    };
+  }, [
+    hiddenFullscreenLeftItems.length,
+    hiddenFullscreenRightItems.length,
+    isFullscreen,
+    isFullscreenBottomItemHidden,
+  ]);
+
   return (
     <div
       ref={setEditorShellRef}
-      className={`relative h-full min-h-[580px] bg-neutral-100 ${
+      className={`flow-editor-shell relative h-full min-h-[580px] bg-neutral-100 ${
         isFullscreen ? "h-screen min-h-screen" : ""
       }`}
     >
@@ -481,6 +796,13 @@ export function FlowEditor({
       </EdgeBridgeRenderContext.Provider>
       {isFullscreen ? (
         <>
+          {hiddenFullscreenLeftItems.length > 0 ? (
+            <FullscreenSideEdgePreview side="left" />
+          ) : null}
+          {hiddenFullscreenRightItems.length > 0 ? (
+            <FullscreenSideEdgePreview side="right" />
+          ) : null}
+          {isFullscreenBottomItemHidden ? <FullscreenBottomEdgePreview /> : null}
           {fullscreenLeftItems.map((item, index) => (
             <FullscreenFloatingPanel
               key={item.id}
@@ -488,6 +810,9 @@ export function FlowEditor({
               index={index}
               isOpen={isFullscreenPanelOpen(item)}
               side="left"
+              previewZoneRef={(element) =>
+                setFullscreenPreviewZoneElement(item.id, "left", index, element)
+              }
               onOpenChange={(isOpen) =>
                 setFullscreenPanelOpen(item.id, isOpen)
               }
@@ -500,6 +825,14 @@ export function FlowEditor({
               index={index}
               isOpen={isFullscreenPanelOpen(item)}
               side="right"
+              previewZoneRef={(element) =>
+                setFullscreenPreviewZoneElement(
+                  item.id,
+                  "right",
+                  index,
+                  element,
+                )
+              }
               onOpenChange={(isOpen) =>
                 setFullscreenPanelOpen(item.id, isOpen)
               }
@@ -509,6 +842,14 @@ export function FlowEditor({
             <FullscreenBottomFloatingPanel
               item={fullscreenBottomItem}
               isOpen={isFullscreenPanelOpen(fullscreenBottomItem)}
+              previewZoneRef={(element) =>
+                setFullscreenPreviewZoneElement(
+                  fullscreenBottomItem.id,
+                  "bottom",
+                  null,
+                  element,
+                )
+              }
               onOpenChange={(isOpen) =>
                 setFullscreenPanelOpen(fullscreenBottomItem.id, isOpen)
               }
@@ -526,6 +867,7 @@ type FullscreenFloatingPanelProps = {
   isOpen: boolean;
   item: FullscreenFloatingPanelItem;
   onOpenChange: (isOpen: boolean) => void;
+  previewZoneRef?: (element: HTMLDivElement | null) => void;
   side: "left" | "right";
 };
 
@@ -534,6 +876,7 @@ function FullscreenFloatingPanel({
   isOpen,
   item,
   onOpenChange,
+  previewZoneRef,
   side,
 }: FullscreenFloatingPanelProps) {
   const { t } = useI18n();
@@ -545,16 +888,20 @@ function FullscreenFloatingPanel({
   };
   const edgeClassName =
     side === "left"
-      ? "pointer-events-none absolute left-0 z-30 w-32 group/fullscreen-edge"
-      : "pointer-events-none absolute right-0 z-30 w-32 group/fullscreen-edge";
+      ? "fullscreen-edge-zone fullscreen-edge-zone--left pointer-events-none absolute left-0 z-30 w-32 group/fullscreen-edge"
+      : "fullscreen-edge-zone fullscreen-edge-zone--right pointer-events-none absolute right-0 z-30 w-32 group/fullscreen-edge";
+  const edgePreviewClassName =
+    side === "left"
+      ? "fullscreen-edge-zone__preview absolute left-0 top-1/2 rounded-r-full bg-sky-300/80 shadow-[0_0_24px_rgba(56,189,248,0.56)]"
+      : "fullscreen-edge-zone__preview absolute right-0 top-1/2 rounded-l-full bg-sky-300/80 shadow-[0_0_24px_rgba(56,189,248,0.56)]";
   const edgeAuraClassName =
     side === "left"
-      ? "absolute left-0 top-1/2 h-24 w-24 -translate-x-14 -translate-y-1/2 rounded-r-full bg-sky-400/25 opacity-0 blur-sm shadow-[0_0_34px_rgba(14,165,233,0.42)] transition-all duration-200 ease-out group-hover/fullscreen-edge:-translate-x-3 group-hover/fullscreen-edge:opacity-100"
-      : "absolute right-0 top-1/2 h-24 w-24 translate-x-14 -translate-y-1/2 rounded-l-full bg-sky-400/25 opacity-0 blur-sm shadow-[0_0_34px_rgba(14,165,233,0.42)] transition-all duration-200 ease-out group-hover/fullscreen-edge:translate-x-3 group-hover/fullscreen-edge:opacity-100";
+      ? "fullscreen-edge-zone__aura absolute left-0 top-1/2 rounded-r-full bg-sky-400/35 blur-sm shadow-[0_0_46px_rgba(14,165,233,0.55)]"
+      : "fullscreen-edge-zone__aura absolute right-0 top-1/2 rounded-l-full bg-sky-400/35 blur-sm shadow-[0_0_46px_rgba(14,165,233,0.55)]";
   const edgeProtrusionClassName =
     side === "left"
-      ? "absolute left-0 top-1/2 h-12 w-9 -translate-x-8 -translate-y-1/2 rounded-r-full bg-sky-300/55 opacity-0 shadow-[0_0_22px_rgba(56,189,248,0.55)] transition-all duration-200 ease-out group-hover/fullscreen-edge:-translate-x-1 group-hover/fullscreen-edge:opacity-100"
-      : "absolute right-0 top-1/2 h-12 w-9 translate-x-8 -translate-y-1/2 rounded-l-full bg-sky-300/55 opacity-0 shadow-[0_0_22px_rgba(56,189,248,0.55)] transition-all duration-200 ease-out group-hover/fullscreen-edge:translate-x-1 group-hover/fullscreen-edge:opacity-100";
+      ? "fullscreen-edge-zone__protrusion absolute left-0 top-1/2 rounded-r-full bg-sky-300/70 shadow-[0_0_28px_rgba(56,189,248,0.62)]"
+      : "fullscreen-edge-zone__protrusion absolute right-0 top-1/2 rounded-l-full bg-sky-300/70 shadow-[0_0_28px_rgba(56,189,248,0.62)]";
   const closedButtonClassName =
     side === "left"
       ? `${fullscreenDrawerButtonClassName} absolute left-4 top-1/2 -translate-x-12 -translate-y-1/2 opacity-0 duration-200 ease-out group-hover/fullscreen-edge:translate-x-0 group-hover/fullscreen-edge:opacity-100`
@@ -593,9 +940,22 @@ function FullscreenFloatingPanel({
   }
 
   return (
-    <div className={edgeClassName} style={edgeStyle}>
-      <div className={edgeAuraClassName} aria-hidden="true" />
-      <div className={edgeProtrusionClassName} aria-hidden="true" />
+    <div ref={previewZoneRef} className={edgeClassName} style={edgeStyle}>
+      <div
+        className={edgePreviewClassName}
+        style={fullscreenSidePreviewStyle}
+        aria-hidden="true"
+      />
+      <div
+        className={edgeAuraClassName}
+        style={fullscreenSideAuraStyle}
+        aria-hidden="true"
+      />
+      <div
+        className={edgeProtrusionClassName}
+        style={fullscreenSideProtrusionStyle}
+        aria-hidden="true"
+      />
       <div className="pointer-events-auto absolute inset-0" aria-hidden="true" />
       <button
         type="button"
@@ -730,12 +1090,14 @@ type FullscreenBottomFloatingPanelProps = {
   isOpen: boolean;
   item: FullscreenFloatingPanelItem;
   onOpenChange: (isOpen: boolean) => void;
+  previewZoneRef?: (element: HTMLDivElement | null) => void;
 };
 
 function FullscreenBottomFloatingPanel({
   isOpen,
   item,
   onOpenChange,
+  previewZoneRef,
 }: FullscreenBottomFloatingPanelProps) {
   const { t } = useI18n();
 
@@ -760,13 +1122,23 @@ function FullscreenBottomFloatingPanel({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center group/fullscreen-bottom">
+    <div
+      ref={previewZoneRef}
+      className="fullscreen-edge-zone fullscreen-edge-zone--bottom pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center group/fullscreen-edge"
+    >
       <div
-        className="absolute bottom-0 left-1/2 h-20 w-[26rem] -translate-x-1/2 translate-y-12 rounded-t-full bg-sky-400/25 opacity-0 blur-sm shadow-[0_0_34px_rgba(14,165,233,0.42)] transition-all duration-200 ease-out group-hover/fullscreen-bottom:translate-y-4 group-hover/fullscreen-bottom:opacity-100"
+        className="fullscreen-edge-zone__preview absolute bottom-0 left-1/2 rounded-t-full bg-sky-300/80 shadow-[0_0_24px_rgba(56,189,248,0.56)]"
+        style={fullscreenBottomPreviewStyle}
         aria-hidden="true"
       />
       <div
-        className="absolute bottom-0 left-1/2 h-10 w-20 -translate-x-1/2 translate-y-8 rounded-t-full bg-sky-300/55 opacity-0 shadow-[0_0_22px_rgba(56,189,248,0.55)] transition-all duration-200 ease-out group-hover/fullscreen-bottom:translate-y-2 group-hover/fullscreen-bottom:opacity-100"
+        className="fullscreen-edge-zone__aura absolute bottom-0 left-1/2 rounded-t-full bg-sky-400/35 blur-sm shadow-[0_0_46px_rgba(14,165,233,0.55)]"
+        style={fullscreenBottomAuraStyle}
+        aria-hidden="true"
+      />
+      <div
+        className="fullscreen-edge-zone__protrusion absolute bottom-0 left-1/2 rounded-t-full bg-sky-300/70 shadow-[0_0_28px_rgba(56,189,248,0.62)]"
+        style={fullscreenBottomProtrusionStyle}
         aria-hidden="true"
       />
       <div
@@ -775,7 +1147,7 @@ function FullscreenBottomFloatingPanel({
       />
       <button
         type="button"
-        className={`${fullscreenDrawerButtonClassName} absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 opacity-0 duration-200 ease-out group-hover/fullscreen-bottom:translate-y-0 group-hover/fullscreen-bottom:opacity-100`}
+        className={`${fullscreenDrawerButtonClassName} absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 opacity-0 duration-200 ease-out group-hover/fullscreen-edge:translate-y-0 group-hover/fullscreen-edge:opacity-100`}
         title={t("flow.showPanel", { label: item.label })}
         aria-label={t("flow.showPanel", { label: item.label })}
         aria-expanded="false"
@@ -783,6 +1155,28 @@ function FullscreenBottomFloatingPanel({
       >
         {item.buttonLabel}
       </button>
+    </div>
+  );
+}
+
+function FullscreenSideEdgePreview({ side }: { side: "left" | "right" }) {
+  return (
+    <div
+      className={`fullscreen-edge-preview fullscreen-edge-preview--${side} absolute inset-0 z-20`}
+      aria-hidden="true"
+    >
+      <div className="fullscreen-edge-preview__track" />
+    </div>
+  );
+}
+
+function FullscreenBottomEdgePreview() {
+  return (
+    <div
+      className="fullscreen-edge-preview fullscreen-edge-preview--bottom absolute inset-0 z-20"
+      aria-hidden="true"
+    >
+      <div className="fullscreen-edge-preview__track" />
     </div>
   );
 }

@@ -1,76 +1,15 @@
-import fs from "node:fs";
-import path from "node:path";
-import { getExercises } from "@/features/exercises/data/exercises";
+import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
+import { flowStabilityFixtures } from "@/features/flow/fixtures/stability-fixtures";
+import { analyzeFlowLayout } from "@/features/flow/layout-quality";
 import { importJavaScriptToFlow } from "@/features/flow/parser";
-import type {
-  AutoLayoutEdge,
-  AutoLayoutNode,
-} from "@/features/flow/auto-layout";
-import { LayoutDebugClient, type LayoutDebugExercise } from "./LayoutDebugClient";
-
-type ExportedDiagram = {
-  nodes: AutoLayoutNode[];
-  edges: AutoLayoutEdge[];
-};
-
-type FlowExportFile = {
-  program?: {
-    main?: ExportedDiagram;
-    functions?: Array<ExportedDiagram & { name?: string }>;
-  };
-};
-
-const referenceDirectory =
-  process.env.FLOWCODE_REFERENCE_DIR ?? "/Users/hans/Downloads/FlowCode_JSON";
+import { validateFlowDiagram } from "@/features/flow/flow-validation";
+import type { FlowEditorNode } from "@/types/flow";
+import { LayoutDebugClient, type LayoutDebugExample } from "./LayoutDebugClient";
 
 export const dynamic = "force-dynamic";
 
 export default function LayoutDebugPage() {
-  const exercises = getExercises("es");
-  const debugExercises = exercises.map((exercise): LayoutDebugExercise => {
-    const generatedResult = exercise.starterCode
-      ? importJavaScriptToFlow(exercise.starterCode)
-      : null;
-    const generatedDiagrams =
-      generatedResult?.ok === true
-        ? [
-            {
-              diagram: sanitizeDiagram({
-                nodes: generatedResult.nodes,
-                edges: generatedResult.edges,
-              }),
-              name: "main",
-            },
-            ...generatedResult.functions.map((flowFunction) => ({
-              diagram: sanitizeDiagram(flowFunction),
-              name: `fn:${flowFunction.name}`,
-            })),
-          ]
-        : [];
-    const referenceDiagrams = loadReferenceDiagrams(exercise.title);
-    const diagramNames = Array.from(
-      new Set([
-        ...referenceDiagrams.map((diagram) => diagram.name),
-        ...generatedDiagrams.map((diagram) => diagram.name),
-      ]),
-    );
-
-    return {
-      diagrams: diagramNames.map((name) => ({
-        generated:
-          generatedDiagrams.find((diagram) => diagram.name === name)?.diagram ??
-          null,
-        name,
-        reference:
-          referenceDiagrams.find((diagram) => diagram.name === name)?.diagram ??
-          null,
-      })),
-      id: exercise.id,
-      importError:
-        generatedResult && !generatedResult.ok ? generatedResult.message : null,
-      title: exercise.title,
-    };
-  });
+  const examples = flowStabilityFixtures.map(createDebugExample);
 
   return (
     <main className="min-h-screen bg-neutral-100 px-4 py-5 text-neutral-950 md:px-6">
@@ -80,69 +19,67 @@ export default function LayoutDebugPage() {
             FlowCode layout debug
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-neutral-950">
-            Comparacion visual de auto-layout
+            Galeria interna de layout
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">
-            Referencias cargadas desde {referenceDirectory}. La columna derecha
-            usa el parser actual con el nuevo motor heuristico.
+            Ejemplos generados desde fixtures estables para revisar importacion,
+            auto-layout, codegen y calidad visual basica.
           </p>
         </header>
 
-        <LayoutDebugClient exercises={debugExercises} />
+        <LayoutDebugClient examples={examples} />
       </div>
     </main>
   );
 }
 
-function loadReferenceDiagrams(title: string) {
-  const filePath = path.join(referenceDirectory, `${title}.json`);
+function createDebugExample(fixture: (typeof flowStabilityFixtures)[number]) {
+  const importResult = importJavaScriptToFlow(fixture.code);
 
-  if (!fs.existsSync(filePath)) {
-    return [];
+  if (!importResult.ok) {
+    return {
+      id: fixture.id,
+      name: fixture.name,
+      code: fixture.code,
+      codegenWarnings: [],
+      diagram: null,
+      expectedImportOk: fixture.expectations.importOk,
+      importError: importResult.message,
+      importWarnings: [],
+      quality: null,
+      validationMessages: [],
+    } satisfies LayoutDebugExample;
   }
 
-  const exportFile = JSON.parse(
-    fs.readFileSync(filePath, "utf8"),
-  ) as FlowExportFile;
-  const diagrams: Array<{ diagram: ExportedDiagram; name: string }> = [];
-
-  if (exportFile.program?.main) {
-    diagrams.push({
-      diagram: sanitizeDiagram(exportFile.program.main),
-      name: "main",
-    });
-  }
-
-  for (const flowFunction of exportFile.program?.functions ?? []) {
-    diagrams.push({
-      diagram: sanitizeDiagram(flowFunction),
-      name: `fn:${flowFunction.name ?? "funcion"}`,
-    });
-  }
-
-  return diagrams;
-}
-
-function sanitizeDiagram(diagram: ExportedDiagram): ExportedDiagram {
-  return {
-    edges: diagram.edges.map((edge) => ({
-      source: edge.source,
-      sourceHandle: edge.sourceHandle ?? null,
-      target: edge.target,
-      targetHandle: edge.targetHandle ?? "in",
-    })),
-    nodes: diagram.nodes.map((node) => ({
-      data: {
-        config: node.data.config,
-        handlePositions: node.data.handlePositions,
-        label: node.data.label,
-      },
-      height: node.height,
-      id: node.id,
-      measured: node.measured,
-      position: node.position,
-      type: node.type,
-      width: node.width,
-    })),
+  const codegenResult = generateJavaScriptFromFlow({
+    nodes: importResult.nodes as FlowEditorNode[],
+    edges: importResult.edges,
+    functions: importResult.functions as unknown as Parameters<
+      typeof generateJavaScriptFromFlow
+    >[0]["functions"],
+  });
+  const validationMessages = validateFlowDiagram({
+    nodes: importResult.nodes as FlowEditorNode[],
+    edges: importResult.edges,
+    functions: importResult.functions as unknown as Parameters<
+      typeof validateFlowDiagram
+    >[0]["functions"],
+  }).map((issue) => issue.message);
+  const diagram = {
+    nodes: importResult.nodes,
+    edges: importResult.edges,
   };
+
+  return {
+    id: fixture.id,
+    name: fixture.name,
+    code: fixture.code,
+    codegenWarnings: codegenResult.warnings,
+    diagram,
+    expectedImportOk: fixture.expectations.importOk,
+    importError: null,
+    importWarnings: importResult.warnings,
+    quality: analyzeFlowLayout(diagram),
+    validationMessages,
+  } satisfies LayoutDebugExample;
 }
