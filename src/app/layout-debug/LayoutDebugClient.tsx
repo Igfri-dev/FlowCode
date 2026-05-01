@@ -22,6 +22,7 @@ import {
 } from "@/features/flow/layout-quality";
 import { flowNodeComponents } from "@/features/flow/components/nodes";
 import { FlowNodeRenderProvider } from "@/features/flow/components/nodes/FlowNodeRenderContext";
+import type { FlowValidationIssue } from "@/features/flow/flow-validation";
 import { I18nProvider } from "@/features/i18n/I18nProvider";
 import type {
   FlowEditorEdge,
@@ -43,7 +44,7 @@ export type LayoutDebugExample = {
   importWarnings: string[];
   name: string;
   quality: FlowLayoutQualityReport | null;
-  validationMessages: string[];
+  validationIssues: FlowValidationIssue[];
 };
 
 const fitViewOptions = {
@@ -96,8 +97,11 @@ export function LayoutDebugClient({
             ...selectedExample.codegenWarnings.map(
               (warning) => `Codegen: ${warning}`,
             ),
-            ...selectedExample.validationMessages.map(
-              (warning) => `Validacion: ${warning}`,
+            ...selectedExample.validationIssues.map(
+              (issue) =>
+                issue.severity === "warning"
+                  ? `Advertencia de validación: ${issue.message}`
+                  : `Error de validación: ${issue.message}`,
             ),
             ...(activeQuality?.overlaps.length
               ? [`Layout: ${activeQuality.overlaps.length} solape(s).`]

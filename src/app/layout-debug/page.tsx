@@ -47,7 +47,7 @@ function createDebugExample(fixture: (typeof flowStabilityFixtures)[number]) {
       importError: importResult.message,
       importWarnings: [],
       quality: null,
-      validationMessages: [],
+      validationIssues: [],
     } satisfies LayoutDebugExample;
   }
 
@@ -58,13 +58,13 @@ function createDebugExample(fixture: (typeof flowStabilityFixtures)[number]) {
       typeof generateJavaScriptFromFlow
     >[0]["functions"],
   });
-  const validationMessages = validateFlowDiagram({
+  const validationIssues = validateFlowDiagram({
     nodes: importResult.nodes as FlowEditorNode[],
     edges: importResult.edges,
     functions: importResult.functions as unknown as Parameters<
       typeof validateFlowDiagram
     >[0]["functions"],
-  }).map((issue) => issue.message);
+  });
   const diagram = {
     nodes: importResult.nodes,
     edges: importResult.edges,
@@ -80,6 +80,6 @@ function createDebugExample(fixture: (typeof flowStabilityFixtures)[number]) {
     importError: null,
     importWarnings: importResult.warnings,
     quality: analyzeFlowLayout(diagram),
-    validationMessages,
+    validationIssues,
   } satisfies LayoutDebugExample;
 }

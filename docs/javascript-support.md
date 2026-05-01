@@ -4,6 +4,9 @@ FlowCode no es un ejecutor de JavaScript arbitrario. El soporte actual esta
 orientado a algoritmos educativos que se pueden representar como diagramas de
 flujo ejecutables y revisar visualmente.
 
+El panel de validacion distingue errores, que deben corregirse, de advertencias,
+que señalan riesgos o recomendaciones sin bloquear necesariamente el trabajo.
+
 ## Soportado
 
 ### Declaraciones y asignaciones

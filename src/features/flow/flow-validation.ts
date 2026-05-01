@@ -22,6 +22,7 @@ export type { FlowConnectionLike } from "@/features/flow/flow-graph";
 export type FlowValidationIssue = {
   id: string;
   message: string;
+  severity: "error" | "warning";
 };
 
 type FlowValidationInput = {
@@ -52,17 +53,25 @@ export function validateFlowDiagram({
   functions = [],
   currentDiagramId = "main",
 }: FlowValidationInput): FlowValidationIssue[] {
-  const graph = createFlowGraph(nodes, edges);
-
-  return [
-    ...validateStartCount(graph),
-    ...validateInvalidEdges(graph),
-    ...validateNodeConnectionLimits(graph),
-    ...validateReachability(graph),
-    ...validateNodeConfigs(graph.nodes, functions, currentDiagramId),
-    ...validateControlFlowMetadata(graph),
+  return dedupeIssuesById([
+    ...validateSingleDiagram({
+      currentDiagramId,
+      edges,
+      functions,
+      nodes,
+    }),
     ...validateFunctionDefinitions(functions),
-  ];
+    ...functions.flatMap((flowFunction) =>
+      validateSingleDiagram({
+        currentDiagramId: flowFunction.id,
+        edges: flowFunction.edges,
+        functions,
+        idPrefix: `${flowFunction.id}-`,
+        messagePrefix: `En la función "${getFunctionDisplayName(flowFunction)}": `,
+        nodes: flowFunction.nodes,
+      }),
+    ),
+  ]);
 }
 
 export function validateFlowConnection({
@@ -81,6 +90,90 @@ export function validateFlowConnection({
   ];
 }
 
+function validateSingleDiagram({
+  currentDiagramId,
+  edges,
+  functions = [],
+  idPrefix = "",
+  messagePrefix = "",
+  nodes,
+}: FlowValidationInput & {
+  idPrefix?: string;
+  messagePrefix?: string;
+}): FlowValidationIssue[] {
+  const graph = createFlowGraph(nodes, edges);
+  const issues = [
+    ...validateStartCount(graph),
+    ...validateInvalidEdges(graph),
+    ...validateNodeConnectionLimits(graph),
+    ...validateReachability(graph),
+    ...validateNodeConfigs(graph.nodes, functions, currentDiagramId ?? "main"),
+    ...validateControlFlowMetadata(graph),
+  ];
+
+  return messagePrefix || idPrefix
+    ? issues.map((issue) =>
+        scopeIssue(issue, {
+          idPrefix,
+          messagePrefix,
+        }),
+      )
+    : issues;
+}
+
+function errorIssue(id: string, message: string): FlowValidationIssue {
+  return {
+    id,
+    message,
+    severity: "error",
+  };
+}
+
+function warningIssue(id: string, message: string): FlowValidationIssue {
+  return {
+    id,
+    message,
+    severity: "warning",
+  };
+}
+
+function scopeIssue(
+  issue: FlowValidationIssue,
+  {
+    idPrefix,
+    messagePrefix,
+  }: {
+    idPrefix: string;
+    messagePrefix: string;
+  },
+): FlowValidationIssue {
+  return {
+    ...issue,
+    id: `${idPrefix}${issue.id}`,
+    message: messagePrefix
+      ? `${messagePrefix}${lowercaseFirstLetter(issue.message)}`
+      : issue.message,
+  };
+}
+
+function lowercaseFirstLetter(message: string) {
+  return message.length === 0
+    ? message
+    : `${message.charAt(0).toLocaleLowerCase("es")}${message.slice(1)}`;
+}
+
+function dedupeIssuesById(issues: FlowValidationIssue[]) {
+  const issueById = new Map<string, FlowValidationIssue>();
+
+  for (const issue of issues) {
+    if (!issueById.has(issue.id)) {
+      issueById.set(issue.id, issue);
+    }
+  }
+
+  return Array.from(issueById.values());
+}
+
 function validateStartCount(graph: FlowGraph): FlowValidationIssue[] {
   const startCount = graph.nodes.filter((node) => node.type === "start").length;
 
@@ -89,13 +182,12 @@ function validateStartCount(graph: FlowGraph): FlowValidationIssue[] {
   }
 
   return [
-    {
-      id: "start-count",
-      message:
-        startCount === 0
-          ? "Debe existir exactamente un bloque Inicio."
-          : `Debe existir exactamente un bloque Inicio; hay ${startCount}.`,
-    },
+    errorIssue(
+      "start-count",
+      startCount === 0
+        ? "Debe existir exactamente un bloque Inicio."
+        : `Debe existir exactamente un bloque Inicio; hay ${startCount}.`,
+    ),
   ];
 }
 
@@ -105,17 +197,21 @@ function validateInvalidEdges(graph: FlowGraph): FlowValidationIssue[] {
     const issues: FlowValidationIssue[] = [];
 
     if (!graph.nodeById.has(edge.source)) {
-      issues.push({
-        id: `edge-${edgeId}-source`,
-        message: "Una conexión apunta a un bloque de origen que no existe.",
-      });
+      issues.push(
+        errorIssue(
+          `edge-${edgeId}-source`,
+          "Una conexión apunta a un bloque de origen que no existe.",
+        ),
+      );
     }
 
     if (!graph.nodeById.has(edge.target)) {
-      issues.push({
-        id: `edge-${edgeId}-target`,
-        message: "Una conexión apunta a un bloque de destino que no existe.",
-      });
+      issues.push(
+        errorIssue(
+          `edge-${edgeId}-target`,
+          "Una conexión apunta a un bloque de destino que no existe.",
+        ),
+      );
     }
 
     return issues;
@@ -144,30 +240,38 @@ function validateNodeConnectionLimits(
 
     if (node.type === "start") {
       if (incoming > 0) {
-        issues.push({
-          id: `${node.id}-start-incoming`,
-          message: `El bloque Inicio "${nodeName}" no debe tener conexiones de entrada.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-start-incoming`,
+            `El bloque Inicio "${nodeName}" no debe tener conexiones de entrada.`,
+          ),
+        );
       }
 
       if (outgoing > 1) {
-        issues.push({
-          id: `${node.id}-start-outgoing`,
-          message: `El bloque Inicio "${nodeName}" puede tener como máximo una conexión de salida.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-start-outgoing`,
+            `El bloque Inicio "${nodeName}" puede tener como máximo una conexión de salida.`,
+          ),
+        );
       }
 
       if (requireCompleteness && outgoing === 0) {
-        issues.push({
-          id: `${node.id}-start-missing-outgoing`,
-          message: `El bloque Inicio "${nodeName}" debe conectar con el primer bloque del flujo.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-start-missing-outgoing`,
+            `El bloque Inicio "${nodeName}" debe conectar con el primer bloque del flujo.`,
+          ),
+        );
       }
     } else if (requireCompleteness && incoming === 0) {
-      issues.push({
-        id: `${node.id}-missing-incoming`,
-        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de entrada. Conéctalo desde Inicio o elimínalo si no pertenece al flujo.`,
-      });
+      issues.push(
+        errorIssue(
+          `${node.id}-missing-incoming`,
+          `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de entrada. Conéctalo desde Inicio o elimínalo si no pertenece al flujo.`,
+        ),
+      );
     }
 
     if (node.type === "decision") {
@@ -178,53 +282,82 @@ function validateNodeConnectionLimits(
       );
 
       if (outgoing > 2) {
-        issues.push({
-          id: `${node.id}-decision-outgoing`,
-          message: `El bloque Decisión "${nodeName}" puede tener como máximo dos conexiones de salida.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-outgoing`,
+            `El bloque Decisión "${nodeName}" puede tener como máximo dos conexiones de salida.`,
+          ),
+        );
       }
 
       if (requireCompleteness && yesEdges.length === 0) {
-        issues.push({
-          id: `${node.id}-decision-missing-yes`,
-          message: `El bloque Decisión "${nodeName}" necesita una rama Sí conectada.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-missing-yes`,
+            `El bloque Decisión "${nodeName}" necesita una rama Sí conectada.`,
+          ),
+        );
       }
 
       if (requireCompleteness && noEdges.length === 0) {
-        issues.push({
-          id: `${node.id}-decision-missing-no`,
-          message: `El bloque Decisión "${nodeName}" necesita una rama No conectada.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-missing-no`,
+            `El bloque Decisión "${nodeName}" necesita una rama No conectada.`,
+          ),
+        );
       }
 
       if (yesEdges.length > 1) {
-        issues.push({
-          id: `${node.id}-decision-duplicate-yes`,
-          message: `El bloque Decisión "${nodeName}" tiene más de una rama Sí. Deja una sola salida Sí para evitar ambigüedad.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-duplicate-yes`,
+            `El bloque Decisión "${nodeName}" tiene más de una rama Sí. Deja una sola salida Sí para evitar ambigüedad.`,
+          ),
+        );
       }
 
       if (noEdges.length > 1) {
-        issues.push({
-          id: `${node.id}-decision-duplicate-no`,
-          message: `El bloque Decisión "${nodeName}" tiene más de una rama No. Deja una sola salida No para evitar ambigüedad.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-duplicate-no`,
+            `El bloque Decisión "${nodeName}" tiene más de una rama No. Deja una sola salida No para evitar ambigüedad.`,
+          ),
+        );
       }
 
       if (ambiguousEdges.length > 0) {
-        issues.push({
-          id: `${node.id}-decision-ambiguous-branch`,
-          message: `El bloque Decisión "${nodeName}" tiene una salida sin rama Sí/No. Conecta desde el handle correcto.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-ambiguous-branch`,
+            `El bloque Decisión "${nodeName}" tiene una salida sin rama Sí/No. Conecta desde el handle correcto.`,
+          ),
+        );
       }
 
       if (branchesShareTargets(yesEdges, noEdges)) {
-        issues.push({
-          id: `${node.id}-decision-shared-target`,
-          message: `El bloque Decisión "${nodeName}" envía Sí y No al mismo bloque. Separa las ramas antes de unirlas para que el flujo sea claro.`,
-        });
+        issues.push(
+          warningIssue(
+            `${node.id}-decision-shared-target`,
+            `El bloque Decisión "${nodeName}" envía Sí y No al mismo bloque. Separa las ramas antes de unirlas para que el flujo sea claro.`,
+          ),
+        );
       }
+    }
+
+    if (
+      node.type !== "start" &&
+      node.type !== "decision" &&
+      node.type !== "end" &&
+      node.type !== "return" &&
+      outgoing > 1
+    ) {
+      issues.push(
+        errorIssue(
+          `${node.id}-non-decision-multiple-outgoing`,
+          `El bloque ${nodeTypeNames[node.type]} "${nodeName}" tiene más de una salida. Solo las decisiones pueden dividir el flujo en ramas.`,
+        ),
+      );
     }
 
     if (
@@ -234,17 +367,21 @@ function validateNodeConnectionLimits(
       node.type !== "return" &&
       outgoing === 0
     ) {
-      issues.push({
-        id: `${node.id}-missing-outgoing`,
-        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de salida. Conéctalo con el siguiente bloque o usa Fin/Retorno si termina el flujo.`,
-      });
+      issues.push(
+        errorIssue(
+          `${node.id}-missing-outgoing`,
+          `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no tiene conexión de salida. Conéctalo con el siguiente bloque o usa Fin/Retorno si termina el flujo.`,
+        ),
+      );
     }
 
     if ((node.type === "end" || node.type === "return") && outgoing > 0) {
-      issues.push({
-        id: `${node.id}-terminal-outgoing`,
-        message: `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no debe tener conexiones de salida.`,
-      });
+      issues.push(
+        errorIssue(
+          `${node.id}-terminal-outgoing`,
+          `El bloque ${nodeTypeNames[node.type]} "${nodeName}" no debe tener conexiones de salida.`,
+        ),
+      );
     }
   }
 
@@ -268,10 +405,12 @@ function validateNodeConfigs(
       );
 
       if (!instructionValidation.ok) {
-        issues.push({
-          id: `${node.id}-process-instruction`,
-          message: `El bloque Proceso "${nodeName}" tiene una instruccion no valida: ${instructionValidation.message}`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-process-instruction`,
+            `El bloque Proceso "${nodeName}" tiene una instruccion no valida: ${instructionValidation.message}`,
+          ),
+        );
       }
     }
 
@@ -281,10 +420,12 @@ function validateNodeConfigs(
       );
 
       if (!conditionValidation.ok) {
-        issues.push({
-          id: `${node.id}-decision-condition`,
-          message: `La condicion "${nodeName}" no es valida: ${conditionValidation.message}`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-decision-condition`,
+            `La condicion "${nodeName}" no es valida: ${conditionValidation.message}`,
+          ),
+        );
       }
     }
 
@@ -293,10 +434,12 @@ function validateNodeConfigs(
         "variableName" in node.data.config ? node.data.config.variableName.trim() : "";
 
       if (!variableName) {
-        issues.push({
-          id: `${node.id}-input-variable`,
-          message: `El bloque Entrada "${nodeName}" necesita una variable para guardar el valor.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-input-variable`,
+            `El bloque Entrada "${nodeName}" necesita una variable para guardar el valor.`,
+          ),
+        );
       }
     }
 
@@ -304,20 +447,24 @@ function validateNodeConfigs(
       const config = node.data.config;
 
       if (!("functionId" in config) || !config.functionId) {
-        issues.push({
-          id: `${node.id}-function-call-missing`,
-          message: `La llamada "${nodeName}" debe seleccionar una funcion.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-function-call-missing`,
+            `La llamada "${nodeName}" debe seleccionar una funcion.`,
+          ),
+        );
         continue;
       }
 
       const flowFunction = functionById.get(config.functionId);
 
       if (!flowFunction) {
-        issues.push({
-          id: `${node.id}-function-call-invalid`,
-          message: `La llamada "${nodeName}" referencia una funcion que no existe.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-function-call-invalid`,
+            `La llamada "${nodeName}" referencia una funcion que no existe.`,
+          ),
+        );
         continue;
       }
 
@@ -330,28 +477,31 @@ function validateNodeConfigs(
       );
 
       if (!argumentCountValidation.ok) {
-        issues.push({
-          id: `${node.id}-function-call-args`,
-          message: argumentCountValidation.message,
-        });
+        issues.push(
+          errorIssue(`${node.id}-function-call-args`, argumentCountValidation.message),
+        );
       }
 
       args.forEach((argument, index) => {
         const argumentValidation = validateExpressionSupport(argument);
 
         if (!argumentValidation.ok) {
-          issues.push({
-            id: `${node.id}-function-call-arg-${index}`,
-            message: `El argumento ${index + 1} de "${nodeName}" no es valido: ${argumentValidation.message}`,
-          });
+          issues.push(
+            errorIssue(
+              `${node.id}-function-call-arg-${index}`,
+              `El argumento ${index + 1} de "${nodeName}" no es valido: ${argumentValidation.message}`,
+            ),
+          );
         }
       });
 
       if (config.assignTo?.trim() && !functionHasClearReturnPath(flowFunction)) {
-        issues.push({
-          id: `${node.id}-function-call-return-warning`,
-          message: `Aviso: la llamada "${nodeName}" guarda el resultado de "${flowFunction.name}", pero esa función no tiene un camino claro hacia Retorno. Agrega un Retorno alcanzable para evitar valores indefinidos.`,
-        });
+        issues.push(
+          warningIssue(
+            `${node.id}-function-call-return-warning`,
+            `La llamada "${nodeName}" guarda el resultado de "${flowFunction.name}", pero esa función no tiene un camino claro hacia Retorno. Agrega un Retorno alcanzable para evitar valores indefinidos.`,
+          ),
+        );
       }
     }
 
@@ -365,18 +515,22 @@ function validateNodeConfigs(
       );
 
       if (!outputValidation.ok) {
-        issues.push({
-          id: `${node.id}-output-expression`,
-          message: `La salida "${nodeName}" tiene una expresion no valida: ${outputValidation.message}`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-output-expression`,
+            `La salida "${nodeName}" tiene una expresion no valida: ${outputValidation.message}`,
+          ),
+        );
       }
     }
 
     if (node.type === "return" && currentDiagramId === "main") {
-      issues.push({
-        id: `${node.id}-return-in-main`,
-        message: `El bloque Retorno "${nodeName}" solo debe usarse dentro de una funcion.`,
-      });
+      issues.push(
+        errorIssue(
+          `${node.id}-return-in-main`,
+          `El bloque Retorno "${nodeName}" solo debe usarse dentro de una funcion.`,
+        ),
+      );
     }
 
     if (
@@ -389,10 +543,12 @@ function validateNodeConfigs(
       );
 
       if (!returnValidation.ok) {
-        issues.push({
-          id: `${node.id}-return-expression`,
-          message: `El retorno "${nodeName}" tiene una expresion no valida: ${returnValidation.message}`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-return-expression`,
+            `El retorno "${nodeName}" tiene una expresion no valida: ${returnValidation.message}`,
+          ),
+        );
       }
     }
 
@@ -414,10 +570,12 @@ function validateReachability(graph: FlowGraph): FlowValidationIssue[] {
 
   return graph.nodes
     .filter((node) => !reachableNodeIds.has(node.id))
-    .map((node) => ({
-      id: `${node.id}-unreachable`,
-      message: `El bloque ${nodeTypeNames[node.type]} "${getNodeName(node)}" no es alcanzable desde Inicio. Conéctalo al flujo principal o elimínalo.`,
-    }));
+    .map((node) =>
+      errorIssue(
+        `${node.id}-unreachable`,
+        `El bloque ${nodeTypeNames[node.type]} "${getNodeName(node)}" no es alcanzable desde Inicio. Conéctalo al flujo principal o elimínalo.`,
+      ),
+    );
 }
 
 function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
@@ -432,30 +590,36 @@ function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
         (instruction === "break" || instruction === "continue") &&
         controlFlow?.kind !== instruction
       ) {
-        issues.push({
-          id: `${node.id}-${instruction}-context`,
-          message: `El bloque "${instruction}" debe venir de un ciclo o switch valido para conectarse correctamente.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-${instruction}-context`,
+            `El bloque "${instruction}" debe venir de un ciclo o switch valido para conectarse correctamente.`,
+          ),
+        );
       }
 
       if (
         controlFlow?.kind === "forInit" &&
         !graph.nodeById.has(controlFlow.loopDecisionId)
       ) {
-        issues.push({
-          id: `${node.id}-for-init-target`,
-          message: `El inicializador for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-for-init-target`,
+            `El inicializador for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
+          ),
+        );
       }
 
       if (
         controlFlow?.kind === "forUpdate" &&
         !graph.nodeById.has(controlFlow.loopDecisionId)
       ) {
-        issues.push({
-          id: `${node.id}-for-update-target`,
-          message: `La actualizacion for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-for-update-target`,
+            `La actualizacion for "${getNodeName(node)}" apunta a un ciclo que no existe.`,
+          ),
+        );
       }
     }
 
@@ -471,44 +635,54 @@ function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
 
     if (controlFlow.kind === "for") {
       if (!node.data.config.condition.trim()) {
-        issues.push({
-          id: `${node.id}-for-condition`,
-          message: `El ciclo for "${getNodeName(node)}" necesita una condicion interna valida.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-for-condition`,
+            `El ciclo for "${getNodeName(node)}" necesita una condicion interna valida.`,
+          ),
+        );
       }
 
       if (
         controlFlow.updateNodeId &&
         !graph.nodeById.has(controlFlow.updateNodeId)
       ) {
-        issues.push({
-          id: `${node.id}-for-update`,
-          message: `El ciclo for "${getNodeName(node)}" referencia una actualizacion que no existe.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-for-update`,
+            `El ciclo for "${getNodeName(node)}" referencia una actualizacion que no existe.`,
+          ),
+        );
       }
     }
 
     if (controlFlow.kind === "switch") {
       if (!controlFlow.discriminant.trim()) {
-        issues.push({
-          id: `${node.id}-switch-discriminant`,
-          message: `El switch "${getNodeName(node)}" necesita una expresion a evaluar.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-switch-discriminant`,
+            `El switch "${getNodeName(node)}" necesita una expresion a evaluar.`,
+          ),
+        );
       }
 
       if (controlFlow.cases.length === 0) {
-        issues.push({
-          id: `${node.id}-switch-cases`,
-          message: `El switch "${getNodeName(node)}" debe tener al menos un case o default.`,
-        });
+        issues.push(
+          errorIssue(
+            `${node.id}-switch-cases`,
+            `El switch "${getNodeName(node)}" debe tener al menos un case o default.`,
+          ),
+        );
       }
 
       for (const caseDecisionId of controlFlow.caseDecisionIds) {
         if (!graph.nodeById.has(caseDecisionId)) {
-          issues.push({
-            id: `${node.id}-switch-case-${caseDecisionId}`,
-            message: `El switch "${getNodeName(node)}" referencia un case que no existe.`,
-          });
+          issues.push(
+            errorIssue(
+              `${node.id}-switch-case-${caseDecisionId}`,
+              `El switch "${getNodeName(node)}" referencia un case que no existe.`,
+            ),
+          );
         }
       }
     }
@@ -517,10 +691,12 @@ function validateControlFlowMetadata(graph: FlowGraph): FlowValidationIssue[] {
       controlFlow.kind === "switchCase" &&
       !graph.nodeById.has(controlFlow.switchRootId)
     ) {
-      issues.push({
-        id: `${node.id}-switch-root`,
-        message: `El case "${getNodeName(node)}" apunta a un switch que no existe.`,
-      });
+      issues.push(
+        errorIssue(
+          `${node.id}-switch-root`,
+          `El case "${getNodeName(node)}" apunta a un switch que no existe.`,
+        ),
+      );
     }
   }
 
@@ -537,32 +713,16 @@ function validateFunctionDefinitions(
     const name = flowFunction.name.trim();
 
     if (!name) {
-      issues.push({
-        id: `${flowFunction.id}-function-name`,
-        message: "Todas las funciones deben tener nombre.",
-      });
+      issues.push(
+        errorIssue(
+          `${flowFunction.id}-function-name`,
+          "Todas las funciones deben tener nombre.",
+        ),
+      );
       continue;
     }
 
     names.set(name, (names.get(name) ?? 0) + 1);
-
-    const startCount = flowFunction.nodes.filter(
-      (node) => node.type === "start",
-    ).length;
-
-    if (startCount === 0) {
-      issues.push({
-        id: `${flowFunction.id}-function-start-missing`,
-        message: `La función "${name}" necesita un bloque Inicio.`,
-      });
-    }
-
-    if (startCount > 1) {
-      issues.push({
-        id: `${flowFunction.id}-function-start-multiple`,
-        message: `La función "${name}" debe tener un solo bloque Inicio; hay ${startCount}.`,
-      });
-    }
 
     getFunctionParameterDefinitions(flowFunction).forEach((parameter) => {
       if (!parameter.defaultValue) {
@@ -574,20 +734,24 @@ function validateFunctionDefinitions(
       );
 
       if (!defaultValidation.ok) {
-        issues.push({
-          id: `${flowFunction.id}-parameter-${parameter.name}-default`,
-          message: `El valor por defecto del parametro "${parameter.name}" en "${name}" no es valido: ${defaultValidation.message}`,
-        });
+        issues.push(
+          errorIssue(
+            `${flowFunction.id}-parameter-${parameter.name}-default`,
+            `El valor por defecto del parametro "${parameter.name}" en "${name}" no es valido: ${defaultValidation.message}`,
+          ),
+        );
       }
     });
   }
 
   for (const [name, count] of names) {
     if (count > 1) {
-      issues.push({
-        id: `function-name-${name}`,
-        message: `El nombre de funcion "${name}" esta repetido.`,
-      });
+      issues.push(
+        errorIssue(
+          `function-name-${name}`,
+          `El nombre de funcion "${name}" esta repetido.`,
+        ),
+      );
     }
   }
 
@@ -738,4 +902,8 @@ function getNodeName(node: FlowEditorNode) {
   const label = node.data.label.trim();
 
   return label || `${nodeTypeNames[node.type]} ${node.id}`;
+}
+
+function getFunctionDisplayName(flowFunction: FlowFunctionDefinition) {
+  return flowFunction.name.trim() || "sin nombre";
 }
