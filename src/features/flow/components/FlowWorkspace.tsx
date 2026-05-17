@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addEdge,
   type IsValidConnection,
@@ -9,12 +9,13 @@ import {
 import { FlowEditor } from "@/components/editor/FlowEditor";
 import { flowEdgeComponents } from "@/components/editor/edges";
 import { ExerciseModePanel } from "@/features/exercises/components/ExerciseModePanel";
-import type { ExerciseStarterDiagram } from "@/features/exercises/types";
+import type { Exercise, ExerciseStarterDiagram } from "@/features/exercises/types";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
 import { createFlowEditorNode } from "@/features/flow/flow-node-factory";
 import { validateFlowConnection } from "@/features/flow/flow-validation";
 import { initialFlowNodes } from "@/features/flow/initial-diagram";
+import type { ImportedFlowNode } from "@/features/flow/parser";
 import type {
   FlowFunctionDefinition,
   FlowNodeType,
@@ -34,12 +35,15 @@ import { FlowImportPanel } from "./FlowImportPanel";
 import { FlowInputModal } from "./FlowInputModal";
 import { FlowOutputPanel } from "./FlowOutputPanel";
 import { FlowSidebar } from "./FlowSidebar";
+import { FlowSubmissionPanel } from "./FlowSubmissionPanel";
 import { FlowValidationPanel } from "./FlowValidationPanel";
 import { FlowVariablesPanel } from "./FlowVariablesPanel";
 import { flowNodeComponents } from "./nodes";
 import { FlowNodeRenderProvider } from "./nodes/FlowNodeRenderContext";
 import {
   clearFunctionReferences,
+  getNextFunctionCounter,
+  getNextNodeCounter,
 } from "./workspace/flowWorkspaceSerialization";
 import { useFlowDragPositioning } from "./workspace/useFlowDragPositioning";
 import { useFlowExecution } from "./workspace/useFlowExecution";
@@ -58,10 +62,21 @@ type PendingFlowDialog = FlowDialogRequest & {
   onConfirm: () => void;
 };
 
-export function FlowWorkspace() {
+type FlowWorkspaceProps = {
+  databaseExercises: Exercise[];
+  initialProgram?: FlowProgram;
+  isReviewMode?: boolean;
+};
+
+export function FlowWorkspace({
+  databaseExercises,
+  initialProgram,
+  isReviewMode = false,
+}: FlowWorkspaceProps) {
   const { language, t } = useI18n();
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
+  const hasLoadedInitialProgramRef = useRef(false);
   const loadedExerciseStarterCodeRef = useRef<string | null>(null);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
@@ -160,9 +175,6 @@ export function FlowWorkspace() {
     resetCodeGeneration,
     setCodeGenerationResult,
     setImportCode,
-    setImportMessage,
-    setImportStatus,
-    setImportWarnings,
   } = useFlowImportExport({
     activeDiagramId,
     createEditorNodeFromImport,
@@ -247,7 +259,7 @@ export function FlowWorkspace() {
   const { exerciseCatalog, handleSelectExercise, selectedExercise } =
     useFlowExerciseMode({
       currentProgram,
-      importCode,
+      databaseExercises,
       language,
       loadedExerciseStarterCodeRef,
       loadStarterDiagram,
@@ -255,14 +267,62 @@ export function FlowWorkspace() {
       resetCodeGeneration,
       selectedExerciseId,
       setBlockedConnectionMessage,
-      setImportCode,
-      setImportMessage,
-      setImportStatus,
-      setImportWarnings,
       setIsAutoRunning,
       setSelectedExerciseId,
-      t,
     });
+
+  const loadProgramForReview = useCallback(
+    (program: FlowProgram) => {
+      const reviewMain = {
+        nodes: program.main.nodes.map((node) =>
+          createEditorNodeFromImport(node as ImportedFlowNode),
+        ),
+        edges: program.main.edges,
+      };
+      const reviewFunctions = program.functions.map((flowFunction) => ({
+        ...flowFunction,
+        nodes: flowFunction.nodes.map((node) =>
+          createEditorNodeFromImport(node as ImportedFlowNode),
+        ),
+      }));
+
+      setActiveDiagramId("main");
+      setMainDiagram(reviewMain);
+      setFunctions(reviewFunctions);
+      setNodes(reviewMain.nodes);
+      setEdges(reviewMain.edges);
+      setIsAutoRunning(false);
+      resetExecutionForDiagram("main", t("flow.main"));
+      nextNodeId.current = getNextNodeCounter({
+        main: reviewMain,
+        functions: reviewFunctions,
+      });
+      nextFunctionId.current = getNextFunctionCounter({
+        main: reviewMain,
+        functions: reviewFunctions,
+      });
+    },
+    [
+      createEditorNodeFromImport,
+      resetExecutionForDiagram,
+      setActiveDiagramId,
+      setEdges,
+      setFunctions,
+      setIsAutoRunning,
+      setMainDiagram,
+      setNodes,
+      t,
+    ],
+  );
+
+  useEffect(() => {
+    if (!initialProgram || hasLoadedInitialProgramRef.current) {
+      return;
+    }
+
+    hasLoadedInitialProgramRef.current = true;
+    loadProgramForReview(initialProgram);
+  }, [initialProgram, loadProgramForReview]);
 
   const handleAddNode = useCallback(
     (type: FlowNodeType) => {
@@ -779,6 +839,12 @@ export function FlowWorkspace() {
             onCodeChange={setImportCode}
             onImportCode={handleImportCode}
           />
+          {isReviewMode ? null : (
+            <FlowSubmissionPanel
+              currentProgram={currentProgram}
+              selectedExercise={selectedExercise}
+            />
+          )}
         </div>
 
         <aside className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">

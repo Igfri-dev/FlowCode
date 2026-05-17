@@ -1,10 +1,17 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useI18n } from "@/features/i18n/I18nProvider";
+import type { SessionUser } from "@/lib/auth";
 import logoImage from "../../app/logo.png";
 
-export function AppHeader() {
+type AppHeaderProps = {
+  user: SessionUser;
+  onLogout: () => Promise<void>;
+};
+
+export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const { language, setLanguage, t } = useI18n();
   const nextLanguage = language === "es" ? "en" : "es";
 
@@ -28,16 +35,42 @@ export function AppHeader() {
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          aria-label={t("language.toggle")}
-          title={t("language.toggle")}
-          onClick={() => setLanguage(nextLanguage)}
-          className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
-        >
-          <GlobeIcon />
-          <span>{t(`language.${language}`)}</span>
-        </button>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="hidden max-w-40 truncate text-xs font-semibold text-neutral-600 sm:block">
+            {user.fullName} - {user.role}
+          </span>
+          {user.role === "admin" || user.role === "teacher" ? (
+            <Link
+              href="/admin"
+              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+            >
+              Panel
+            </Link>
+          ) : null}
+          {user.role === "student" ? (
+            <Link
+              href="/student/submissions"
+              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+            >
+              My submissions
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            aria-label={t("language.toggle")}
+            title={t("language.toggle")}
+            onClick={() => setLanguage(nextLanguage)}
+            className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+          >
+            <GlobeIcon />
+            <span>{t(`language.${language}`)}</span>
+          </button>
+          <form action={onLogout}>
+            <button className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );

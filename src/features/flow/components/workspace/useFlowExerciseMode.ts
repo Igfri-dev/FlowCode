@@ -1,48 +1,39 @@
 import { useCallback, useMemo, type RefObject } from "react";
 import { getExercises } from "@/features/exercises/data/exercises";
-import type { ExerciseStarterDiagram } from "@/features/exercises/types";
-import type { useI18n } from "@/features/i18n/I18nProvider";
+import type { Exercise, ExerciseStarterDiagram } from "@/features/exercises/types";
 import type { Language } from "@/features/i18n/translations";
 import type { FlowProgram } from "@/types/flow";
-import type { ImportStatus } from "./useFlowImportExport";
 import { hasDiagramContent } from "./flowWorkspaceSerialization";
 
 export function useFlowExerciseMode({
   currentProgram,
-  importCode,
   language,
   loadedExerciseStarterCodeRef,
   loadStarterDiagram,
+  databaseExercises,
   selectedExerciseId,
   requestReplaceConfirmation,
   resetCodeGeneration,
   setBlockedConnectionMessage,
-  setImportCode,
-  setImportMessage,
-  setImportStatus,
-  setImportWarnings,
   setIsAutoRunning,
   setSelectedExerciseId,
-  t,
 }: {
   currentProgram: FlowProgram;
-  importCode: string;
   language: Language;
   loadedExerciseStarterCodeRef: RefObject<string | null>;
   loadStarterDiagram: (starterDiagram: ExerciseStarterDiagram) => void;
+  databaseExercises: Exercise[];
   requestReplaceConfirmation: (onConfirm: () => void) => void;
   selectedExerciseId: string | null;
   resetCodeGeneration: () => void;
   setBlockedConnectionMessage: (message: string | null) => void;
-  setImportCode: (code: string) => void;
-  setImportMessage: (message: string | null) => void;
-  setImportStatus: (status: ImportStatus) => void;
-  setImportWarnings: (warnings: string[]) => void;
   setIsAutoRunning: (isAutoRunning: boolean) => void;
   setSelectedExerciseId: (exerciseId: string | null) => void;
-  t: ReturnType<typeof useI18n>["t"];
 }) {
-  const exerciseCatalog = useMemo(() => getExercises(language), [language]);
+  const exerciseCatalog = useMemo(
+    () => [...databaseExercises, ...getExercises(language)],
+    [databaseExercises, language],
+  );
   const selectedExercise = useMemo(
     () =>
       exerciseCatalog.find((exercise) => exercise.id === selectedExerciseId) ??
@@ -63,11 +54,6 @@ export function useFlowExerciseMode({
         return;
       }
 
-      const replacesEditedStarterCode =
-        exercise.starterCode !== undefined &&
-        importCode.trim().length > 0 &&
-        importCode !== exercise.starterCode &&
-        importCode !== loadedExerciseStarterCodeRef.current;
       const replacesDiagram =
         exercise.starterDiagram !== undefined &&
         hasDiagramContent(currentProgram);
@@ -78,22 +64,14 @@ export function useFlowExerciseMode({
         setIsAutoRunning(false);
         resetCodeGeneration();
 
-        if (exercise.starterCode !== undefined) {
-          setImportCode(exercise.starterCode);
-          setImportStatus("success");
-          setImportMessage(t("flow.importLoaded"));
-          setImportWarnings([]);
-          loadedExerciseStarterCodeRef.current = exercise.starterCode;
-        } else {
-          loadedExerciseStarterCodeRef.current = null;
-        }
+        loadedExerciseStarterCodeRef.current = null;
 
         if (exercise.starterDiagram) {
           loadStarterDiagram(exercise.starterDiagram);
         }
       };
 
-      if (replacesEditedStarterCode || replacesDiagram) {
+      if (replacesDiagram) {
         requestReplaceConfirmation(applyExerciseSelection);
         return;
       }
@@ -103,20 +81,14 @@ export function useFlowExerciseMode({
     [
       currentProgram,
       exerciseCatalog,
-      importCode,
       loadedExerciseStarterCodeRef,
       loadStarterDiagram,
       requestReplaceConfirmation,
       resetCodeGeneration,
       selectedExerciseId,
       setBlockedConnectionMessage,
-      setImportCode,
-      setImportMessage,
-      setImportStatus,
-      setImportWarnings,
       setIsAutoRunning,
       setSelectedExerciseId,
-      t,
     ],
   );
 
