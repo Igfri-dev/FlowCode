@@ -68,6 +68,44 @@ export function ExerciseModePanel({
             <span className="font-semibold">{t("exercise.objective")} </span>
             {selectedExercise.objective}
           </p>
+          <p className="mt-2 text-xs font-medium text-neutral-600">
+            <span className="font-semibold text-neutral-800">
+              {t("exercise.deadline")} {" "}
+            </span>
+            {selectedExercise.submissionDeadline
+              ? selectedExercise.submissionDeadline.replace("T", " ")
+              : t("exercise.noDeadline")}
+          </p>
+          {selectedExercise.testCases && selectedExercise.testCases.length > 0 ? (
+            <div className="mt-3 rounded-md border border-blue-200 bg-blue-50/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">
+                {t("exercise.expectedOutput")}
+              </p>
+              <div className="mt-2 grid gap-2">
+                {selectedExercise.testCases.map((testCase, index) => (
+                  <div
+                    key={`${testCase.name ?? "case"}-${index}`}
+                    className="rounded border border-blue-100 bg-white px-2.5 py-2 text-xs text-neutral-700"
+                  >
+                    <p className="font-semibold text-neutral-900">
+                      {testCase.name ?? `#${index + 1}`}
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-medium">{t("exercise.testInput")}:</span>{" "}
+                      {testCase.inputs && testCase.inputs.length > 0
+                        ? testCase.inputs.map(formatTestValue).join(", ")
+                        : t("exercise.noInput")}
+                    </p>
+                    <div className="mt-1 whitespace-pre-wrap rounded bg-neutral-950 px-2 py-1.5 font-mono text-[11px] text-white">
+                      {testCase.expectedOutputs.length > 0
+                        ? testCase.expectedOutputs.join("\n")
+                        : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {selectedExercise.tags && selectedExercise.tags.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {selectedExercise.tags.map((tag) => (
@@ -88,4 +126,8 @@ export function ExerciseModePanel({
       )}
     </section>
   );
+}
+
+function formatTestValue(value: unknown) {
+  return typeof value === "string" ? value : JSON.stringify(value);
 }

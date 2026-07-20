@@ -30,10 +30,21 @@ export function useFlowExerciseMode({
   setIsAutoRunning: (isAutoRunning: boolean) => void;
   setSelectedExerciseId: (exerciseId: string | null) => void;
 }) {
-  const exerciseCatalog = useMemo(
-    () => [...databaseExercises, ...getExercises(language)],
-    [databaseExercises, language],
-  );
+  const exerciseCatalog = useMemo(() => {
+    const managedSourceIds = new Set(
+      databaseExercises
+        .map((exercise) => exercise.sourceId)
+        .filter((sourceId): sourceId is string => Boolean(sourceId)),
+    );
+    const activeDatabaseExercises = databaseExercises.filter(
+      (exercise) => !exercise.isHidden,
+    );
+    const untouchedBuiltIns = getExercises(language).filter(
+      (exercise) => !managedSourceIds.has(exercise.id),
+    );
+
+    return [...activeDatabaseExercises, ...untouchedBuiltIns];
+  }, [databaseExercises, language]);
   const selectedExercise = useMemo(
     () =>
       exerciseCatalog.find((exercise) => exercise.id === selectedExerciseId) ??

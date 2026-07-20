@@ -55,7 +55,17 @@ export function StudentSubmissionsClient({
                       </span>
                     </td>
                     <td className={tableCellClassName}>
-                      {submission.submittedAt}
+                      <span className="block">Submitted {submission.submittedAt}</span>
+                      {submission.updatedAt !== submission.submittedAt ? (
+                        <span className="mt-1 block text-xs text-neutral-500">
+                          Last correction {submission.updatedAt}
+                        </span>
+                      ) : null}
+                      <span className="mt-1 block text-xs text-neutral-500">
+                        {submission.submissionDeadline
+                          ? `Deadline ${submission.submissionDeadline.replace("T", " ")}`
+                          : "No deadline"}
+                      </span>
                     </td>
                     <td className={tableCellClassName}>
                       <StatusBadge status={submission.status} />
@@ -66,6 +76,26 @@ export function StudentSubmissionsClient({
                             ? "Tests passed"
                             : "Tests failed"}
                       </span>
+                      {submission.feedback ? (
+                        <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-950">
+                          <span className="block font-semibold">Teacher corrections</span>
+                          <span className="mt-1 block whitespace-pre-wrap">
+                            {submission.feedback}
+                          </span>
+                        </div>
+                      ) : null}
+                      {submission.canEdit ? (
+                        <Link
+                          href={`/student/submissions/${submission.id}/edit`}
+                          className="mt-3 inline-flex rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+                        >
+                          Edit and correct
+                        </Link>
+                      ) : (
+                        <span className="mt-3 inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-500">
+                          Locked after deadline
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

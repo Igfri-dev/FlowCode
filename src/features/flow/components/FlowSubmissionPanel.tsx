@@ -1,18 +1,28 @@
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Exercise } from "@/features/exercises/types";
 import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { FlowProgram } from "@/types/flow";
 
 type FlowSubmissionPanelProps = {
   currentProgram: FlowProgram;
+  editingSubmission?: {
+    id: number;
+    title: string;
+    submissionDeadline: string | null;
+  };
   selectedExercise: Exercise | null;
 };
 
 export function FlowSubmissionPanel({
   currentProgram,
+  editingSubmission,
   selectedExercise,
 }: FlowSubmissionPanelProps) {
-  const [title, setTitle] = useState("");
+  const { language } = useI18n();
+  const router = useRouter();
+  const [title, setTitle] = useState(editingSubmission?.title ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,26 +42,44 @@ export function FlowSubmissionPanel({
     });
 
     try {
-      const response = await fetch("/api/submissions", {
-        method: "POST",
+      const response = await fetch(
+        editingSubmission
+          ? `/api/submissions/${editingSubmission.id}`
+          : "/api/submissions",
+        {
+        method: editingSubmission ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           code: generatedCode.code,
           exerciseId: selectedExercise?.id ?? null,
+          exerciseKey:
+            selectedExercise?.sourceId ?? selectedExercise?.id ?? null,
+          exerciseLanguage: language,
+          exerciseTitle: selectedExercise?.title ?? null,
           program: currentProgram,
           title: title.trim() || defaultTitle,
         }),
-      });
+        },
+      );
 
       if (!response.ok) {
-        throw new Error("Submission failed.");
+        const result = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        throw new Error(result?.message ?? "Submission failed.");
       }
 
       setStatus("success");
-      setMessage("Work submitted.");
-      setTitle("");
+      setMessage(editingSubmission ? "Submission updated." : "Work submitted.");
+
+      if (editingSubmission) {
+        router.push("/student/submissions");
+        router.refresh();
+      } else {
+        setTitle("");
+      }
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Submission failed.");
@@ -65,11 +93,18 @@ export function FlowSubmissionPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-neutral-950">
-            Submit work
+            {editingSubmission ? "Update submission" : "Submit work"}
           </h2>
           <p className="mt-1 text-sm text-neutral-600">
-            Send the current diagram and generated JavaScript to your teacher.
+            {editingSubmission
+              ? "Save the corrected diagram. Its tests will run again and it will return to review."
+              : "Send the current diagram and generated JavaScript to your teacher."}
           </p>
+          {editingSubmission?.submissionDeadline ? (
+            <p className="mt-1 text-xs font-semibold text-amber-800">
+              Editable until {editingSubmission.submissionDeadline.replace("T", " ")}
+            </p>
+          ) : null}
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -83,7 +118,13 @@ export function FlowSubmissionPanel({
           disabled={isSubmitting}
           className="rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? "Submitting..." : "Submit"}
+          {isSubmitting
+            ? editingSubmission
+              ? "Saving..."
+              : "Submitting..."
+            : editingSubmission
+              ? "Save correction"
+              : "Submit"}
         </button>
       </div>
 

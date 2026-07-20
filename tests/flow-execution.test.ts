@@ -10,6 +10,7 @@ import {
 } from "@/features/flow/execution";
 import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
 import { getExercises } from "@/features/exercises/data/exercises";
+import { runFlowProgramTests } from "@/lib/flow-test-runner";
 import { validateFlowDiagram } from "@/features/flow/flow-validation";
 import { importJavaScriptToFlow } from "@/features/flow/parser";
 
@@ -205,6 +206,50 @@ describe("JavaScript import parser", () => {
         true,
         result.ok ? "" : `${exercise.language}/${exercise.id}: ${result.message}`,
       );
+    }
+  });
+
+  it("gives every built-in exercise passing automatic tests", () => {
+    for (const language of ["es", "en"] as const) {
+      for (const exercise of getExercises(language)) {
+        assert.ok(
+          exercise.testCases?.length,
+          `${language}/${exercise.id}: missing automatic tests`,
+        );
+        assert.ok(
+          exercise.starterCode,
+          `${language}/${exercise.id}: missing starter code`,
+        );
+
+        const imported = importJavaScriptToFlow(exercise.starterCode);
+
+        if (!imported.ok) {
+          assert.fail(`${language}/${exercise.id}: ${imported.message}`);
+        }
+
+        const result = runFlowProgramTests({
+          program: {
+            main: {
+              nodes: imported.nodes,
+              edges: imported.edges,
+            },
+            functions: imported.functions,
+          },
+          testCases: exercise.testCases,
+        });
+
+        assert.equal(
+          result.passed,
+          true,
+          `${language}/${exercise.id}: ${result.cases
+            .filter((testCase) => !testCase.passed)
+            .map(
+              (testCase) =>
+                `${testCase.name} expected ${JSON.stringify(testCase.expectedOutputs)} but received ${JSON.stringify(testCase.actualOutputs)} (${testCase.message})`,
+            )
+            .join("; ")}`,
+        );
+      }
     }
   });
 

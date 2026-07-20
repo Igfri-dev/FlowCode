@@ -1,4 +1,5 @@
 import type { Exercise } from "@/features/exercises/types";
+import type { ExerciseTestCase } from "@/lib/flow-test-runner";
 import {
   translations,
   type Language,
@@ -319,6 +320,76 @@ switch (status) {
   },
 };
 
+const localizedTestCases: Partial<
+  Record<Language, Record<string, ExerciseTestCase[]>>
+> = {
+  en: {
+    "even-number": [
+      {
+        name: "Classifies the defined number",
+        expectedOutputs: ["The number is even"],
+      },
+    ],
+    "sum-1-to-n": [
+      {
+        name: "Adds the numbers from 1 through 5",
+        expectedOutputs: ["The sum is 15"],
+      },
+    ],
+    "positive-negative-zero": [
+      {
+        name: "Positive number",
+        inputs: [8],
+        expectedOutputs: ["Positive"],
+      },
+      {
+        name: "Negative number",
+        inputs: [-3],
+        expectedOutputs: ["Negative"],
+      },
+      {
+        name: "Zero",
+        inputs: [0],
+        expectedOutputs: ["Zero"],
+      },
+    ],
+    "access-attempts": [
+      {
+        name: "Allows access on the third attempt",
+        expectedOutputs: [
+          "Attempt 1 failed",
+          "Attempt 2 failed",
+          "Access granted",
+        ],
+      },
+    ],
+    "normalize-user-profile": [
+      {
+        name: "Cleans and normalizes the profile",
+        expectedOutputs: ["User Ana - ADMIN"],
+      },
+    ],
+    "prime-number-function": [
+      {
+        name: "Recognizes the defined prime number",
+        expectedOutputs: ["29 is prime"],
+      },
+    ],
+    "grade-report": [
+      {
+        name: "Calculates and classifies the average",
+        expectedOutputs: ["Average 5.5: reinforce"],
+      },
+    ],
+    "atm-with-validations": [
+      {
+        name: "Approves the withdrawal and updates the balance",
+        expectedOutputs: ["Withdrawal approved. Balance: 32000"],
+      },
+    ],
+  },
+};
+
 const exercises = [
   {
     id: "count-1-to-5",
@@ -333,6 +404,12 @@ while (i <= 5) {
   console.log(i);
   i++;
 }`,
+    testCases: [
+      {
+        name: "Muestra la secuencia completa",
+        expectedOutputs: ["1", "2", "3", "4", "5"],
+      },
+    ],
     tags: ["variables", "ciclo", "salida"],
   },
   {
@@ -349,6 +426,12 @@ if (numero % 2 === 0) {
 } else {
   console.log("El numero es impar");
 }`,
+    testCases: [
+      {
+        name: "Clasifica el numero definido",
+        expectedOutputs: ["El numero es par"],
+      },
+    ],
     tags: ["if", "modulo", "variables"],
   },
   {
@@ -367,6 +450,12 @@ while (i <= n) {
   i++;
 }
 console.log("La suma es " + suma);`,
+    testCases: [
+      {
+        name: "Suma desde 1 hasta 5",
+        expectedOutputs: ["La suma es 15"],
+      },
+    ],
     tags: ["ciclo", "acumulador", "variables"],
   },
   {
@@ -398,6 +487,23 @@ async function main() {
 }
 
 main();`,
+    testCases: [
+      {
+        name: "Numero positivo",
+        inputs: [8],
+        expectedOutputs: ["Positivo"],
+      },
+      {
+        name: "Numero negativo",
+        inputs: [-3],
+        expectedOutputs: ["Negativo"],
+      },
+      {
+        name: "Numero cero",
+        inputs: [0],
+        expectedOutputs: ["Cero"],
+      },
+    ],
     tags: ["entrada", "if", "comparaciones"],
   },
   {
@@ -412,6 +518,23 @@ main();`,
 for (let i = 1; i <= 10; i++) {
   console.log(\`\${numero} x \${i} = \${numero * i}\`);
 }`,
+    testCases: [
+      {
+        name: "Tabla completa del 7",
+        expectedOutputs: [
+          "7 x 1 = 7",
+          "7 x 2 = 14",
+          "7 x 3 = 21",
+          "7 x 4 = 28",
+          "7 x 5 = 35",
+          "7 x 6 = 42",
+          "7 x 7 = 49",
+          "7 x 8 = 56",
+          "7 x 9 = 63",
+          "7 x 10 = 70",
+        ],
+      },
+    ],
     tags: ["for", "template", "salida"],
   },
   {
@@ -442,6 +565,12 @@ switch (operacion) {
   default:
     console.log("Operacion no valida");
 }`,
+    testCases: [
+      {
+        name: "Ejecuta la multiplicacion seleccionada",
+        expectedOutputs: ["48"],
+      },
+    ],
     tags: ["switch", "break", "operadores"],
   },
   {
@@ -471,6 +600,16 @@ do {
 if (!acceso) {
   console.log("Cuenta bloqueada");
 }`,
+    testCases: [
+      {
+        name: "Permite acceso en el tercer intento",
+        expectedOutputs: [
+          "Intento 1 fallido",
+          "Intento 2 fallido",
+          "Acceso permitido",
+        ],
+      },
+    ],
     tags: ["do while", "booleano", "ternario"],
   },
   {
@@ -491,6 +630,12 @@ if (!acceso) {
 let nombreLimpio = usuario.nombre.trim();
 let nivel = usuario.perfil?.nivel ?? "invitado";
 console.log("Usuario " + nombreLimpio + " - " + nivel.toUpperCase());`,
+    testCases: [
+      {
+        name: "Limpia y normaliza el perfil",
+        expectedOutputs: ["Usuario Ana - ADMIN"],
+      },
+    ],
     tags: ["objetos", "optional chaining", "texto"],
   },
   {
@@ -527,6 +672,12 @@ let envio = calcularEnvio(pedido.kilos, pedido.zona);
 let descuento = pedido.subtotal * pedido.cupon;
 let total = pedido.subtotal + envio - descuento;
 console.log("Total: " + Math.round(total));`,
+    testCases: [
+      {
+        name: "Calcula envio, descuento y total",
+        expectedOutputs: ["Total: 43000"],
+      },
+    ],
     tags: ["funciones", "switch", "Math"],
   },
   {
@@ -559,6 +710,12 @@ if (primo) {
 } else {
   console.log(numero + " no es primo");
 }`,
+    testCases: [
+      {
+        name: "Reconoce el numero primo definido",
+        expectedOutputs: ["29 es primo"],
+      },
+    ],
     tags: ["funciones", "for", "return"],
   },
   {
@@ -605,6 +762,12 @@ switch (categoria) {
   default:
     console.log("Promedio " + promedio + ": plan de apoyo");
 }`,
+    testCases: [
+      {
+        name: "Calcula y clasifica el promedio",
+        expectedOutputs: ["Promedio 5.5: reforzar"],
+      },
+    ],
     tags: ["arreglos", "funciones", "switch"],
   },
   {
@@ -649,6 +812,12 @@ switch (estado) {
   default:
     console.log("Monto invalido");
 }`,
+    testCases: [
+      {
+        name: "Aprueba el retiro y actualiza el saldo",
+        expectedOutputs: ["Retiro aprobado. Saldo: 32000"],
+      },
+    ],
     tags: ["funciones", "validacion", "switch"],
   },
 ] satisfies Exercise[];
@@ -671,6 +840,8 @@ export function getExercises(language: Language = "es"): Exercise[] {
       objective: textSet[textKeys.objective],
       starterCode:
         localizedStarterCode[language]?.[exercise.id] ?? exercise.starterCode,
+      testCases:
+        localizedTestCases[language]?.[exercise.id] ?? exercise.testCases,
       tags:
         language === "en"
           ? exercise.tags?.map((tag) => englishTags[tag] ?? tag)

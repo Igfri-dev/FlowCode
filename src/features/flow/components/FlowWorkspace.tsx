@@ -64,12 +64,20 @@ type PendingFlowDialog = FlowDialogRequest & {
 
 type FlowWorkspaceProps = {
   databaseExercises: Exercise[];
+  editingSubmission?: {
+    id: number;
+    title: string;
+    submissionDeadline: string | null;
+  };
+  initialExerciseId?: string | null;
   initialProgram?: FlowProgram;
   isReviewMode?: boolean;
 };
 
 export function FlowWorkspace({
   databaseExercises,
+  editingSubmission,
+  initialExerciseId,
   initialProgram,
   isReviewMode = false,
 }: FlowWorkspaceProps) {
@@ -84,7 +92,7 @@ export function FlowWorkspace({
   const [dialogRequest, setDialogRequest] =
     useState<PendingFlowDialog | null>(null);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
-    null,
+    initialExerciseId ?? null,
   );
   const {
     activeDiagramId,
@@ -842,6 +850,7 @@ export function FlowWorkspace({
           {isReviewMode ? null : (
             <FlowSubmissionPanel
               currentProgram={currentProgram}
+              editingSubmission={editingSubmission}
               selectedExercise={selectedExercise}
             />
           )}
