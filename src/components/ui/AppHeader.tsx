@@ -38,7 +38,17 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
         <div className="flex min-w-0 items-center gap-2">
           <span className="hidden max-w-40 truncate text-xs font-semibold text-neutral-600 sm:block">
             {user.fullName} - {user.role}
+            {user.organizationName ? ` · ${user.organizationName}` : ""}
           </span>
+          {user.email && !user.emailVerified ? (
+            <Link
+              href={`/resend-verification?email=${encodeURIComponent(user.email)}`}
+              title="Verifica tu correo para habilitar una recuperación de contraseña segura"
+              className="hidden rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 transition hover:bg-amber-100 lg:inline-flex"
+            >
+              Verificar correo
+            </Link>
+          ) : null}
           {user.role === "admin" || user.role === "teacher" ? (
             <Link
               href="/admin"
@@ -53,6 +63,14 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
               className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
             >
               My submissions
+            </Link>
+          ) : null}
+          {user.role === "independent" ? (
+            <Link
+              href="/projects"
+              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+            >
+              Mis proyectos
             </Link>
           ) : null}
           <button

@@ -5,7 +5,7 @@ import { AdminSubmissionsPage } from "../AdminPagesClient";
 
 export default async function AdminSubmissionsRoute() {
   const user = await requireTeacherOrAdmin();
-  const submissions = await listAdminSubmissions();
+  const submissions = await listAdminSubmissions(user);
 
   return (
     <I18nProvider>

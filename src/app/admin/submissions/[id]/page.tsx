@@ -25,7 +25,7 @@ export default async function SubmissionReviewPage({
     notFound();
   }
 
-  const submission = await getSubmissionReview(submissionId);
+  const submission = await getSubmissionReview(submissionId, user);
 
   if (!submission) {
     notFound();
@@ -70,6 +70,9 @@ export default async function SubmissionReviewPage({
             </MetadataPill>
             <MetadataPill label="Exercise">
               {submission.exerciseTitle ?? "Free submission"}
+            </MetadataPill>
+            <MetadataPill label="Organization">
+              {submission.organizationName ?? "Unassigned"}
             </MetadataPill>
             <MetadataPill label="Submitted">{submission.submittedAt}</MetadataPill>
             <span

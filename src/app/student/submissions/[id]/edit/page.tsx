@@ -30,7 +30,11 @@ export default async function EditSubmissionPage({
     notFound();
   }
 
-  const submission = await getStudentEditableSubmission(submissionId, user.id);
+  const submission = await getStudentEditableSubmission(
+    submissionId,
+    user.id,
+    user.organizationId,
+  );
 
   if (!submission) {
     notFound();
@@ -61,7 +65,7 @@ export default async function EditSubmissionPage({
     );
   }
 
-  const databaseExercises = await listDatabaseExercises();
+  const databaseExercises = await listDatabaseExercises(user.organizationId);
 
   return (
     <I18nProvider>

@@ -17,11 +17,13 @@ type ExerciseTestRow = RowDataPacket & {
 export async function getSubmissionTestResult({
   exerciseId,
   exerciseKey,
+  organizationId,
   language,
   program,
 }: {
   exerciseId: number | null;
   exerciseKey: string | null;
+  organizationId: number | null;
   language: Language;
   program: FlowProgram;
 }) {
@@ -34,8 +36,9 @@ export async function getSubmissionTestResult({
       `SELECT source_key, test_cases
        FROM exercises
        WHERE id = :exerciseId
+         AND (organization_id IS NULL OR organization_id = :organizationId)
        LIMIT 1`,
-      { exerciseId },
+      { exerciseId, organizationId },
     );
     row = rows[0];
   } else if (sourceId) {
@@ -43,8 +46,9 @@ export async function getSubmissionTestResult({
       `SELECT source_key, test_cases
        FROM exercises
        WHERE source_key = :sourceId
+         AND organization_id IS NULL
        LIMIT 1`,
-      { sourceId },
+      { organizationId, sourceId },
     );
     row = rows[0];
   }

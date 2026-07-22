@@ -10,7 +10,10 @@ export default async function StudentSubmissionsPage() {
     redirect("/admin/submissions");
   }
 
-  const submissions = await listStudentSubmissions(user.id);
+  const submissions = await listStudentSubmissions(
+    user.id,
+    user.organizationId,
+  );
 
   return <StudentSubmissionsClient submissions={submissions} user={user} />;
 }

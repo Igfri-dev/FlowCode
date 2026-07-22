@@ -3,7 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Background,
   BackgroundVariant,
@@ -14,10 +20,22 @@ import {
 import { logoutAction } from "@/app/actions/auth";
 import {
   createExerciseAction,
+  createOrganizationAction,
   createUserAction,
+  createUserGroupAction,
+  bulkCreateUsersAction,
   deleteExerciseAction,
+  deleteUserAction,
+  deleteUserGroupAction,
+  deleteUserGroupWithUsersAction,
+  manageSelectedUsersAction,
+  retryPendingEmailsAction,
   updateExerciseAction,
   updateSubmissionReviewAction,
+  updateUserEmailAction,
+  updateUserOrganizationAction,
+  type UserCreationState,
+  type UserManagementState,
 } from "@/app/admin/actions";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import { flowEdgeComponents } from "@/components/editor/edges";
@@ -26,8 +44,10 @@ import { FlowNodeRenderProvider } from "@/features/flow/components/nodes/FlowNod
 import type { SessionUser } from "@/lib/auth";
 import type {
   AdminExercise,
+  AdminOrganization,
   AdminSubmission,
   AdminUser,
+  AdminUserGroup,
 } from "@/lib/admin-data";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
 import logoImage from "../logo.png";
@@ -38,12 +58,19 @@ type AdminChromeProps = {
 };
 
 type AdminUsersPageProps = {
+  groups: AdminUserGroup[];
+  organizations: AdminOrganization[];
   user: SessionUser;
   users: AdminUser[];
 };
 
 type AdminExercisesPageProps = {
   exercises: AdminExercise[];
+  user: SessionUser;
+};
+
+type AdminOrganizationsPageProps = {
+  organizations: AdminOrganization[];
   user: SessionUser;
 };
 
@@ -60,9 +87,31 @@ const copy = {
     openEditor: "Abrir editor",
     signOut: "Cerrar sesion",
     createUser: "Crear usuario",
+    createOrganization: "Crear organizacion",
+    organizationName: "Nombre de la organizacion",
+    organization: "Organizacion",
+    organizations: "Organizaciones",
+    organizationsHelp:
+      "Crea espacios independientes para profesores, alumnos, ejercicios y entregas.",
+    assignOrganization: "Asignar",
+    selectOrganization: "Selecciona una organizacion",
+    teachers: "Profesores",
+    students: "Alumnos",
+    adminGlobalAccess: "Los administradores tienen acceso global.",
     fullName: "Nombre completo",
     username: "Usuario",
     password: "Contrasena",
+    email: "Correo electronico",
+    passwordOptional: "Contraseña inicial (opcional)",
+    passwordHelp:
+      "Si queda vacía, el servidor generará una contraseña temporal. En ambos casos deberá cambiarse al primer inicio.",
+    bulkUsers: "Carga masiva por CSV",
+    bulkUsersHelp:
+      "Columnas: nombre, usuario, contraseña, correo, tipo_de_usuario y organizacion.",
+    selectCsv: "Seleccionar archivo CSV",
+    uploadCsv: "Crear usuarios del CSV",
+    downloadTemplate: "Descargar plantilla",
+    retryEmails: "Reintentar correos pendientes",
     createExercise: "Crear ejercicio",
     newExercise: "Nuevo ejercicio",
     editExercise: "Editar ejercicio",
@@ -85,12 +134,19 @@ const copy = {
     users: "Usuarios",
     usersHelp: "Gestiona las cuentas de alumnos, profesores y administradores.",
     exercises: "Ejercicios",
-    exercisesHelp: "Crea desafios que apareceran en el modo ejercicios.",
+    exercisesHelp:
+      "El catálogo de la plataforma es global; los ejercicios de profesores pertenecen solo a su organización.",
+    globalCatalog: "Catálogo global de la plataforma",
+    globalExerciseHelp:
+      "Este ejercicio estará disponible para todas las organizaciones sin crear copias.",
+    organizationExerciseHelp:
+      "Este ejercicio será privado para los alumnos y profesores de esta organización.",
     submissions: "Entregas",
     submissionsHelp: "Revisa diagramas enviados y ejecutalos para evaluarlos.",
     search: "Buscar por alumno, ejercicio o entrega",
     searchExercises: "Buscar ejercicios",
     allStudents: "Todos los alumnos",
+    allOrganizations: "Todas las organizaciones",
     allExercises: "Todos los ejercicios",
     allStatuses: "Todos los estados",
     allTestResults: "Todos los tests",
@@ -131,9 +187,31 @@ const copy = {
     openEditor: "Open editor",
     signOut: "Sign out",
     createUser: "Create user",
+    createOrganization: "Create organization",
+    organizationName: "Organization name",
+    organization: "Organization",
+    organizations: "Organizations",
+    organizationsHelp:
+      "Create isolated spaces for teachers, students, exercises, and submissions.",
+    assignOrganization: "Assign",
+    selectOrganization: "Select an organization",
+    teachers: "Teachers",
+    students: "Students",
+    adminGlobalAccess: "Administrators have global access.",
     fullName: "Full name",
     username: "Username",
     password: "Password",
+    email: "Email",
+    passwordOptional: "Initial password (optional)",
+    passwordHelp:
+      "If empty, the server generates a temporary password. It must always be changed on first sign-in.",
+    bulkUsers: "Bulk CSV upload",
+    bulkUsersHelp:
+      "Columns: nombre, usuario, contraseña, correo, tipo_de_usuario, and organizacion.",
+    selectCsv: "Select CSV file",
+    uploadCsv: "Create CSV users",
+    downloadTemplate: "Download template",
+    retryEmails: "Retry pending emails",
     createExercise: "Create exercise",
     newExercise: "New exercise",
     editExercise: "Edit exercise",
@@ -156,12 +234,19 @@ const copy = {
     users: "Users",
     usersHelp: "Manage student, teacher, and administrator accounts.",
     exercises: "Exercises",
-    exercisesHelp: "Create challenges that appear in exercise mode.",
+    exercisesHelp:
+      "The platform catalog is global; teacher exercises only belong to their organization.",
+    globalCatalog: "Global platform catalog",
+    globalExerciseHelp:
+      "This exercise will be available to every organization without creating copies.",
+    organizationExerciseHelp:
+      "This exercise is private to the students and teachers in this organization.",
     submissions: "Submissions",
     submissionsHelp: "Review submitted diagrams and run them for evaluation.",
     search: "Search by student, exercise, or submission",
     searchExercises: "Search exercises",
     allStudents: "All students",
+    allOrganizations: "All organizations",
     allExercises: "All exercises",
     allStatuses: "All statuses",
     allTestResults: "All test results",
@@ -197,17 +282,298 @@ const copy = {
   },
 } as const;
 
-export function AdminUsersPage({ user, users }: AdminUsersPageProps) {
+export function AdminUsersPage({
+  groups,
+  organizations,
+  user,
+  users,
+}: AdminUsersPageProps) {
   const { language } = useI18n();
   const text = copy[language];
+  const ui =
+    language === "es"
+      ? {
+          active: "Activo",
+          activate: "Activar",
+          addToGroup: "Añadir al grupo",
+          administrators: "Administradores",
+          allGroups: "Todos los grupos",
+          allRoles: "Todos los roles",
+          course: "Curso",
+          createGroup: "Crear grupo",
+          custom: "Personalizado",
+          deactivate: "Desactivar",
+          delete: "Eliminar",
+          deleteGroup: "Eliminar grupo",
+          deleteGroupAndUsers: "Eliminar grupo y usuarios",
+          deleteGroupConfirm:
+            "¿Eliminar solo este grupo? Las cuentas de usuario se conservarán.",
+          deleteGroupUsersConfirm:
+            "¿Eliminar este grupo Y todas sus cuentas de usuario? También se borrarán sus sesiones, proyectos y entregas. Esta acción no se puede deshacer.",
+          deleteSelectedConfirm:
+            "¿Eliminar definitivamente las cuentas seleccionadas? También se borrarán sus sesiones, proyectos y entregas.",
+          deleteUserConfirm:
+            "¿Eliminar definitivamente esta cuenta y todos sus datos asociados?",
+          filterUsers: "Buscar por nombre, usuario o correo",
+          global: "Global",
+          group: "Grupo",
+          groupName: "Nombre del grupo",
+          groups: "Grupos de usuarios",
+          groupsHelp:
+            "Crea cursos, conjuntos por organización o grupos personalizados y administra sus miembros con la selección múltiple.",
+          inactive: "Inactivo",
+          members: "miembros",
+          organizationGroup: "Organización",
+          removeFromGroup: "Quitar del grupo",
+          selectAll: "Seleccionar visibles",
+          selected: "seleccionados",
+          selectMembers: "Seleccionar miembros",
+          status: "Estado",
+        }
+      : {
+          active: "Active",
+          activate: "Activate",
+          addToGroup: "Add to group",
+          administrators: "Administrators",
+          allGroups: "All groups",
+          allRoles: "All roles",
+          course: "Course",
+          createGroup: "Create group",
+          custom: "Custom",
+          deactivate: "Deactivate",
+          delete: "Delete",
+          deleteGroup: "Delete group",
+          deleteGroupAndUsers: "Delete group and users",
+          deleteGroupConfirm:
+            "Delete only this group? User accounts will be preserved.",
+          deleteGroupUsersConfirm:
+            "Delete this group AND all its user accounts? Their sessions, projects, and submissions will also be deleted. This cannot be undone.",
+          deleteSelectedConfirm:
+            "Permanently delete the selected accounts? Their sessions, projects, and submissions will also be deleted.",
+          deleteUserConfirm:
+            "Permanently delete this account and all associated data?",
+          filterUsers: "Search by name, username, or email",
+          global: "Global",
+          group: "Group",
+          groupName: "Group name",
+          groups: "User groups",
+          groupsHelp:
+            "Create courses, organization sets, or custom groups and manage membership with multi-selection.",
+          inactive: "Inactive",
+          members: "members",
+          organizationGroup: "Organization",
+          removeFromGroup: "Remove from group",
+          selectAll: "Select visible",
+          selected: "selected",
+          selectMembers: "Select members",
+          status: "Status",
+        };
+  const [newUserRole, setNewUserRole] = useState("student");
+  const [newGroupType, setNewGroupType] = useState("course");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [createState, createAction, createPending] = useActionState(
+    createUserAction,
+    {} as UserCreationState,
+  );
+  const [bulkState, bulkAction, bulkPending] = useActionState(
+    bulkCreateUsersAction,
+    {} as UserCreationState,
+  );
+  const [groupState, groupAction, groupPending] = useActionState(
+    createUserGroupAction,
+    {} as UserManagementState,
+  );
+  const [managementState, managementAction, managementPending] =
+    useActionState(
+      manageSelectedUsersAction,
+      {} as UserManagementState,
+    );
+  const csvTemplate = encodeURIComponent(
+    "nombre,usuario,contraseña,correo,tipo_de_usuario,organizacion\nAna Pérez,ana.perez,,ana@example.com,student,Mi organización\n",
+  );
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const filteredUsers = useMemo(() => {
+    const selectedGroup =
+      groupFilter === "all"
+        ? null
+        : (groups.find((group) => group.id === Number(groupFilter)) ?? null);
+
+    return users.filter((item) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        item.fullName.toLocaleLowerCase().includes(normalizedQuery) ||
+        item.username.toLocaleLowerCase().includes(normalizedQuery) ||
+        (item.email ?? "").toLocaleLowerCase().includes(normalizedQuery);
+      const matchesRole = roleFilter === "all" || item.role === roleFilter;
+      const matchesGroup =
+        selectedGroup === null || selectedGroup.memberIds.includes(item.id);
+
+      return matchesQuery && matchesRole && matchesGroup;
+    });
+  }, [groupFilter, groups, normalizedQuery, roleFilter, users]);
+  const selectableVisibleIds = filteredUsers
+    .filter((item) => item.id !== user.id)
+    .map((item) => item.id);
+  const allVisibleSelected =
+    selectableVisibleIds.length > 0 &&
+    selectableVisibleIds.every((id) => selectedIds.includes(id));
+  const activeSelectedIds = selectedIds.filter((id) =>
+    users.some((item) => item.id === id && item.id !== user.id),
+  );
+  const selectedUserIds = activeSelectedIds.join(",");
+
+  function toggleUser(userId: number) {
+    setSelectedIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId],
+    );
+  }
+
+  function toggleVisibleUsers() {
+    setSelectedIds((current) =>
+      allVisibleSelected
+        ? current.filter((id) => !selectableVisibleIds.includes(id))
+        : Array.from(new Set([...current, ...selectableVisibleIds])),
+    );
+  }
 
   return (
     <AdminChrome user={user}>
       <PageHeader count={users.length} help={text.usersHelp} title={text.users} />
-      <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className={panelClassName}>
+      <section className={`${panelClassName} mb-4`}>
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div className="max-w-xl">
+            <PanelTitle>{ui.groups}</PanelTitle>
+            <p className="mt-2 text-sm leading-6 text-neutral-600">{ui.groupsHelp}</p>
+          </div>
+          <form
+            action={groupAction}
+            className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[minmax(160px,1fr)_150px_minmax(170px,1fr)_auto]"
+          >
+            <input
+              className={inputClassName}
+              name="name"
+              placeholder={ui.groupName}
+              required
+            />
+            <select
+              className={inputClassName}
+              name="type"
+              value={newGroupType}
+              onChange={(event) => setNewGroupType(event.target.value)}
+            >
+              <option value="course">{ui.course}</option>
+              <option value="custom">{ui.custom}</option>
+              {user.role === "admin" ? (
+                <>
+                  <option value="organization">{ui.organizationGroup}</option>
+                  <option value="administrators">{ui.administrators}</option>
+                </>
+              ) : null}
+            </select>
+            {user.role === "admin" && newGroupType !== "administrators" ? (
+              <select
+                className={inputClassName}
+                name="organizationId"
+                defaultValue=""
+              >
+                <option value="">
+                  {newGroupType === "custom" ? ui.global : text.selectOrganization}
+                </option>
+                {organizations
+                  .filter((organization) => organization.isActive)
+                  .map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <input name="organizationId" type="hidden" value="" />
+            )}
+            <button className={primaryButtonClassName} disabled={groupPending}>
+              {groupPending ? "…" : ui.createGroup}
+            </button>
+            <div className="sm:col-span-2 lg:col-span-4">
+              <CreationMessage state={groupState} />
+            </div>
+          </form>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          {groups.map((group) => (
+            <article
+              key={group.id}
+              className="rounded-lg border border-neutral-200 bg-neutral-50/70 p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold text-neutral-950">{group.name}</h3>
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    {groupTypeLabel(group.type, ui)} · {group.organizationName ?? ui.global}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-neutral-600 shadow-sm ring-1 ring-neutral-200">
+                  {group.memberCount} {ui.members}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedIds(
+                      group.memberIds.filter((memberId) => memberId !== user.id),
+                    );
+                    setGroupFilter(String(group.id));
+                  }}
+                >
+                  {ui.selectMembers}
+                </button>
+                <form
+                  action={deleteUserGroupAction}
+                  onSubmit={(event) => {
+                    if (!window.confirm(ui.deleteGroupConfirm)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <input name="groupId" type="hidden" value={group.id} />
+                  <button className={`${dangerButtonClassName} px-2.5 py-1.5 text-xs`}>
+                    {ui.deleteGroup}
+                  </button>
+                </form>
+                <form
+                  action={deleteUserGroupWithUsersAction}
+                  onSubmit={(event) => {
+                    if (!window.confirm(ui.deleteGroupUsersConfirm)) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <input name="groupId" type="hidden" value={group.id} />
+                  <button className={`${dangerButtonClassName} border-red-600 bg-red-600 px-2.5 py-1.5 text-xs text-white hover:bg-red-700`}>
+                    {ui.deleteGroupAndUsers}
+                  </button>
+                </form>
+              </div>
+            </article>
+          ))}
+          {groups.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-neutral-300 px-4 py-5 text-sm text-neutral-500">
+              {text.noRows}
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="grid w-full grid-cols-1 items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className={`${panelClassName} xl:sticky xl:top-28`}>
           <PanelTitle>{text.createUser}</PanelTitle>
-          <form action={createUserAction} className="mt-4 grid gap-3">
+          <form action={createAction} className="mt-4 grid gap-3">
             <input
               name="fullName"
               placeholder={text.fullName}
@@ -221,33 +587,460 @@ export function AdminUsersPage({ user, users }: AdminUsersPageProps) {
               required
             />
             <input
-              name="password"
-              type="password"
-              placeholder={text.password}
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder={text.email}
               className={inputClassName}
-              minLength={6}
               required
             />
-            <select name="role" className={inputClassName} defaultValue="student">
-              <option value="student">student</option>
-              <option value="teacher">teacher</option>
-              <option value="admin">admin</option>
-            </select>
-            <button className={primaryButtonClassName}>{text.createUser}</button>
+            <input
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              placeholder={text.passwordOptional}
+              className={inputClassName}
+              minLength={8}
+            />
+            <p className="text-xs leading-5 text-neutral-600">
+              {text.passwordHelp}
+            </p>
+            {user.role === "admin" ? (
+              <>
+                <select
+                  name="role"
+                  className={inputClassName}
+                  value={newUserRole}
+                  onChange={(event) => setNewUserRole(event.target.value)}
+                >
+                  <option value="student">student</option>
+                  <option value="teacher">teacher</option>
+                  <option value="admin">admin</option>
+                </select>
+                {newUserRole !== "admin" ? (
+                  <select
+                    name="organizationId"
+                    className={inputClassName}
+                    defaultValue=""
+                    required
+                  >
+                    <option value="" disabled>
+                      {text.selectOrganization}
+                    </option>
+                    {organizations
+                      .filter((organization) => organization.isActive)
+                      .map((organization) => (
+                        <option key={organization.id} value={organization.id}>
+                          {organization.name} · {organization.studentCount}/60 alumnos
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+                    {text.adminGlobalAccess}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <input name="role" type="hidden" value="student" />
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                  {text.organization}: {user.organizationName ?? "—"}
+                </p>
+                {(organizations.find(
+                  (organization) => organization.id === user.organizationId,
+                )?.studentCount ?? 0) >= 60 ? (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+                    La organización alcanzó 60 alumnos. Contacta a contacto@igfri.dev para ampliar el cupo.
+                  </p>
+                ) : null}
+              </>
+            )}
+            <CreationMessage state={createState} />
+            <button className={primaryButtonClassName} disabled={createPending}>
+              {createPending ? "Creando..." : text.createUser}
+            </button>
           </form>
+          <div className="my-5 border-t border-neutral-200" />
+          <PanelTitle>{text.bulkUsers}</PanelTitle>
+          <p className="mt-3 text-xs leading-5 text-neutral-600">
+            {text.bulkUsersHelp}
+          </p>
+          <form action={bulkAction} className="mt-3 grid gap-3">
+            <label className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700 transition hover:border-emerald-400 hover:bg-emerald-50/40">
+              {text.selectCsv}
+              <input
+                className="mt-2 block w-full text-xs font-normal file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-2 file:font-semibold file:text-white"
+                type="file"
+                name="csvFile"
+                accept=".csv,text/csv"
+                required
+              />
+            </label>
+            <CreationMessage state={bulkState} />
+            <button className={primaryButtonClassName} disabled={bulkPending}>
+              {bulkPending ? "Procesando..." : text.uploadCsv}
+            </button>
+            <a
+              className={`${secondaryButtonClassName} text-center`}
+              href={`data:text/csv;charset=utf-8,${csvTemplate}`}
+              download="plantilla-usuarios-flowcode.csv"
+            >
+              {text.downloadTemplate}
+            </a>
+          </form>
+          {user.role === "admin" ? (
+            <form action={retryPendingEmailsAction} className="mt-3">
+              <button className={`${secondaryButtonClassName} w-full`}>
+                {text.retryEmails}
+              </button>
+            </form>
+          ) : null}
         </section>
 
-        <AdminTable emptyLabel={text.noRows} title={text.users}>
-          {users.map((item) => (
-            <tr key={item.id} className={tableRowClassName}>
-              <td className={tableCellClassName}>{item.fullName}</td>
-              <td className={tableCellClassName}>{item.username}</td>
-              <td className={tableCellClassName}>{item.role}</td>
+        <AdminTable
+          count={filteredUsers.length}
+          emptyLabel={text.noMatchingRows}
+          title={text.users}
+          head={
+            <tr className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
+              <th className="w-12 px-3 py-2">
+                <input
+                  aria-label={ui.selectAll}
+                  checked={allVisibleSelected}
+                  className="h-4 w-4 accent-emerald-700"
+                  onChange={toggleVisibleUsers}
+                  type="checkbox"
+                />
+              </th>
+              <th className="w-48 px-3 py-2">{text.fullName}</th>
+              <th className="w-64 px-3 py-2">{text.email}</th>
+              <th className="w-28 px-3 py-2">{text.activeRole}</th>
+              <th className="w-64 px-3 py-2">{text.organization}</th>
+              <th className="w-52 px-3 py-2">{ui.groups}</th>
+              <th className="w-28 px-3 py-2" aria-label={ui.delete} />
             </tr>
-          ))}
+          }
+          toolbar={
+            <div className="grid gap-3">
+              <div className="grid gap-2 md:grid-cols-3">
+                <input
+                  className={inputClassName}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={ui.filterUsers}
+                  type="search"
+                  value={searchQuery}
+                />
+                <select
+                  className={inputClassName}
+                  onChange={(event) => setRoleFilter(event.target.value)}
+                  value={roleFilter}
+                >
+                  <option value="all">{ui.allRoles}</option>
+                  <option value="student">student</option>
+                  <option value="teacher">teacher</option>
+                  <option value="admin">admin</option>
+                  <option value="independent">independent</option>
+                </select>
+                <select
+                  className={inputClassName}
+                  onChange={(event) => setGroupFilter(event.target.value)}
+                  value={groupFilter}
+                >
+                  <option value="all">{ui.allGroups}</option>
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name} ({group.memberCount})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <form
+                action={managementAction}
+                className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3"
+                onSubmit={(event) => {
+                  const submitter = (event.nativeEvent as SubmitEvent)
+                    .submitter as HTMLButtonElement | null;
+
+                  if (
+                    submitter?.value === "delete" &&
+                    !window.confirm(ui.deleteSelectedConfirm)
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                <input name="userIds" type="hidden" value={selectedUserIds} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="mr-1 text-sm text-emerald-950">
+                    {activeSelectedIds.length} {ui.selected}
+                  </strong>
+                  <button
+                    className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                    disabled={managementPending || activeSelectedIds.length === 0}
+                    name="operation"
+                    value="activate"
+                  >
+                    {ui.activate}
+                  </button>
+                  <button
+                    className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                    disabled={managementPending || activeSelectedIds.length === 0}
+                    name="operation"
+                    value="deactivate"
+                  >
+                    {ui.deactivate}
+                  </button>
+                  <select className={`${inputClassName} py-1.5 text-xs`} name="groupId" defaultValue="">
+                    <option value="" disabled>{ui.group}</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>{group.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                    disabled={managementPending || activeSelectedIds.length === 0 || groups.length === 0}
+                    name="operation"
+                    value="addToGroup"
+                  >
+                    {ui.addToGroup}
+                  </button>
+                  <button
+                    className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                    disabled={managementPending || activeSelectedIds.length === 0 || groups.length === 0}
+                    name="operation"
+                    value="removeFromGroup"
+                  >
+                    {ui.removeFromGroup}
+                  </button>
+                  {user.role === "admin" ? (
+                    <>
+                      <select className={`${inputClassName} py-1.5 text-xs`} name="organizationId" defaultValue="">
+                        <option value="" disabled>{text.selectOrganization}</option>
+                        {organizations.filter((organization) => organization.isActive).map((organization) => (
+                          <option key={organization.id} value={organization.id}>{organization.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
+                        disabled={managementPending || activeSelectedIds.length === 0}
+                        name="operation"
+                        value="assignOrganization"
+                      >
+                        {text.assignOrganization}
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    className={`${dangerButtonClassName} ml-auto px-2.5 py-1.5 text-xs`}
+                    disabled={managementPending || activeSelectedIds.length === 0}
+                    name="operation"
+                    value="delete"
+                  >
+                    {ui.delete}
+                  </button>
+                </div>
+                <div className="mt-2">
+                  <CreationMessage state={managementState} />
+                </div>
+              </form>
+            </div>
+          }
+        >
+          {filteredUsers.map((item) => {
+            const itemGroups = groups.filter((group) =>
+              group.memberIds.includes(item.id),
+            );
+            const isCurrentUser = item.id === user.id;
+
+            return (
+            <tr key={item.id} className={tableRowClassName}>
+              <td className={tableCellClassName}>
+                <input
+                  aria-label={`${ui.selectMembers}: ${item.fullName}`}
+                  checked={selectedIds.includes(item.id)}
+                  className="h-4 w-4 accent-emerald-700"
+                  disabled={isCurrentUser}
+                  onChange={() => toggleUser(item.id)}
+                  type="checkbox"
+                />
+              </td>
+              <td className={tableCellClassName}>
+                <p className="font-semibold text-neutral-900">{item.fullName}</p>
+                <p className="mt-0.5 text-xs text-neutral-500">@{item.username}</p>
+                <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.isActive ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"}`}>
+                  {item.isActive ? ui.active : ui.inactive}
+                </span>
+              </td>
+              <td className={`${tableCellClassName} text-xs`}>
+                <form action={updateUserEmailAction} className="flex min-w-52 gap-2">
+                  <input name="userId" type="hidden" value={item.id} />
+                  <input
+                    aria-label={`${text.email}: ${item.fullName}`}
+                    className={`${inputClassName} min-w-0 flex-1 py-1.5 text-xs`}
+                    name="email"
+                    type="email"
+                    defaultValue={item.email ?? ""}
+                    placeholder={text.email}
+                    required
+                  />
+                  <button className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold transition hover:border-emerald-400 hover:bg-emerald-50">
+                    Guardar
+                  </button>
+                </form>
+              </td>
+              <td className={tableCellClassName}>
+                <span className="rounded bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-700">
+                  {item.role}
+                </span>
+              </td>
+              <td className={tableCellClassName}>
+                {user.role === "admin" &&
+                (item.role === "student" || item.role === "teacher") ? (
+                  <form action={updateUserOrganizationAction} className="flex min-w-52 gap-2">
+                    <input name="userId" type="hidden" value={item.id} />
+                    <select
+                      aria-label={`${text.organization}: ${item.fullName}`}
+                      name="organizationId"
+                      className={`${inputClassName} min-w-0 flex-1 py-1.5 text-xs`}
+                      defaultValue={item.organizationId ?? ""}
+                      required
+                    >
+                      <option value="" disabled>
+                        {text.selectOrganization}
+                      </option>
+                      {organizations
+                        .filter((organization) => organization.isActive)
+                        .map((organization) => (
+                          <option key={organization.id} value={organization.id}>
+                            {organization.name} · {organization.studentCount}/60 alumnos
+                          </option>
+                        ))}
+                    </select>
+                    <button className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold transition hover:border-emerald-400 hover:bg-emerald-50">
+                      {text.assignOrganization}
+                    </button>
+                  </form>
+                ) : (
+                  (item.organizationName ?? "Global")
+                )}
+              </td>
+              <td className={tableCellClassName}>
+                <div className="flex flex-wrap gap-1">
+                  {itemGroups.map((group) => (
+                    <span key={group.id} className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                      {group.name}
+                    </span>
+                  ))}
+                  {itemGroups.length === 0 ? <span className="text-xs text-neutral-400">—</span> : null}
+                </div>
+              </td>
+              <td className={tableCellClassName}>
+                {isCurrentUser ? (
+                  <span className="text-xs text-neutral-400">{text.signedIn}</span>
+                ) : (
+                  <form
+                    action={deleteUserAction}
+                    onSubmit={(event) => {
+                      if (!window.confirm(ui.deleteUserConfirm)) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    <input name="userId" type="hidden" value={item.id} />
+                    <button className={`${dangerButtonClassName} px-2.5 py-1.5 text-xs`}>
+                      {ui.delete}
+                    </button>
+                  </form>
+                )}
+              </td>
+            </tr>
+            );
+          })}
         </AdminTable>
       </div>
     </AdminChrome>
+  );
+}
+
+export function AdminOrganizationsPage({
+  organizations,
+  user,
+}: AdminOrganizationsPageProps) {
+  const { language } = useI18n();
+  const text = copy[language];
+
+  return (
+    <AdminChrome user={user}>
+      <PageHeader
+        count={organizations.length}
+        help={text.organizationsHelp}
+        title={text.organizations}
+      />
+      <div className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className={`${panelClassName} xl:sticky xl:top-28`}>
+          <PanelTitle>{text.createOrganization}</PanelTitle>
+          <form action={createOrganizationAction} className="mt-4 grid gap-3">
+            <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+              {text.organizationName}
+              <input
+                className={`${inputClassName} normal-case tracking-normal`}
+                name="name"
+                placeholder={text.organizationName}
+                required
+              />
+            </label>
+            <button className={primaryButtonClassName}>{text.createOrganization}</button>
+          </form>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+          {organizations.length > 0 ? (
+            organizations.map((organization) => (
+              <article
+                key={organization.id}
+                className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      #{organization.id}
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold">{organization.name}</h2>
+                    <p className="mt-0.5 text-xs text-neutral-500">{organization.slug}</p>
+                  </div>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                    {organization.isActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                  <OrganizationMetric label={text.teachers} value={organization.teacherCount} />
+                  <OrganizationMetric label={text.students} value={`${organization.studentCount}/60`} />
+                  <OrganizationMetric label={text.exercises} value={organization.exerciseCount} />
+                  <OrganizationMetric label={text.submissions} value={organization.submissionCount} />
+                </div>
+                {organization.studentCount >= 60 ? (
+                  <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+                    Cupo completo. Para ampliarlo, contacta a contacto@igfri.dev.
+                  </p>
+                ) : null}
+              </article>
+            ))
+          ) : (
+            <EmptyState label={text.noRows} />
+          )}
+        </section>
+      </div>
+    </AdminChrome>
+  );
+}
+
+function OrganizationMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+      <span className="block font-semibold text-neutral-900">{value}</span>
+      <span className="text-neutral-500">{label}</span>
+    </div>
   );
 }
 
@@ -275,6 +1068,7 @@ export function AdminExercisesPage({
         exercise.objective,
         exercise.tags,
         exercise.createdBy ?? "",
+        exercise.organizationName ?? "",
       ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery)),
     );
   }, [exercises, query]);
@@ -289,7 +1083,12 @@ export function AdminExercisesPage({
       <div className="grid w-full grid-cols-1 items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
         <section className={`${panelClassName} xl:sticky xl:top-28`}>
           <PanelTitle>{text.newExercise}</PanelTitle>
-          <ExerciseForm action={createExerciseAction} submitLabel={text.createExercise} text={text} />
+          <ExerciseForm
+            action={createExerciseAction}
+            submitLabel={text.createExercise}
+            text={text}
+            user={user}
+          />
         </section>
 
         <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
@@ -316,8 +1115,12 @@ export function AdminExercisesPage({
               filteredExercises.map((exercise) => (
                 <ExerciseCard
                   exercise={exercise}
-                  key={exercise.sourceId ?? exercise.id}
-                  onEdit={() => setEditingExercise(exercise)}
+                  key={`${exercise.organizationId}:${exercise.sourceId ?? exercise.id}`}
+                  onEdit={
+                    exercise.canManage
+                      ? () => setEditingExercise(exercise)
+                      : undefined
+                  }
                   text={text}
                 />
               ))
@@ -363,6 +1166,7 @@ export function AdminExercisesPage({
               onSubmit={() => setEditingExercise(null)}
               submitLabel={text.saveChanges}
               text={text}
+              user={user}
             />
           </section>
         </div>
@@ -380,6 +1184,7 @@ export function AdminSubmissionsPage({
   const [query, setQuery] = useState("");
   const [student, setStudent] = useState("all");
   const [exercise, setExercise] = useState("all");
+  const [organization, setOrganization] = useState("all");
   const [status, setStatus] = useState("all");
   const [testResult, setTestResult] = useState("all");
   const [groupBy, setGroupBy] = useState<"none" | "student" | "exercise">(
@@ -413,6 +1218,18 @@ export function AdminSubmissionsPage({
       ).sort((a, b) => a.localeCompare(b)),
     [submissions, text.freeSubmission],
   );
+  const organizations = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          submissions.map((submission) => [
+            String(submission.organizationId ?? "unassigned"),
+            submission.organizationName ?? "Unassigned",
+          ]),
+        ).entries(),
+      ).sort(([, a], [, b]) => a.localeCompare(b)),
+    [submissions],
+  );
   const filteredSubmissions = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
 
@@ -425,10 +1242,14 @@ export function AdminSubmissionsPage({
           submission.studentName,
           submission.studentUsername,
           exerciseTitle,
+          submission.organizationName ?? "",
         ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
       const matchesStudent =
         student === "all" || submission.studentUsername === student;
       const matchesExercise = exercise === "all" || exerciseTitle === exercise;
+      const matchesOrganization =
+        organization === "all" ||
+        String(submission.organizationId ?? "unassigned") === organization;
       const matchesStatus = status === "all" || submission.status === status;
       const matchesTest =
         testResult === "all" ||
@@ -440,11 +1261,12 @@ export function AdminSubmissionsPage({
         matchesQuery &&
         matchesStudent &&
         matchesExercise &&
+        matchesOrganization &&
         matchesStatus &&
         matchesTest
       );
     });
-  }, [exercise, query, status, student, submissions, testResult, text.freeSubmission]);
+  }, [exercise, organization, query, status, student, submissions, testResult, text.freeSubmission]);
   const submissionGroups = useMemo(() => {
     if (groupBy === "none") {
       return [["", filteredSubmissions]] as const;
@@ -484,7 +1306,7 @@ export function AdminSubmissionsPage({
       </div>
 
       <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(140px,0.7fr))]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.4fr)_repeat(5,minmax(130px,0.7fr))]">
           <input
             type="search"
             value={query}
@@ -496,6 +1318,16 @@ export function AdminSubmissionsPage({
             <option value="all">{text.allStudents}</option>
             {students.map((option) => (
               <option value={option.value} key={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <select
+            value={organization}
+            onChange={(event) => setOrganization(event.target.value)}
+            className={inputClassName}
+          >
+            <option value="all">{text.allOrganizations}</option>
+            {organizations.map(([value, label]) => (
+              <option value={value} key={value}>{label}</option>
             ))}
           </select>
           <select value={exercise} onChange={(event) => setExercise(event.target.value)} className={inputClassName}>
@@ -579,12 +1411,14 @@ function ExerciseForm({
   onSubmit,
   submitLabel,
   text,
+  user,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   exercise?: AdminExercise;
   onSubmit?: () => void;
   submitLabel: string;
   text: AdminCopy;
+  user: SessionUser;
 }) {
   return (
     <form
@@ -599,6 +1433,36 @@ function ExerciseForm({
       {exercise?.sourceId ? (
         <input name="sourceId" type="hidden" value={exercise.sourceId} />
       ) : null}
+      {exercise?.scope === "organization" ? (
+        <>
+          <input
+            name="organizationId"
+            type="hidden"
+            value={exercise.organizationId ?? ""}
+          />
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <span className="font-semibold">{text.organization}:</span>{" "}
+            {exercise.organizationName}
+          </p>
+        </>
+      ) : user.role === "admin" ? (
+        <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
+          <span className="font-semibold">{text.globalCatalog}.</span>{" "}
+          {text.globalExerciseHelp}
+        </p>
+      ) : (
+        <>
+          <input
+            name="organizationId"
+            type="hidden"
+            value={user.organizationId ?? ""}
+          />
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <span className="font-semibold">{text.organization}:</span>{" "}
+            {user.organizationName ?? "—"}. {text.organizationExerciseHelp}
+          </p>
+        </>
+      )}
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
         <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
           {text.exerciseTitle}
@@ -694,7 +1558,7 @@ function ExerciseCard({
   text,
 }: {
   exercise: AdminExercise;
-  onEdit: () => void;
+  onEdit?: () => void;
   text: AdminCopy;
 }) {
   return (
@@ -731,33 +1595,44 @@ function ExerciseCard({
         <span className="col-span-2 truncate">
           {text.createdBy}: {exercise.createdBy ?? "—"}
         </span>
+        <span className="col-span-2 truncate font-medium text-emerald-800">
+          {exercise.scope === "global"
+            ? text.globalCatalog
+            : `${text.organization}: ${exercise.organizationName ?? "—"}`}
+        </span>
         <span className="col-span-2 truncate">
           {exercise.submissionDeadline
             ? `${text.submissionDeadline}: ${formatDeadline(exercise.submissionDeadline)}`
             : text.noDeadline}
         </span>
       </div>
-      <div className="mt-4 flex gap-2">
-        <button type="button" onClick={onEdit} className={`${secondaryButtonClassName} flex-1`}>
-          {text.edit}
-        </button>
-        <form
-          action={deleteExerciseAction}
-          onSubmit={(event) => {
-            if (!window.confirm(text.deleteExerciseConfirm)) {
-              event.preventDefault();
-            }
-          }}
-        >
-          {exercise.id ? (
-            <input name="exerciseId" type="hidden" value={exercise.id} />
-          ) : null}
-          {exercise.sourceId ? (
-            <input name="sourceId" type="hidden" value={exercise.sourceId} />
-          ) : null}
-          <button className={dangerButtonClassName}>{text.deleteExercise}</button>
-        </form>
-      </div>
+      {exercise.canManage && onEdit ? (
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={onEdit} className={`${secondaryButtonClassName} flex-1`}>
+            {text.edit}
+          </button>
+          <form
+            action={deleteExerciseAction}
+            onSubmit={(event) => {
+              if (!window.confirm(text.deleteExerciseConfirm)) {
+                event.preventDefault();
+              }
+            }}
+          >
+            {exercise.id ? (
+              <input name="exerciseId" type="hidden" value={exercise.id} />
+            ) : null}
+            {exercise.sourceId ? (
+              <input name="sourceId" type="hidden" value={exercise.sourceId} />
+            ) : null}
+            <button className={dangerButtonClassName}>{text.deleteExercise}</button>
+          </form>
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-center text-xs font-medium text-neutral-600">
+          {text.globalCatalog}
+        </p>
+      )}
     </article>
   );
 }
@@ -782,6 +1657,9 @@ function SubmissionPreviewCard({
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold uppercase tracking-wider text-emerald-700">
               {submission.exerciseTitle ?? text.freeSubmission}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-medium text-neutral-500">
+              {text.organization}: {submission.organizationName ?? "—"}
             </p>
             <h3 className="mt-1 truncate text-lg font-semibold">{submission.title}</h3>
           </div>
@@ -1173,8 +2051,9 @@ function AdminChrome({ children, user }: AdminChromeProps) {
   const pathname = usePathname();
   const navItems = [
     { href: "/admin/submissions", label: text.submissions, roles: ["teacher", "admin"] },
-    { href: "/admin/users", label: text.users, roles: ["admin"] },
+    { href: "/admin/users", label: text.users, roles: ["teacher", "admin"] },
     { href: "/admin/exercises", label: text.exercises, roles: ["teacher", "admin"] },
+    { href: "/admin/organizations", label: text.organizations, roles: ["admin"] },
   ];
 
   return (
@@ -1205,6 +2084,11 @@ function AdminChrome({ children, user }: AdminChromeProps) {
           <div className="rounded-xl border border-white/10 bg-white/8 p-3">
             <p className="truncate text-sm font-semibold">{user.fullName}</p>
             <p className="mt-0.5 truncate text-xs text-emerald-100/70">@{user.username}</p>
+            {user.organizationName ? (
+              <p className="mt-1 truncate text-xs font-medium text-emerald-100">
+                {user.organizationName}
+              </p>
+            ) : null}
             <span className="mt-3 inline-flex rounded-full bg-emerald-300/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-100 ring-1 ring-emerald-300/20">
               {user.role}
             </span>
@@ -1271,7 +2155,10 @@ function AdminChrome({ children, user }: AdminChromeProps) {
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">{text.activeRole}: {user.role}</p>
             <h2 className="mt-0.5 text-lg font-semibold">{text.title}</h2>
           </div>
-          <p className="text-sm text-neutral-500">{text.signedIn} {user.fullName}</p>
+          <p className="text-sm text-neutral-500">
+            {text.signedIn} {user.fullName}
+            {user.organizationName ? ` · ${user.organizationName}` : ""}
+          </p>
         </header>
         <div className="grid w-full gap-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6 2xl:px-8">{children}</div>
       </section>
@@ -1321,14 +2208,46 @@ function PanelTitle({ children }: { children: ReactNode }) {
   );
 }
 
+function CreationMessage({ state }: { state: UserCreationState }) {
+  if (!state.message && !state.errors?.length) {
+    return null;
+  }
+
+  const className =
+    state.status === "success"
+      ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+      : state.status === "warning"
+        ? "border-amber-300 bg-amber-50 text-amber-950"
+        : "border-red-300 bg-red-50 text-red-900";
+
+  return (
+    <div className={`rounded-md border px-3 py-2 text-sm ${className}`}>
+      {state.message ? <p>{state.message}</p> : null}
+      {state.errors?.length ? (
+        <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs">
+          {state.errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function AdminTable({
   children,
+  count,
   emptyLabel,
+  head,
   title,
+  toolbar,
 }: {
   children: ReactNode;
+  count?: number;
   emptyLabel: string;
+  head?: ReactNode;
   title: string;
+  toolbar?: ReactNode;
 }) {
   const hasRows = Array.isArray(children) ? children.length > 0 : Boolean(children);
 
@@ -1337,11 +2256,13 @@ function AdminTable({
       <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50/80 px-4 py-3">
         <h2 className="text-lg font-semibold">{title}</h2>
         <span className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs font-semibold text-neutral-600">
-          {hasRows && Array.isArray(children) ? children.length : 0}
+          {count ?? (hasRows && Array.isArray(children) ? children.length : 0)}
         </span>
       </div>
-      <div className="max-h-[calc(100vh-18rem)] overflow-y-auto overflow-x-hidden">
-        <table className="w-full table-fixed text-left text-sm">
+      {toolbar ? <div className="border-b border-neutral-200 p-3">{toolbar}</div> : null}
+      <div className="max-h-[calc(100vh-18rem)] overflow-auto">
+        <table className="w-full min-w-[1320px] table-fixed text-left text-sm">
+          {head ? <thead className="sticky top-0 z-10">{head}</thead> : null}
           <tbody>
             {hasRows ? (
               children
@@ -1355,6 +2276,30 @@ function AdminTable({
       </div>
     </section>
   );
+}
+
+function groupTypeLabel(
+  type: AdminUserGroup["type"],
+  labels: {
+    administrators: string;
+    course: string;
+    custom: string;
+    organizationGroup: string;
+  },
+) {
+  if (type === "administrators") {
+    return labels.administrators;
+  }
+
+  if (type === "course") {
+    return labels.course;
+  }
+
+  if (type === "organization") {
+    return labels.organizationGroup;
+  }
+
+  return labels.custom;
 }
 
 function StatusBadge({ status }: { status: string }) {

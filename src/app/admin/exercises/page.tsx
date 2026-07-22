@@ -5,11 +5,14 @@ import { AdminExercisesPage } from "../AdminPagesClient";
 
 export default async function AdminExercisesRoute() {
   const user = await requireTeacherOrAdmin();
-  const exercises = await listAdminExercises();
+  const exercises = await listAdminExercises(user);
 
   return (
     <I18nProvider>
-      <AdminExercisesPage exercises={exercises} user={user} />
+      <AdminExercisesPage
+        exercises={exercises}
+        user={user}
+      />
     </I18nProvider>
   );
 }

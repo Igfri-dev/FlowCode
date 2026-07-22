@@ -1,15 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "@/app/actions/auth";
 
 const initialState: LoginState = {};
 
-export function LoginForm() {
+export function LoginForm({ notice }: { notice?: string }) {
   const [state, action, pending] = useActionState(loginAction, initialState);
 
   return (
     <form action={action} className="mt-8 flex flex-col gap-4">
+      {notice ? (
+        <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          {notice}
+        </p>
+      ) : null}
       <div>
         <label
           className="text-sm font-semibold text-neutral-800"
@@ -56,6 +62,26 @@ export function LoginForm() {
       >
         {pending ? "Signing in..." : "Sign in"}
       </button>
+      <div className="flex flex-col items-center justify-between gap-2 text-sm sm:flex-row">
+        <Link
+          href="/forgot-password"
+          className="font-semibold text-emerald-700 hover:text-emerald-900"
+        >
+          Olvidé mi contraseña
+        </Link>
+        <Link
+          href="/register"
+          className="font-semibold text-emerald-700 hover:text-emerald-900"
+        >
+          Crear cuenta personal
+        </Link>
+      </div>
+      <Link
+        href="/resend-verification"
+        className="text-center text-sm font-semibold text-neutral-600 hover:text-neutral-900"
+      >
+        Reenviar correo de verificación
+      </Link>
     </form>
   );
 }

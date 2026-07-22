@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "email:worker": "tsx scripts/email-worker.ts",
     "layout:preview": "tsx scripts/flow-layout-preview.ts",
+    "test:exercise-scope": "tsx scripts/integration-exercise-scope.ts",
+    "test:user-groups": "tsx scripts/integration-user-groups.ts",
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test tests/**/*.test.ts"
@@ -15,19 +18,25 @@
     "@xyflow/react": "^12.10.2",
     "html-to-image": "^1.11.13",
     "mysql2": "^3.22.3",
-    "next": "16.2.3",
+    "next": "^16.2.11",
+    "nodemailer": "^9.0.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "^16.2.11",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
+    "tsx": "^4.23.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.22",
+    "sharp": "0.35.3"
   }
 }

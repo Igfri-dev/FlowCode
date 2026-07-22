@@ -36,6 +36,7 @@ import { FlowInputModal } from "./FlowInputModal";
 import { FlowOutputPanel } from "./FlowOutputPanel";
 import { FlowSidebar } from "./FlowSidebar";
 import { FlowSubmissionPanel } from "./FlowSubmissionPanel";
+import { FlowProjectPanel } from "./FlowProjectPanel";
 import { FlowValidationPanel } from "./FlowValidationPanel";
 import { FlowVariablesPanel } from "./FlowVariablesPanel";
 import { flowNodeComponents } from "./nodes";
@@ -72,6 +73,12 @@ type FlowWorkspaceProps = {
   initialExerciseId?: string | null;
   initialProgram?: FlowProgram;
   isReviewMode?: boolean;
+  allowSubmissions?: boolean;
+  enableProjectSaving?: boolean;
+  project?: {
+    id: number;
+    title: string;
+  };
 };
 
 export function FlowWorkspace({
@@ -80,6 +87,9 @@ export function FlowWorkspace({
   initialExerciseId,
   initialProgram,
   isReviewMode = false,
+  allowSubmissions = true,
+  enableProjectSaving = false,
+  project,
 }: FlowWorkspaceProps) {
   const { language, t } = useI18n();
   const nextNodeId = useRef(initialFlowNodes.length);
@@ -847,13 +857,16 @@ export function FlowWorkspace({
             onCodeChange={setImportCode}
             onImportCode={handleImportCode}
           />
-          {isReviewMode ? null : (
+          {!isReviewMode && enableProjectSaving ? (
+            <FlowProjectPanel currentProgram={currentProgram} project={project} />
+          ) : null}
+          {!isReviewMode && allowSubmissions ? (
             <FlowSubmissionPanel
               currentProgram={currentProgram}
               editingSubmission={editingSubmission}
               selectedExercise={selectedExercise}
             />
-          )}
+          ) : null}
         </div>
 
         <aside className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">

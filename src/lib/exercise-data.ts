@@ -19,7 +19,9 @@ type ExerciseRow = RowDataPacket & {
   is_active: number;
 };
 
-export async function listDatabaseExercises(): Promise<Exercise[]> {
+export async function listDatabaseExercises(
+  organizationId: number | null,
+): Promise<Exercise[]> {
   await ensureRuntimeSchema();
   const rows = await queryRows<ExerciseRow>(
     `SELECT id, slug, source_key, title, description, objective, difficulty,
@@ -27,8 +29,11 @@ export async function listDatabaseExercises(): Promise<Exercise[]> {
             DATE_FORMAT(submission_deadline, '%Y-%m-%dT%H:%i') AS submission_deadline,
             tags, is_active
      FROM exercises
-     WHERE is_active = 1 OR source_key IS NOT NULL
-     ORDER BY created_at DESC, id DESC`,
+     WHERE (organization_id IS NULL OR organization_id = :organizationId)
+       AND (source_key IS NULL OR organization_id IS NULL)
+       AND (is_active = 1 OR source_key IS NOT NULL)
+     ORDER BY organization_id IS NULL, created_at DESC, id DESC`,
+    { organizationId },
   );
 
   return rows.map((row) => ({

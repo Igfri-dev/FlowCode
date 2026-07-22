@@ -7,7 +7,10 @@ import { listDatabaseExercises } from "@/lib/exercise-data";
 
 export default async function Home() {
   const user = await requireUser();
-  const databaseExercises = await listDatabaseExercises();
+  const databaseExercises =
+    user.role === "independent"
+      ? []
+      : await listDatabaseExercises(user.organizationId);
 
   return (
     <I18nProvider>
@@ -15,7 +18,11 @@ export default async function Home() {
         <AppHeader user={user} onLogout={logoutAction} />
 
         <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
-          <FlowWorkspace databaseExercises={databaseExercises} />
+          <FlowWorkspace
+            allowSubmissions={user.role === "student"}
+            databaseExercises={databaseExercises}
+            enableProjectSaving={user.role === "independent"}
+          />
         </main>
       </div>
     </I18nProvider>

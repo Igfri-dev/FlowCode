@@ -4,8 +4,13 @@ import { getCurrentUser } from "@/lib/auth";
 import logoImage from "../logo.png";
 import { LoginForm } from "./LoginForm";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string; password?: string }>;
+}) {
   const user = await getCurrentUser();
+  const { email, password } = await searchParams;
 
   if (user) {
     redirect(user.role === "admin" || user.role === "teacher" ? "/admin" : "/");
@@ -59,11 +64,19 @@ export default async function LoginPage() {
             </p>
             <h2 className="mt-1 text-2xl font-semibold">Sign in</h2>
             <p className="mt-2 text-sm text-neutral-600">
-              Use your student, teacher, or admin account.
+              Usa tu cuenta de organización o una cuenta personal.
             </p>
           </div>
 
-          <LoginForm />
+          <LoginForm
+            notice={
+              email === "verified"
+                ? "Correo verificado. Ya puedes iniciar sesión."
+                : password === "changed"
+                ? "Contraseña actualizada. Ya puedes iniciar sesión."
+                : undefined
+            }
+          />
         </div>
       </section>
     </main>

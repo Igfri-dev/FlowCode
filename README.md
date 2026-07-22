@@ -260,9 +260,39 @@ Available scripts:
 npm run dev      # start the local Next.js development server
 npm run build    # create a production build
 npm run start    # start the production server after building
+npm run email:worker # continuously deliver queued email
 npm run lint     # run ESLint
 npm test         # run the FlowCode test suite
 ```
+
+### Database, email, and bulk users
+
+Copy `.env.example` to `.env.local` and configure MySQL plus an SMTP account.
+`EMAIL_QUEUE_SECRET` encrypts queued welcome, verification, and password-reset
+messages, so it must remain stable and private. Port 465 normally uses
+`SMTP_SECURE=true`; port 587 normally uses `SMTP_SECURE=false` and STARTTLS.
+
+Public personal registration requires email verification and Cloudflare
+Turnstile. Development falls back to Cloudflare's official test keys;
+production requires real `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY` values.
+
+Run `npm run email:worker` as a long-lived process to retry queued messages. As
+an alternative, schedule `POST /api/cron/email-outbox` with the header
+`Authorization: Bearer <CRON_SECRET>`. The outbox claims work transactionally
+so concurrent processors do not select the same message.
+
+Administrators and teachers can create users from a UTF-8 CSV with these
+headers: `nombre, usuario, contraseña, correo, tipo_de_usuario, organizacion`.
+The password may be empty. Every managed account must replace its initial or
+server-generated password on first sign-in. Teachers can only create students
+inside their own organization, and each organization has a maximum of 60
+students. Contact `contacto@igfri.dev` to request a larger capacity.
+
+Exercises created by a platform administrator belong to one global catalog and
+are available to every organization without duplicated rows. Exercises created
+by teachers belong only to the teacher's organization. Teachers may view the
+global catalog but can only edit or delete their organization's exercises.
 
 ### Project Notes
 
@@ -540,9 +570,39 @@ Scripts disponibles:
 npm run dev      # inicia el servidor local de desarrollo de Next.js
 npm run build    # crea una build de producción
 npm run start    # inicia el servidor de producción después de compilar
+npm run email:worker # envía y reintenta los correos pendientes
 npm run lint     # ejecuta ESLint
 npm test         # ejecuta la suite de tests de FlowCode
 ```
+
+### Base de datos, correo y usuarios masivos
+
+Copia `.env.example` como `.env.local` y configura MySQL y una cuenta SMTP.
+`EMAIL_QUEUE_SECRET` cifra el contenido sensible de los correos pendientes y
+debe conservarse estable y privado. El puerto 465 normalmente usa
+`SMTP_SECURE=true`; el 587 usa `SMTP_SECURE=false` con STARTTLS.
+
+El registro personal público exige verificar el correo y completar Cloudflare
+Turnstile. En desarrollo se usan las claves oficiales de prueba cuando no se
+definen otras; producción exige valores reales en
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` y `TURNSTILE_SECRET_KEY`.
+
+Ejecuta `npm run email:worker` como proceso permanente para enviar y reintentar
+la cola. Como alternativa, programa un `POST /api/cron/email-outbox` con la
+cabecera `Authorization: Bearer <CRON_SECRET>`. No es necesario usar ambos.
+
+Administradores y profesores pueden importar un CSV UTF-8 con las columnas
+`nombre, usuario, contraseña, correo, tipo_de_usuario, organizacion`. Todos los
+usuarios gestionados deben cambiar su contraseña inicial en el primer acceso.
+Los profesores solo crean estudiantes de su organización y cada organización
+admite hasta 60 estudiantes; para ampliar el límite se debe escribir a
+`contacto@igfri.dev`.
+
+Los ejercicios creados por un administrador de la plataforma pertenecen a un
+único catálogo global y están disponibles para todas las organizaciones sin
+duplicar registros. Los ejercicios creados por profesores pertenecen solamente
+a la organización del profesor. Un profesor puede consultar el catálogo global,
+pero solo puede editar o eliminar los ejercicios de su organización.
 
 ### Notas del Proyecto
 

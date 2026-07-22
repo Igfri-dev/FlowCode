@@ -11,6 +11,7 @@ type SubmissionContextRow = RowDataPacket & {
   exercise_id: number | null;
   exercise_key: string | null;
   can_edit: number;
+  organization_id: number | null;
 };
 
 export async function PUT(
@@ -19,7 +20,7 @@ export async function PUT(
 ) {
   const user = await getCurrentUser();
 
-  if (!user) {
+  if (!user || user.mustChangePassword || user.role !== "student") {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,7 +33,11 @@ export async function PUT(
 
   await ensureRuntimeSchema();
 
-  const context = await getSubmissionContext(submissionId, user.id);
+  const context = await getSubmissionContext(
+    submissionId,
+    user.id,
+    user.organizationId,
+  );
 
   if (!context) {
     return NextResponse.json({ message: "Submission not found" }, { status: 404 });
@@ -60,13 +65,16 @@ export async function PUT(
   const testResult = await getSubmissionTestResult({
     exerciseId: context.exercise_id,
     exerciseKey: context.exercise_key,
+    organizationId: context.organization_id,
     language: body.exerciseLanguage === "en" ? "en" : "es",
     program,
   });
   const [result] = await getPool().execute<ResultSetHeader>(
     `UPDATE submissions s
      LEFT JOIN exercises exercise ON exercise.id = s.exercise_id
-     LEFT JOIN exercises source_exercise ON source_exercise.source_key = s.exercise_key
+     LEFT JOIN exercises source_exercise
+       ON source_exercise.source_key = s.exercise_key
+      AND source_exercise.organization_id IS NULL
      SET s.title = :title,
          s.code = :code,
          s.diagram_json = :diagramJson,
@@ -78,6 +86,7 @@ export async function PUT(
          s.updated_at = NOW()
      WHERE s.id = :submissionId
        AND s.student_id = :studentId
+       AND s.organization_id <=> :organizationId
        AND (
          COALESCE(exercise.submission_deadline, source_exercise.submission_deadline) IS NULL
          OR COALESCE(exercise.submission_deadline, source_exercise.submission_deadline) > NOW()
@@ -86,6 +95,7 @@ export async function PUT(
       code,
       diagramJson: JSON.stringify(program),
       studentId: user.id,
+      organizationId: user.organizationId,
       submissionId,
       testResultJson: testResult ? JSON.stringify(testResult) : null,
       title,
@@ -93,7 +103,11 @@ export async function PUT(
   );
 
   if (result.affectedRows === 0) {
-    const latestContext = await getSubmissionContext(submissionId, user.id);
+    const latestContext = await getSubmissionContext(
+      submissionId,
+      user.id,
+      user.organizationId,
+    );
 
     if (!latestContext) {
       return NextResponse.json({ message: "Submission not found" }, { status: 404 });
@@ -111,17 +125,25 @@ export async function PUT(
   return NextResponse.json({ ok: true });
 }
 
-async function getSubmissionContext(submissionId: number, studentId: number) {
+async function getSubmissionContext(
+  submissionId: number,
+  studentId: number,
+  organizationId: number | null,
+) {
   const [rows] = await getPool().query<SubmissionContextRow[]>(
-    `SELECT s.exercise_id, s.exercise_key,
+    `SELECT s.exercise_id, s.exercise_key, s.organization_id,
             (COALESCE(exercise.submission_deadline, source_exercise.submission_deadline) IS NULL
               OR COALESCE(exercise.submission_deadline, source_exercise.submission_deadline) > NOW()) AS can_edit
      FROM submissions s
      LEFT JOIN exercises exercise ON exercise.id = s.exercise_id
-     LEFT JOIN exercises source_exercise ON source_exercise.source_key = s.exercise_key
-     WHERE s.id = :submissionId AND s.student_id = :studentId
+     LEFT JOIN exercises source_exercise
+       ON source_exercise.source_key = s.exercise_key
+      AND source_exercise.organization_id IS NULL
+     WHERE s.id = :submissionId
+       AND s.student_id = :studentId
+       AND s.organization_id <=> :organizationId
      LIMIT 1`,
-    { studentId, submissionId },
+    { organizationId, studentId, submissionId },
   );
 
   return rows[0] ?? null;

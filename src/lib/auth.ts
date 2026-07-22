@@ -4,18 +4,24 @@ import { redirect } from "next/navigation";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool, queryOne, queryRows } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { ensureRuntimeSchema } from "@/lib/schema";
 
 const sessionCookieName = "flowcode_session";
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 7;
 
-export const userRoles = ["student", "teacher", "admin"] as const;
+export const userRoles = ["student", "teacher", "admin", "independent"] as const;
 export type UserRole = (typeof userRoles)[number];
 
 export type SessionUser = {
   id: number;
   username: string;
   fullName: string;
+  email: string | null;
+  emailVerified: boolean;
   role: UserRole;
+  mustChangePassword: boolean;
+  organizationId: number | null;
+  organizationName: string | null;
 };
 
 type UserRow = RowDataPacket & {
@@ -23,15 +29,25 @@ type UserRow = RowDataPacket & {
   username: string;
   password_hash: string;
   full_name: string;
+  email: string | null;
+  email_verified_at: Date | null;
   role: UserRole;
+  must_change_password: number;
   is_active: number;
+  organization_id: number | null;
+  organization_name: string | null;
 };
 
 type SessionRow = RowDataPacket & {
   id: number;
   username: string;
   full_name: string;
+  email: string | null;
+  email_verified_at: Date | null;
   role: UserRole;
+  must_change_password: number;
+  organization_id: number | null;
+  organization_name: string | null;
 };
 
 function hashToken(token: string) {
@@ -43,6 +59,7 @@ export function isUserRole(value: string): value is UserRole {
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
+  await ensureRuntimeSchema();
   const cookieStore = await cookies();
   const token = cookieStore.get(sessionCookieName)?.value;
 
@@ -51,12 +68,20 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   }
 
   const user = await queryOne<SessionRow>(
-    `SELECT u.id, u.username, u.full_name, u.role
+    `SELECT u.id, u.username, u.full_name, u.email, u.email_verified_at, u.role,
+            u.must_change_password, u.organization_id,
+            organization.name AS organization_name
      FROM user_sessions s
      INNER JOIN users u ON u.id = s.user_id
+     LEFT JOIN organizations organization ON organization.id = u.organization_id
      WHERE s.token_hash = :tokenHash
        AND s.expires_at > NOW()
        AND u.is_active = 1
+       AND (
+         u.role = 'admin'
+         OR (u.role = 'independent' AND u.email_verified_at IS NOT NULL)
+         OR organization.is_active = 1
+       )
      LIMIT 1`,
     { tokenHash: hashToken(token) },
   );
@@ -69,11 +94,26 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     id: user.id,
     username: user.username,
     fullName: user.full_name,
+    email: user.email,
+    emailVerified: Boolean(user.email_verified_at),
     role: user.role,
+    mustChangePassword: user.must_change_password === 1,
+    organizationId: user.organization_id,
+    organizationName: user.organization_name,
   };
 }
 
 export async function requireUser() {
+  const user = await requireUserAllowingPasswordChange();
+
+  if (user.mustChangePassword) {
+    redirect("/change-password");
+  }
+
+  return user;
+}
+
+export async function requireUserAllowingPasswordChange() {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -104,12 +144,22 @@ export async function requireTeacherOrAdmin() {
 }
 
 export async function authenticateUser(username: string, password: string) {
+  await ensureRuntimeSchema();
   await ensureBootstrapAdmin();
 
   const user = await queryOne<UserRow>(
-    `SELECT id, username, password_hash, full_name, role, is_active
-     FROM users
-     WHERE username = :username
+    `SELECT u.id, u.username, u.password_hash, u.full_name, u.email,
+            u.email_verified_at, u.role,
+            u.must_change_password, u.is_active,
+            u.organization_id, organization.name AS organization_name
+     FROM users u
+     LEFT JOIN organizations organization ON organization.id = u.organization_id
+     WHERE u.username = :username
+       AND (
+         u.role = 'admin'
+         OR (u.role = 'independent' AND u.email_verified_at IS NOT NULL)
+         OR organization.is_active = 1
+       )
      LIMIT 1`,
     { username },
   );
@@ -128,7 +178,12 @@ export async function authenticateUser(username: string, password: string) {
     id: user.id,
     username: user.username,
     fullName: user.full_name,
+    email: user.email,
+    emailVerified: Boolean(user.email_verified_at),
     role: user.role,
+    mustChangePassword: user.must_change_password === 1,
+    organizationId: user.organization_id,
+    organizationName: user.organization_name,
   } satisfies SessionUser;
 }
 
@@ -168,6 +223,12 @@ export async function destroySession() {
   }
 
   cookieStore.delete(sessionCookieName);
+}
+
+export async function destroyAllUserSessions(userId: number) {
+  await getPool().execute("DELETE FROM user_sessions WHERE user_id = :userId", {
+    userId,
+  });
 }
 
 async function ensureBootstrapAdmin() {

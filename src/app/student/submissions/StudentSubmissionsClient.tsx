@@ -21,6 +21,11 @@ export function StudentSubmissionsClient({
           <p className="mt-1 text-sm text-neutral-600">
             {user.fullName} ({user.username})
           </p>
+          {user.organizationName ? (
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              {user.organizationName}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Link className={secondaryButtonClassName} href="/">
