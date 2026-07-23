@@ -8,6 +8,7 @@ import {
 } from "@/lib/email-verification";
 import { hashPassword } from "@/lib/password";
 import { generateTemporaryPassword } from "@/lib/password-policy";
+import { getUsernamePolicyError } from "@/lib/username-policy";
 
 export const maximumStudentsPerOrganization = 60;
 
@@ -56,6 +57,13 @@ export async function provisionUsers({
 }) {
   if (!users.length) {
     throw new UserProvisioningError("No hay usuarios para crear.");
+  }
+
+  for (const user of users) {
+    const usernameError = getUsernamePolicyError(user.username);
+    if (usernameError) {
+      throw rowError(user, usernameError);
+    }
   }
 
   if (!canEncryptEmailQueue()) {
@@ -330,9 +338,42 @@ async function ensureAccountsDoNotExist(
     return;
   }
 
-  const duplicate = duplicates[0];
-  throw new UserProvisioningError(
-    `Ya existe una cuenta con el usuario ${duplicate.username} o el correo ${duplicate.email ?? "indicado"}.`,
+  const duplicateUsername = duplicates.find((duplicate) =>
+    users.some(
+      (user) =>
+        user.username.toLocaleLowerCase() ===
+        duplicate.username.toLocaleLowerCase(),
+    ),
+  );
+
+  if (duplicateUsername) {
+    const input = users.find(
+      (user) =>
+        user.username.toLocaleLowerCase() ===
+        duplicateUsername.username.toLocaleLowerCase(),
+    )!;
+    throw rowError(
+      input,
+      `el nombre de usuario ${input.username} ya está ocupado.`,
+    );
+  }
+
+  const duplicateEmail = duplicates.find((duplicate) =>
+    users.some(
+      (user) =>
+        user.email.toLocaleLowerCase() ===
+        duplicate.email?.toLocaleLowerCase(),
+    ),
+  );
+  const input = users.find(
+    (user) =>
+      user.email.toLocaleLowerCase() ===
+      duplicateEmail?.email?.toLocaleLowerCase(),
+  );
+
+  throw rowError(
+    input ?? users[0],
+    `el correo ${input?.email ?? "indicado"} ya está registrado.`,
   );
 }
 

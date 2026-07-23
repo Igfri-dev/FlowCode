@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   generateTemporaryPassword,
+  getPasswordConfirmationError,
   getPasswordPolicyError,
   isValidEmail,
 } from "../src/lib/password-policy";
@@ -18,9 +19,16 @@ test("generates passwords that satisfy the policy", () => {
   }
 });
 
+test("requires password confirmation to match", () => {
+  assert.equal(getPasswordConfirmationError("clave123", "clave123"), null);
+  assert.match(
+    getPasswordConfirmationError("clave123", "clave124") ?? "",
+    /no coinciden/,
+  );
+});
+
 test("performs basic server-side email validation", () => {
   assert.equal(isValidEmail("ana@example.com"), true);
   assert.equal(isValidEmail("not-an-email"), false);
   assert.equal(isValidEmail("a @example.com"), false);
 });
-

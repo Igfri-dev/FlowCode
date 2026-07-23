@@ -1,4 +1,5 @@
 import { getPasswordPolicyError, isValidEmail } from "@/lib/password-policy";
+import { getUsernamePolicyError } from "@/lib/username-policy";
 
 export const bulkUserCsvHeaders = [
   "nombre",
@@ -102,6 +103,12 @@ export function parseBulkUsersCsv(text: string): BulkUserCsvParseResult {
 
     if (fullName.length > 160 || username.length > 80 || organization.length > 160) {
       errors.push(`Línea ${line}: uno de los textos supera el largo permitido.`);
+      return;
+    }
+
+    const usernameError = getUsernamePolicyError(username);
+    if (usernameError) {
+      errors.push(`Línea ${line}: ${usernameError}`);
       return;
     }
 
@@ -234,4 +241,3 @@ function countOutsideQuotes(value: string, delimiter: string) {
 
   return count;
 }
-

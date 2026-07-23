@@ -24,6 +24,7 @@ import {
 } from "@/lib/email-verification";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { getPasswordPolicyError, isValidEmail } from "@/lib/password-policy";
+import { getUsernamePolicyError } from "@/lib/username-policy";
 import { ensureRuntimeSchema } from "@/lib/schema";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
@@ -35,6 +36,12 @@ export type AuthFormState = {
   status?: "success" | "error" | "warning";
   message?: string;
   complete?: boolean;
+};
+
+export type AccountAvailabilityState = {
+  available: boolean;
+  message: string;
+  value: string;
 };
 
 type PasswordUserRow = RowDataPacket & {
@@ -52,6 +59,67 @@ type ResetTokenRow = RowDataPacket & {
   id: number;
   user_id: number;
 };
+
+export async function checkUsernameAvailabilityAction(
+  usernameInput: string,
+): Promise<AccountAvailabilityState> {
+  await ensureRuntimeSchema();
+  const username = usernameInput.trim();
+  const usernameError = getUsernamePolicyError(username);
+
+  if (usernameError) {
+    return { available: false, message: usernameError, value: username };
+  }
+
+  const existingUser = await queryOne<RowDataPacket & { id: number }>(
+    "SELECT id FROM users WHERE username = :username LIMIT 1",
+    { username },
+  );
+
+  return existingUser
+    ? {
+        available: false,
+        message: "Ese nombre de usuario ya está ocupado.",
+        value: username,
+      }
+    : {
+        available: true,
+        message: "Nombre de usuario disponible.",
+        value: username,
+      };
+}
+
+export async function checkEmailAvailabilityAction(
+  emailInput: string,
+): Promise<AccountAvailabilityState> {
+  await ensureRuntimeSchema();
+  const email = emailInput.trim().toLowerCase();
+
+  if (!isValidEmail(email)) {
+    return {
+      available: false,
+      message: "Introduce un correo electrónico válido.",
+      value: email,
+    };
+  }
+
+  const existingUser = await queryOne<RowDataPacket & { id: number }>(
+    "SELECT id FROM users WHERE email = :email LIMIT 1",
+    { email },
+  );
+
+  return existingUser
+    ? {
+        available: false,
+        message: "Ese correo electrónico ya está registrado.",
+        value: email,
+      }
+    : {
+        available: true,
+        message: "Correo electrónico disponible.",
+        value: email,
+      };
+}
 
 export async function loginAction(
   _state: LoginState,
@@ -99,6 +167,11 @@ export async function registerIndependentAction(
 
   if (fullName.length > 160 || username.length > 80 || !isValidEmail(email)) {
     return { status: "error", message: "Revisa el nombre, usuario y correo." };
+  }
+
+  const usernameError = getUsernamePolicyError(username);
+  if (usernameError) {
+    return { status: "error", message: usernameError };
   }
 
   const passwordError = getPasswordPolicyError(password);

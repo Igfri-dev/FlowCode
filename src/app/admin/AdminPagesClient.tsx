@@ -17,7 +17,11 @@ import {
   MiniMap,
   ReactFlow,
 } from "@xyflow/react";
-import { logoutAction } from "@/app/actions/auth";
+import {
+  checkEmailAvailabilityAction,
+  checkUsernameAvailabilityAction,
+  logoutAction,
+} from "@/app/actions/auth";
 import {
   createExerciseAction,
   createOrganizationAction,
@@ -41,6 +45,7 @@ import { useI18n } from "@/features/i18n/I18nProvider";
 import { flowEdgeComponents } from "@/components/editor/edges";
 import { flowNodeComponents } from "@/features/flow/components/nodes";
 import { FlowNodeRenderProvider } from "@/features/flow/components/nodes/FlowNodeRenderContext";
+import { useAccountAvailability } from "@/hooks/useAccountAvailability";
 import type { SessionUser } from "@/lib/auth";
 import type {
   AdminExercise,
@@ -103,8 +108,15 @@ const copy = {
     password: "Contrasena",
     email: "Correo electronico",
     passwordOptional: "Contraseña inicial (opcional)",
+    passwordConfirmation: "Confirmar contraseña inicial",
     passwordHelp:
       "Si queda vacía, el servidor generará una contraseña temporal. En ambos casos deberá cambiarse al primer inicio.",
+    passwordMatch: "Las contraseñas coinciden.",
+    passwordMismatch: "Las contraseñas no coinciden.",
+    usernameChecking: "Comprobando disponibilidad...",
+    usernameCheckFailed: "No se pudo comprobar el nombre de usuario.",
+    emailChecking: "Comprobando correo...",
+    emailCheckFailed: "No se pudo comprobar el correo electrónico.",
     bulkUsers: "Carga masiva por CSV",
     bulkUsersHelp:
       "Columnas: nombre, usuario, contraseña, correo, tipo_de_usuario y organizacion.",
@@ -203,8 +215,15 @@ const copy = {
     password: "Password",
     email: "Email",
     passwordOptional: "Initial password (optional)",
+    passwordConfirmation: "Confirm initial password",
     passwordHelp:
       "If empty, the server generates a temporary password. It must always be changed on first sign-in.",
+    passwordMatch: "Passwords match.",
+    passwordMismatch: "Passwords do not match.",
+    usernameChecking: "Checking availability...",
+    usernameCheckFailed: "Could not check username availability.",
+    emailChecking: "Checking email...",
+    emailCheckFailed: "Could not check email availability.",
     bulkUsers: "Bulk CSV upload",
     bulkUsersHelp:
       "Columns: nombre, usuario, contraseña, correo, tipo_de_usuario, and organizacion.",
@@ -369,6 +388,10 @@ export function AdminUsersPage({
           status: "Status",
         };
   const [newUserRole, setNewUserRole] = useState("student");
+  const [newUsername, setNewUsername] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
   const [newGroupType, setNewGroupType] = useState("course");
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -424,6 +447,21 @@ export function AdminUsersPage({
     users.some((item) => item.id === id && item.id !== user.id),
   );
   const selectedUserIds = activeSelectedIds.join(",");
+  const normalizedNewUsername = newUsername.trim();
+  const normalizedNewEmail = newEmail.trim().toLowerCase();
+  const passwordMismatch = newPassword !== newPasswordConfirmation;
+  const usernameCheck = useAccountAvailability({
+    canCheck: Boolean(normalizedNewUsername),
+    check: checkUsernameAvailabilityAction,
+    failureMessage: text.usernameCheckFailed,
+    value: normalizedNewUsername,
+  });
+  const emailCheck = useAccountAvailability({
+    canCheck: Boolean(normalizedNewEmail),
+    check: checkEmailAvailabilityAction,
+    failureMessage: text.emailCheckFailed,
+    value: normalizedNewEmail,
+  });
 
   function toggleUser(userId: number) {
     setSelectedIds((current) =>
@@ -584,16 +622,51 @@ export function AdminUsersPage({
               name="username"
               placeholder={text.username}
               className={inputClassName}
+              value={newUsername}
+              onBlur={usernameCheck.checkNow}
+              onChange={(event) => setNewUsername(event.target.value)}
+              aria-describedby="new-username-status"
+              maxLength={80}
               required
             />
+            <p
+              id="new-username-status"
+              aria-live="polite"
+              className={`min-h-5 text-xs ${
+                usernameCheck.availability?.available
+                  ? "text-emerald-700"
+                  : "text-red-700"
+              }`}
+            >
+              {usernameCheck.pending
+                ? text.usernameChecking
+                : usernameCheck.availability?.message}
+            </p>
             <input
               name="email"
               type="email"
               autoComplete="email"
               placeholder={text.email}
               className={inputClassName}
+              value={newEmail}
+              onBlur={emailCheck.checkNow}
+              onChange={(event) => setNewEmail(event.target.value)}
+              aria-describedby="new-email-status"
               required
             />
+            <p
+              id="new-email-status"
+              aria-live="polite"
+              className={`min-h-5 text-xs ${
+                emailCheck.availability?.available
+                  ? "text-emerald-700"
+                  : "text-red-700"
+              }`}
+            >
+              {emailCheck.pending
+                ? text.emailChecking
+                : emailCheck.availability?.message}
+            </p>
             <input
               name="password"
               type="password"
@@ -601,10 +674,37 @@ export function AdminUsersPage({
               placeholder={text.passwordOptional}
               className={inputClassName}
               minLength={8}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+            <input
+              name="passwordConfirmation"
+              type="password"
+              autoComplete="new-password"
+              placeholder={text.passwordConfirmation}
+              className={inputClassName}
+              minLength={8}
+              required={Boolean(newPassword)}
+              value={newPasswordConfirmation}
+              onChange={(event) =>
+                setNewPasswordConfirmation(event.target.value)
+              }
             />
             <p className="text-xs leading-5 text-neutral-600">
               {text.passwordHelp}
             </p>
+            {newPassword || newPasswordConfirmation ? (
+              <p
+                aria-live="polite"
+                className={`text-xs ${
+                  passwordMismatch ? "text-red-700" : "text-emerald-700"
+                }`}
+              >
+                {passwordMismatch
+                  ? text.passwordMismatch
+                  : text.passwordMatch}
+              </p>
+            ) : null}
             {user.role === "admin" ? (
               <>
                 <select
@@ -657,7 +757,23 @@ export function AdminUsersPage({
               </>
             )}
             <CreationMessage state={createState} />
-            <button className={primaryButtonClassName} disabled={createPending}>
+            <button
+              className={primaryButtonClassName}
+              disabled={
+                createPending ||
+                usernameCheck.pending ||
+                emailCheck.pending ||
+                Boolean(
+                  normalizedNewUsername &&
+                    !usernameCheck.availability?.available,
+                ) ||
+                Boolean(
+                  normalizedNewEmail &&
+                    !emailCheck.availability?.available,
+                ) ||
+                passwordMismatch
+              }
+            >
               {createPending ? "Creando..." : text.createUser}
             </button>
           </form>

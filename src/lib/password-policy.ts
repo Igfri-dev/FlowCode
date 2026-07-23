@@ -14,6 +14,15 @@ export function getPasswordPolicyError(password: string) {
   return null;
 }
 
+export function getPasswordConfirmationError(
+  password: string,
+  passwordConfirmation: string,
+) {
+  return password === passwordConfirmation
+    ? null
+    : "Las contraseñas no coinciden.";
+}
+
 export function isValidEmail(value: string) {
   return (
     value.length <= 254 &&
@@ -30,4 +39,3 @@ export function generateTemporaryPassword() {
 
   return password.join("");
 }
-

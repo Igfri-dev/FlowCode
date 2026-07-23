@@ -12,7 +12,12 @@ import {
 import { parseBulkUsersCsv } from "@/lib/csv-users";
 import { deliverPendingEmails } from "@/lib/email";
 import { sendEmailVerification } from "@/lib/email-verification";
-import { getPasswordPolicyError, isValidEmail } from "@/lib/password-policy";
+import {
+  getPasswordConfirmationError,
+  getPasswordPolicyError,
+  isValidEmail,
+} from "@/lib/password-policy";
+import { getUsernamePolicyError } from "@/lib/username-policy";
 import {
   provisionUsers,
   maximumStudentsPerOrganization,
@@ -109,6 +114,9 @@ export async function createUserAction(
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const passwordConfirmation = String(
+    formData.get("passwordConfirmation") ?? "",
+  );
   const role = String(formData.get("role") ?? "");
 
   if (
@@ -120,6 +128,19 @@ export async function createUserAction(
     (creator.role === "teacher" && role !== "student")
   ) {
     return { status: "error", message: "Revisa los datos del usuario." };
+  }
+
+  const usernameError = getUsernamePolicyError(username);
+  if (usernameError) {
+    return { status: "error", message: usernameError };
+  }
+
+  const passwordConfirmationError = getPasswordConfirmationError(
+    password,
+    passwordConfirmation,
+  );
+  if (passwordConfirmationError) {
+    return { status: "error", message: passwordConfirmationError };
   }
 
   if (password) {

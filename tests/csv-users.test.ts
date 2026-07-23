@@ -41,3 +41,13 @@ test("reports duplicates and weak assigned passwords before provisioning", () =>
   assert.match(result.errors.join(" "), /número/);
   assert.match(result.errors.join(" "), /repetido/);
 });
+
+test("rejects reserved usernames in bulk creation", () => {
+  const result = parseBulkUsersCsv(
+    "nombre,usuario,contraseña,correo,tipo_de_usuario,organizacion\nAdministrador,admin01,abc12345,admin@example.com,student,Norte",
+  );
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.errors.join(" "), /reservado/);
+});
