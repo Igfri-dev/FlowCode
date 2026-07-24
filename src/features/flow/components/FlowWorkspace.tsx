@@ -92,6 +92,7 @@ export function FlowWorkspace({
   project,
 }: FlowWorkspaceProps) {
   const { language, t } = useI18n();
+  const isEditingSubmission = editingSubmission !== undefined;
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
   const hasLoadedInitialProgramRef = useRef(false);
@@ -169,9 +170,13 @@ export function FlowWorkspace({
     [t],
   );
   const clearExerciseSelection = useCallback(() => {
+    if (isEditingSubmission) {
+      return;
+    }
+
     setSelectedExerciseId(null);
     loadedExerciseStarterCodeRef.current = null;
-  }, []);
+  }, [isEditingSubmission]);
   const {
     codeGenerationResult,
     editorShellRef,
@@ -674,6 +679,7 @@ export function FlowWorkspace({
             exercises={exerciseCatalog}
             selectedExercise={selectedExercise}
             onSelectExercise={handleSelectExercise}
+            showExerciseSelector={!isEditingSubmission}
           />
           <div className="flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-lg shadow-neutral-300/50">
             <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

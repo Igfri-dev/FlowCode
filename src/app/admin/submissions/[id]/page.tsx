@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { logoutAction } from "@/app/actions/auth";
+import { AppHeader } from "@/components/ui/AppHeader";
 import { I18nProvider } from "@/features/i18n/I18nProvider";
 import { FlowWorkspace } from "@/features/flow/components/FlowWorkspace";
 import { requireTeacherOrAdmin } from "@/lib/auth";
@@ -33,8 +34,9 @@ export default async function SubmissionReviewPage({
 
   return (
     <I18nProvider>
-      <div className="flex min-h-screen flex-col bg-[#f5f6f4] text-neutral-950">
-        <header className="sticky top-0 z-20 border-b border-neutral-200/80 bg-white/95 px-4 py-4 shadow-sm shadow-neutral-200/70 backdrop-blur sm:px-5 lg:px-6 2xl:px-8">
+      <div className="flex min-h-screen flex-col bg-neutral-100 text-neutral-950">
+        <AppHeader user={user} onLogout={logoutAction} />
+        <header className="border-b border-neutral-200/80 bg-white px-4 py-4 shadow-sm shadow-neutral-200/70 sm:px-5 lg:px-6 2xl:px-8">
           <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-3 sm:items-center">
               <Link

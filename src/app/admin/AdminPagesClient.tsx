@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -41,6 +40,7 @@ import {
   type UserCreationState,
   type UserManagementState,
 } from "@/app/admin/actions";
+import { AppHeader } from "@/components/ui/AppHeader";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import { flowEdgeComponents } from "@/components/editor/edges";
 import { flowNodeComponents } from "@/features/flow/components/nodes";
@@ -55,7 +55,6 @@ import type {
   AdminUserGroup,
 } from "@/lib/admin-data";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
-import logoImage from "../logo.png";
 
 type AdminChromeProps = {
   children: ReactNode;
@@ -318,6 +317,7 @@ export function AdminUsersPage({
           administrators: "Administradores",
           allGroups: "Todos los grupos",
           allRoles: "Todos los roles",
+          close: "Cerrar",
           course: "Curso",
           createGroup: "Crear grupo",
           custom: "Personalizado",
@@ -356,6 +356,7 @@ export function AdminUsersPage({
           administrators: "Administrators",
           allGroups: "All groups",
           allRoles: "All roles",
+          close: "Close",
           course: "Course",
           createGroup: "Create group",
           custom: "Custom",
@@ -387,36 +388,24 @@ export function AdminUsersPage({
           selectMembers: "Select members",
           status: "Status",
         };
-  const [newUserRole, setNewUserRole] = useState("student");
-  const [newUsername, setNewUsername] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
-  const [newGroupType, setNewGroupType] = useState("course");
+  const createUserLabel =
+    user.role === "teacher"
+      ? language === "es"
+        ? "Crear alumno"
+        : "Create student"
+      : text.createUser;
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [createState, createAction, createPending] = useActionState(
-    createUserAction,
-    {} as UserCreationState,
-  );
-  const [bulkState, bulkAction, bulkPending] = useActionState(
-    bulkCreateUsersAction,
-    {} as UserCreationState,
-  );
-  const [groupState, groupAction, groupPending] = useActionState(
-    createUserGroupAction,
-    {} as UserManagementState,
-  );
   const [managementState, managementAction, managementPending] =
     useActionState(
       manageSelectedUsersAction,
       {} as UserManagementState,
     );
-  const csvTemplate = encodeURIComponent(
-    "nombre,usuario,contraseña,correo,tipo_de_usuario,organizacion\nAna Pérez,ana.perez,,ana@example.com,student,Mi organización\n",
-  );
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const filteredUsers = useMemo(() => {
     const selectedGroup =
@@ -447,22 +436,6 @@ export function AdminUsersPage({
     users.some((item) => item.id === id && item.id !== user.id),
   );
   const selectedUserIds = activeSelectedIds.join(",");
-  const normalizedNewUsername = newUsername.trim();
-  const normalizedNewEmail = newEmail.trim().toLowerCase();
-  const passwordMismatch = newPassword !== newPasswordConfirmation;
-  const usernameCheck = useAccountAvailability({
-    canCheck: Boolean(normalizedNewUsername),
-    check: checkUsernameAvailabilityAction,
-    failureMessage: text.usernameCheckFailed,
-    value: normalizedNewUsername,
-  });
-  const emailCheck = useAccountAvailability({
-    canCheck: Boolean(normalizedNewEmail),
-    check: checkEmailAvailabilityAction,
-    failureMessage: text.emailCheckFailed,
-    value: normalizedNewEmail,
-  });
-
   function toggleUser(userId: number) {
     setSelectedIds((current) =>
       current.includes(userId)
@@ -482,70 +455,44 @@ export function AdminUsersPage({
   return (
     <AdminChrome user={user}>
       <PageHeader count={users.length} help={text.usersHelp} title={text.users} />
-      <section className={`${panelClassName} mb-4`}>
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div className="max-w-xl">
-            <PanelTitle>{ui.groups}</PanelTitle>
-            <p className="mt-2 text-sm leading-6 text-neutral-600">{ui.groupsHelp}</p>
-          </div>
-          <form
-            action={groupAction}
-            className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[minmax(160px,1fr)_150px_minmax(170px,1fr)_auto]"
+      <section className="rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+          {language === "es" ? "Acciones de usuarios" : "User actions"}
+        </p>
+        <div className="mt-2 grid gap-2 md:grid-cols-3">
+          <button
+            className={`${secondaryButtonClassName} w-full`}
+            onClick={() => setIsCreateGroupOpen(true)}
+            type="button"
           >
-            <input
-              className={inputClassName}
-              name="name"
-              placeholder={ui.groupName}
-              required
-            />
-            <select
-              className={inputClassName}
-              name="type"
-              value={newGroupType}
-              onChange={(event) => setNewGroupType(event.target.value)}
-            >
-              <option value="course">{ui.course}</option>
-              <option value="custom">{ui.custom}</option>
-              {user.role === "admin" ? (
-                <>
-                  <option value="organization">{ui.organizationGroup}</option>
-                  <option value="administrators">{ui.administrators}</option>
-                </>
-              ) : null}
-            </select>
-            {user.role === "admin" && newGroupType !== "administrators" ? (
-              <select
-                className={inputClassName}
-                name="organizationId"
-                defaultValue=""
-              >
-                <option value="">
-                  {newGroupType === "custom" ? ui.global : text.selectOrganization}
-                </option>
-                {organizations
-                  .filter((organization) => organization.isActive)
-                  .map((organization) => (
-                    <option key={organization.id} value={organization.id}>
-                      {organization.name}
-                    </option>
-                  ))}
-              </select>
-            ) : (
-              <input name="organizationId" type="hidden" value="" />
-            )}
-            <button className={primaryButtonClassName} disabled={groupPending}>
-              {groupPending ? "…" : ui.createGroup}
-            </button>
-            <div className="sm:col-span-2 lg:col-span-4">
-              <CreationMessage state={groupState} />
-            </div>
-          </form>
+            {ui.createGroup}
+          </button>
+          <button
+            className={`${secondaryButtonClassName} w-full`}
+            onClick={() => setIsBulkUploadOpen(true)}
+            type="button"
+          >
+            {text.bulkUsers}
+          </button>
+          <button
+            className={`${primaryButtonClassName} w-full`}
+            onClick={() => setIsCreateUserOpen(true)}
+            type="button"
+          >
+            {createUserLabel}
+          </button>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      </section>
+      <section className={`${panelClassName} mb-4`}>
+        <div className="w-full">
+          <PanelTitle>{ui.groups}</PanelTitle>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">{ui.groupsHelp}</p>
+        </div>
+        <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
           {groups.map((group) => (
             <article
               key={group.id}
-              className="rounded-lg border border-neutral-200 bg-neutral-50/70 p-3"
+              className="w-full rounded-lg border border-neutral-200 bg-neutral-50/70 p-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -608,213 +555,7 @@ export function AdminUsersPage({
         </div>
       </section>
 
-      <div className="grid w-full grid-cols-1 items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <section className={`${panelClassName} xl:sticky xl:top-28`}>
-          <PanelTitle>{text.createUser}</PanelTitle>
-          <form action={createAction} className="mt-4 grid gap-3">
-            <input
-              name="fullName"
-              placeholder={text.fullName}
-              className={inputClassName}
-              required
-            />
-            <input
-              name="username"
-              placeholder={text.username}
-              className={inputClassName}
-              value={newUsername}
-              onBlur={usernameCheck.checkNow}
-              onChange={(event) => setNewUsername(event.target.value)}
-              aria-describedby="new-username-status"
-              maxLength={80}
-              required
-            />
-            <p
-              id="new-username-status"
-              aria-live="polite"
-              className={`min-h-5 text-xs ${
-                usernameCheck.availability?.available
-                  ? "text-emerald-700"
-                  : "text-red-700"
-              }`}
-            >
-              {usernameCheck.pending
-                ? text.usernameChecking
-                : usernameCheck.availability?.message}
-            </p>
-            <input
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder={text.email}
-              className={inputClassName}
-              value={newEmail}
-              onBlur={emailCheck.checkNow}
-              onChange={(event) => setNewEmail(event.target.value)}
-              aria-describedby="new-email-status"
-              required
-            />
-            <p
-              id="new-email-status"
-              aria-live="polite"
-              className={`min-h-5 text-xs ${
-                emailCheck.availability?.available
-                  ? "text-emerald-700"
-                  : "text-red-700"
-              }`}
-            >
-              {emailCheck.pending
-                ? text.emailChecking
-                : emailCheck.availability?.message}
-            </p>
-            <input
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              placeholder={text.passwordOptional}
-              className={inputClassName}
-              minLength={8}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-            <input
-              name="passwordConfirmation"
-              type="password"
-              autoComplete="new-password"
-              placeholder={text.passwordConfirmation}
-              className={inputClassName}
-              minLength={8}
-              required={Boolean(newPassword)}
-              value={newPasswordConfirmation}
-              onChange={(event) =>
-                setNewPasswordConfirmation(event.target.value)
-              }
-            />
-            <p className="text-xs leading-5 text-neutral-600">
-              {text.passwordHelp}
-            </p>
-            {newPassword || newPasswordConfirmation ? (
-              <p
-                aria-live="polite"
-                className={`text-xs ${
-                  passwordMismatch ? "text-red-700" : "text-emerald-700"
-                }`}
-              >
-                {passwordMismatch
-                  ? text.passwordMismatch
-                  : text.passwordMatch}
-              </p>
-            ) : null}
-            {user.role === "admin" ? (
-              <>
-                <select
-                  name="role"
-                  className={inputClassName}
-                  value={newUserRole}
-                  onChange={(event) => setNewUserRole(event.target.value)}
-                >
-                  <option value="student">student</option>
-                  <option value="teacher">teacher</option>
-                  <option value="admin">admin</option>
-                </select>
-                {newUserRole !== "admin" ? (
-                  <select
-                    name="organizationId"
-                    className={inputClassName}
-                    defaultValue=""
-                    required
-                  >
-                    <option value="" disabled>
-                      {text.selectOrganization}
-                    </option>
-                    {organizations
-                      .filter((organization) => organization.isActive)
-                      .map((organization) => (
-                        <option key={organization.id} value={organization.id}>
-                          {organization.name} · {organization.studentCount}/60 alumnos
-                        </option>
-                      ))}
-                  </select>
-                ) : (
-                  <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-                    {text.adminGlobalAccess}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <input name="role" type="hidden" value="student" />
-                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                  {text.organization}: {user.organizationName ?? "—"}
-                </p>
-                {(organizations.find(
-                  (organization) => organization.id === user.organizationId,
-                )?.studentCount ?? 0) >= 60 ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
-                    La organización alcanzó 60 alumnos. Contacta a contacto@igfri.dev para ampliar el cupo.
-                  </p>
-                ) : null}
-              </>
-            )}
-            <CreationMessage state={createState} />
-            <button
-              className={primaryButtonClassName}
-              disabled={
-                createPending ||
-                usernameCheck.pending ||
-                emailCheck.pending ||
-                Boolean(
-                  normalizedNewUsername &&
-                    !usernameCheck.availability?.available,
-                ) ||
-                Boolean(
-                  normalizedNewEmail &&
-                    !emailCheck.availability?.available,
-                ) ||
-                passwordMismatch
-              }
-            >
-              {createPending ? "Creando..." : text.createUser}
-            </button>
-          </form>
-          <div className="my-5 border-t border-neutral-200" />
-          <PanelTitle>{text.bulkUsers}</PanelTitle>
-          <p className="mt-3 text-xs leading-5 text-neutral-600">
-            {text.bulkUsersHelp}
-          </p>
-          <form action={bulkAction} className="mt-3 grid gap-3">
-            <label className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700 transition hover:border-emerald-400 hover:bg-emerald-50/40">
-              {text.selectCsv}
-              <input
-                className="mt-2 block w-full text-xs font-normal file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-2 file:font-semibold file:text-white"
-                type="file"
-                name="csvFile"
-                accept=".csv,text/csv"
-                required
-              />
-            </label>
-            <CreationMessage state={bulkState} />
-            <button className={primaryButtonClassName} disabled={bulkPending}>
-              {bulkPending ? "Procesando..." : text.uploadCsv}
-            </button>
-            <a
-              className={`${secondaryButtonClassName} text-center`}
-              href={`data:text/csv;charset=utf-8,${csvTemplate}`}
-              download="plantilla-usuarios-flowcode.csv"
-            >
-              {text.downloadTemplate}
-            </a>
-          </form>
-          {user.role === "admin" ? (
-            <form action={retryPendingEmailsAction} className="mt-3">
-              <button className={`${secondaryButtonClassName} w-full`}>
-                {text.retryEmails}
-              </button>
-            </form>
-          ) : null}
-        </section>
-
-        <AdminTable
+      <AdminTable
           count={filteredUsers.length}
           emptyLabel={text.noMatchingRows}
           title={text.users}
@@ -1073,9 +814,546 @@ export function AdminUsersPage({
             </tr>
             );
           })}
-        </AdminTable>
-      </div>
+      </AdminTable>
+      {isBulkUploadOpen ? (
+        <BulkUsersModal
+          onClose={() => setIsBulkUploadOpen(false)}
+          user={user}
+        />
+      ) : null}
+      {isCreateGroupOpen ? (
+        <CreateGroupModal
+          labels={ui}
+          onClose={() => setIsCreateGroupOpen(false)}
+          organizations={organizations}
+          user={user}
+        />
+      ) : null}
+      {isCreateUserOpen ? (
+        <CreateUserModal
+          label={createUserLabel}
+          onClose={() => setIsCreateUserOpen(false)}
+          organizations={organizations}
+          user={user}
+        />
+      ) : null}
     </AdminChrome>
+  );
+}
+
+function AdminFormModal({
+  children,
+  closeLabel,
+  description,
+  extraWide = false,
+  onClose,
+  title,
+  wide = false,
+}: {
+  children: ReactNode;
+  closeLabel: string;
+  description: string;
+  extraWide?: boolean;
+  onClose: () => void;
+  title: string;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-neutral-950/55 p-4 backdrop-blur-sm sm:p-8"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="admin-form-modal-title"
+        aria-modal="true"
+        className={`my-auto w-full rounded-xl border border-neutral-200 bg-white p-5 shadow-2xl shadow-neutral-950/20 sm:p-6 ${
+          extraWide ? "max-w-3xl" : wide ? "max-w-2xl" : "max-w-lg"
+        }`}
+        role="dialog"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-neutral-200 pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+              FlowCode
+            </p>
+            <h2
+              className="mt-1 text-xl font-semibold text-neutral-950"
+              id="admin-form-modal-title"
+            >
+              {title}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-neutral-600">
+              {description}
+            </p>
+          </div>
+          <button
+            aria-label={closeLabel}
+            className={iconButtonClassName}
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function BulkUsersModal({
+  onClose,
+  user,
+}: {
+  onClose: () => void;
+  user: SessionUser;
+}) {
+  const { language } = useI18n();
+  const text = copy[language];
+  const closeLabel = language === "es" ? "Cerrar" : "Close";
+  const processingLabel = language === "es" ? "Procesando..." : "Processing...";
+  const [state, action, pending] = useActionState(
+    bulkCreateUsersAction,
+    {} as UserCreationState,
+  );
+  const csvTemplate = encodeURIComponent(
+    "nombre,usuario,contraseña,correo,tipo_de_usuario,organizacion\nAna Pérez,ana.perez,,ana@example.com,student,Mi organización\n",
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onClose();
+    }
+  }, [onClose, state]);
+
+  return (
+    <AdminFormModal
+      closeLabel={closeLabel}
+      description={text.bulkUsersHelp}
+      onClose={onClose}
+      title={text.bulkUsers}
+    >
+      <form action={action} className="grid gap-3">
+        <label className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm font-semibold text-neutral-700 transition hover:border-emerald-400 hover:bg-emerald-50/40">
+          {text.selectCsv}
+          <input
+            accept=".csv,text/csv"
+            autoFocus
+            className="mt-3 block w-full text-xs font-normal file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-2 file:font-semibold file:text-white"
+            name="csvFile"
+            required
+            type="file"
+          />
+        </label>
+        <a
+          className={`${secondaryButtonClassName} text-center`}
+          download="plantilla-usuarios-flowcode.csv"
+          href={`data:text/csv;charset=utf-8,${csvTemplate}`}
+        >
+          {text.downloadTemplate}
+        </a>
+        <CreationMessage state={state} />
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+          <button
+            className={secondaryButtonClassName}
+            onClick={onClose}
+            type="button"
+          >
+            {closeLabel}
+          </button>
+          <button className={primaryButtonClassName} disabled={pending}>
+            {pending ? processingLabel : text.uploadCsv}
+          </button>
+        </div>
+      </form>
+      {user.role === "admin" ? (
+        <form
+          action={retryPendingEmailsAction}
+          className="mt-4 border-t border-neutral-200 pt-4"
+        >
+          <button className={`${secondaryButtonClassName} w-full`}>
+            {text.retryEmails}
+          </button>
+        </form>
+      ) : null}
+    </AdminFormModal>
+  );
+}
+
+type CreateGroupModalLabels = {
+  administrators: string;
+  close: string;
+  course: string;
+  createGroup: string;
+  custom: string;
+  global: string;
+  groupName: string;
+  organizationGroup: string;
+};
+
+function CreateGroupModal({
+  labels,
+  onClose,
+  organizations,
+  user,
+}: {
+  labels: CreateGroupModalLabels;
+  onClose: () => void;
+  organizations: AdminOrganization[];
+  user: SessionUser;
+}) {
+  const { language } = useI18n();
+  const text = copy[language];
+  const [newGroupType, setNewGroupType] = useState("course");
+  const [state, action, pending] = useActionState(
+    createUserGroupAction,
+    {} as UserManagementState,
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onClose();
+    }
+  }, [onClose, state]);
+
+  return (
+    <AdminFormModal
+      closeLabel={labels.close}
+      description={
+        language === "es"
+          ? "Define el nombre, tipo y alcance del nuevo grupo."
+          : "Define the name, type, and scope of the new group."
+      }
+      onClose={onClose}
+      title={labels.createGroup}
+    >
+      <form action={action} className="grid gap-3">
+        <input
+          autoFocus
+          className={inputClassName}
+          name="name"
+          placeholder={labels.groupName}
+          required
+        />
+        <select
+          className={inputClassName}
+          name="type"
+          value={newGroupType}
+          onChange={(event) => setNewGroupType(event.target.value)}
+        >
+          <option value="course">{labels.course}</option>
+          <option value="custom">{labels.custom}</option>
+          {user.role === "admin" ? (
+            <>
+              <option value="organization">{labels.organizationGroup}</option>
+              <option value="administrators">{labels.administrators}</option>
+            </>
+          ) : null}
+        </select>
+        {user.role === "admin" && newGroupType !== "administrators" ? (
+          <select
+            className={inputClassName}
+            name="organizationId"
+            defaultValue=""
+          >
+            <option value="">
+              {newGroupType === "custom"
+                ? labels.global
+                : text.selectOrganization}
+            </option>
+            {organizations
+              .filter((organization) => organization.isActive)
+              .map((organization) => (
+                <option key={organization.id} value={organization.id}>
+                  {organization.name}
+                </option>
+              ))}
+          </select>
+        ) : (
+          <input name="organizationId" type="hidden" value="" />
+        )}
+        <CreationMessage state={state} />
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+          <button
+            className={secondaryButtonClassName}
+            onClick={onClose}
+            type="button"
+          >
+            {labels.close}
+          </button>
+          <button className={primaryButtonClassName} disabled={pending}>
+            {pending ? "…" : labels.createGroup}
+          </button>
+        </div>
+      </form>
+    </AdminFormModal>
+  );
+}
+
+function CreateUserModal({
+  label,
+  onClose,
+  organizations,
+  user,
+}: {
+  label: string;
+  onClose: () => void;
+  organizations: AdminOrganization[];
+  user: SessionUser;
+}) {
+  const { language } = useI18n();
+  const text = copy[language];
+  const closeLabel = language === "es" ? "Cerrar" : "Close";
+  const [newUserRole, setNewUserRole] = useState("student");
+  const [newUsername, setNewUsername] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
+  const [state, action, pending] = useActionState(
+    createUserAction,
+    {} as UserCreationState,
+  );
+  const normalizedNewUsername = newUsername.trim();
+  const normalizedNewEmail = newEmail.trim().toLowerCase();
+  const passwordMismatch = newPassword !== newPasswordConfirmation;
+  const usernameCheck = useAccountAvailability({
+    canCheck: Boolean(normalizedNewUsername),
+    check: checkUsernameAvailabilityAction,
+    failureMessage: text.usernameCheckFailed,
+    value: normalizedNewUsername,
+  });
+  const emailCheck = useAccountAvailability({
+    canCheck: Boolean(normalizedNewEmail),
+    check: checkEmailAvailabilityAction,
+    failureMessage: text.emailCheckFailed,
+    value: normalizedNewEmail,
+  });
+
+  useEffect(() => {
+    if (state.status === "success") {
+      onClose();
+    }
+  }, [onClose, state]);
+
+  return (
+    <AdminFormModal
+      closeLabel={closeLabel}
+      description={
+        user.role === "teacher"
+          ? language === "es"
+            ? "Completa los datos de la nueva cuenta de alumno."
+            : "Complete the new student account details."
+          : language === "es"
+            ? "Completa los datos y define el rol de la nueva cuenta."
+            : "Complete the details and select the role for the new account."
+      }
+      onClose={onClose}
+      title={label}
+      wide
+    >
+      <form action={action} className="grid gap-3 sm:grid-cols-2">
+        <input
+          autoFocus
+          name="fullName"
+          placeholder={text.fullName}
+          className={`${inputClassName} sm:col-span-2`}
+          required
+        />
+        <div className="grid gap-1">
+          <input
+            name="username"
+            placeholder={text.username}
+            className={inputClassName}
+            value={newUsername}
+            onBlur={usernameCheck.checkNow}
+            onChange={(event) => setNewUsername(event.target.value)}
+            aria-describedby="new-username-status"
+            maxLength={80}
+            required
+          />
+          <p
+            id="new-username-status"
+            aria-live="polite"
+            className={`min-h-5 text-xs ${
+              usernameCheck.availability?.available
+                ? "text-emerald-700"
+                : "text-red-700"
+            }`}
+          >
+            {usernameCheck.pending
+              ? text.usernameChecking
+              : usernameCheck.availability?.message}
+          </p>
+        </div>
+        <div className="grid gap-1">
+          <input
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder={text.email}
+            className={inputClassName}
+            value={newEmail}
+            onBlur={emailCheck.checkNow}
+            onChange={(event) => setNewEmail(event.target.value)}
+            aria-describedby="new-email-status"
+            required
+          />
+          <p
+            id="new-email-status"
+            aria-live="polite"
+            className={`min-h-5 text-xs ${
+              emailCheck.availability?.available
+                ? "text-emerald-700"
+                : "text-red-700"
+            }`}
+          >
+            {emailCheck.pending
+              ? text.emailChecking
+              : emailCheck.availability?.message}
+          </p>
+        </div>
+        <input
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          placeholder={text.passwordOptional}
+          className={inputClassName}
+          minLength={8}
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
+        />
+        <input
+          name="passwordConfirmation"
+          type="password"
+          autoComplete="new-password"
+          placeholder={text.passwordConfirmation}
+          className={inputClassName}
+          minLength={8}
+          required={Boolean(newPassword)}
+          value={newPasswordConfirmation}
+          onChange={(event) =>
+            setNewPasswordConfirmation(event.target.value)
+          }
+        />
+        <p className="text-xs leading-5 text-neutral-600 sm:col-span-2">
+          {text.passwordHelp}
+        </p>
+        {newPassword || newPasswordConfirmation ? (
+          <p
+            aria-live="polite"
+            className={`text-xs sm:col-span-2 ${
+              passwordMismatch ? "text-red-700" : "text-emerald-700"
+            }`}
+          >
+            {passwordMismatch ? text.passwordMismatch : text.passwordMatch}
+          </p>
+        ) : null}
+        {user.role === "admin" ? (
+          <>
+            <select
+              name="role"
+              className={inputClassName}
+              value={newUserRole}
+              onChange={(event) => setNewUserRole(event.target.value)}
+            >
+              <option value="student">student</option>
+              <option value="teacher">teacher</option>
+              <option value="admin">admin</option>
+            </select>
+            {newUserRole !== "admin" ? (
+              <select
+                name="organizationId"
+                className={inputClassName}
+                defaultValue=""
+                required
+              >
+                <option value="" disabled>
+                  {text.selectOrganization}
+                </option>
+                {organizations
+                  .filter((organization) => organization.isActive)
+                  .map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name} · {organization.studentCount}/60 alumnos
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+                {text.adminGlobalAccess}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <input name="role" type="hidden" value="student" />
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 sm:col-span-2">
+              {text.organization}: {user.organizationName ?? "—"}
+            </p>
+            {(organizations.find(
+              (organization) => organization.id === user.organizationId,
+            )?.studentCount ?? 0) >= 60 ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 sm:col-span-2">
+                La organización alcanzó 60 alumnos. Contacta a contacto@igfri.dev para ampliar el cupo.
+              </p>
+            ) : null}
+          </>
+        )}
+        <div className="sm:col-span-2">
+          <CreationMessage state={state} />
+        </div>
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:col-span-2 sm:flex-row sm:justify-end">
+          <button
+            className={secondaryButtonClassName}
+            onClick={onClose}
+            type="button"
+          >
+            {closeLabel}
+          </button>
+          <button
+            className={primaryButtonClassName}
+            disabled={
+              pending ||
+              usernameCheck.pending ||
+              emailCheck.pending ||
+              Boolean(
+                normalizedNewUsername &&
+                  !usernameCheck.availability?.available,
+              ) ||
+              Boolean(
+                normalizedNewEmail &&
+                  !emailCheck.availability?.available,
+              ) ||
+              passwordMismatch
+            }
+          >
+            {pending ? "Creando..." : label}
+          </button>
+        </div>
+      </form>
+    </AdminFormModal>
   );
 }
 
@@ -1167,6 +1445,7 @@ export function AdminExercisesPage({
   const { language } = useI18n();
   const text = copy[language];
   const [query, setQuery] = useState("");
+  const [isCreateExerciseOpen, setIsCreateExerciseOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<AdminExercise | null>(
     null,
   );
@@ -1196,56 +1475,79 @@ export function AdminExercisesPage({
         help={text.exercisesHelp}
         title={text.exercises}
       />
-      <div className="grid w-full grid-cols-1 items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className={`${panelClassName} xl:sticky xl:top-28`}>
-          <PanelTitle>{text.newExercise}</PanelTitle>
+      <section className="rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+          {language === "es" ? "Acciones de ejercicios" : "Exercise actions"}
+        </p>
+        <button
+          className={`${primaryButtonClassName} mt-2 w-full`}
+          onClick={() => setIsCreateExerciseOpen(true)}
+          type="button"
+        >
+          {text.createExercise}
+        </button>
+      </section>
+
+      <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+        <div className="border-b border-neutral-200 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">{text.exercises}</h2>
+              <p className="mt-0.5 text-sm text-neutral-500">
+                {text.showing} {filteredExercises.length} {text.of} {exercises.length}
+              </p>
+            </div>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={text.searchExercises}
+              className={`${inputClassName} w-full sm:max-w-xs`}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 2xl:grid-cols-3">
+          {filteredExercises.length > 0 ? (
+            filteredExercises.map((exercise) => (
+              <ExerciseCard
+                exercise={exercise}
+                key={`${exercise.organizationId}:${exercise.sourceId ?? exercise.id}`}
+                onEdit={
+                  exercise.canManage
+                    ? () => setEditingExercise(exercise)
+                    : undefined
+                }
+                text={text}
+              />
+            ))
+          ) : (
+            <EmptyState label={exercises.length > 0 ? text.noMatchingRows : text.noRows} />
+          )}
+        </div>
+      </section>
+
+      {isCreateExerciseOpen ? (
+        <AdminFormModal
+          closeLabel={language === "es" ? "Cerrar" : "Close"}
+          description={
+            language === "es"
+              ? "Completa el enunciado, configuración y pruebas del nuevo ejercicio."
+              : "Complete the prompt, configuration, and tests for the new exercise."
+          }
+          extraWide
+          onClose={() => setIsCreateExerciseOpen(false)}
+          title={text.newExercise}
+        >
           <ExerciseForm
             action={createExerciseAction}
+            onSubmit={() => setIsCreateExerciseOpen(false)}
             submitLabel={text.createExercise}
             text={text}
             user={user}
           />
-        </section>
-
-        <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <div className="border-b border-neutral-200 p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">{text.exercises}</h2>
-                <p className="mt-0.5 text-sm text-neutral-500">
-                  {text.showing} {filteredExercises.length} {text.of} {exercises.length}
-                </p>
-              </div>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={text.searchExercises}
-                className={`${inputClassName} w-full sm:max-w-xs`}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 2xl:grid-cols-3">
-            {filteredExercises.length > 0 ? (
-              filteredExercises.map((exercise) => (
-                <ExerciseCard
-                  exercise={exercise}
-                  key={`${exercise.organizationId}:${exercise.sourceId ?? exercise.id}`}
-                  onEdit={
-                    exercise.canManage
-                      ? () => setEditingExercise(exercise)
-                      : undefined
-                  }
-                  text={text}
-                />
-              ))
-            ) : (
-              <EmptyState label={exercises.length > 0 ? text.noMatchingRows : text.noRows} />
-            )}
-          </div>
-        </section>
-      </div>
+        </AdminFormModal>
+      ) : null}
 
       {editingExercise ? (
         <div
@@ -2161,9 +2463,8 @@ export function TestResultPanel({
 }
 
 function AdminChrome({ children, user }: AdminChromeProps) {
-  const { language, setLanguage } = useI18n();
+  const { language } = useI18n();
   const text = copy[language];
-  const nextLanguage = language === "es" ? "en" : "es";
   const pathname = usePathname();
   const navItems = [
     { href: "/admin/submissions", label: text.submissions, roles: ["teacher", "admin"] },
@@ -2173,109 +2474,45 @@ function AdminChrome({ children, user }: AdminChromeProps) {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f5f6f4] text-neutral-950 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      <aside className="border-b border-emerald-950/30 bg-[#12372a] text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 lg:block lg:px-5 lg:py-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-xl bg-white p-1.5 shadow-lg shadow-black/10">
-              <Image src={logoImage} alt="FlowCode" className="h-9 w-auto object-contain" priority />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">{text.eyebrow}</p>
-              <h1 className="truncate text-lg font-semibold">FlowCode</h1>
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label={text.languageToggle}
-            title={text.languageToggle}
-            onClick={() => setLanguage(nextLanguage)}
-            className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-semibold transition hover:bg-white/10 lg:hidden"
-          >
-            {language.toUpperCase()}
-          </button>
-        </div>
-
-        <div className="hidden px-4 pt-5 lg:block">
-          <div className="rounded-xl border border-white/10 bg-white/8 p-3">
-            <p className="truncate text-sm font-semibold">{user.fullName}</p>
-            <p className="mt-0.5 truncate text-xs text-emerald-100/70">@{user.username}</p>
-            {user.organizationName ? (
-              <p className="mt-1 truncate text-xs font-medium text-emerald-100">
-                {user.organizationName}
-              </p>
-            ) : null}
-            <span className="mt-3 inline-flex rounded-full bg-emerald-300/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-100 ring-1 ring-emerald-300/20">
-              {user.role}
-            </span>
-          </div>
-        </div>
-
-        <nav className="flex gap-2 overflow-x-auto px-4 py-3 lg:grid lg:gap-1 lg:overflow-visible lg:px-4 lg:py-5">
-          {navItems
-            .filter((item) => item.roles.includes(user.role))
-            .map((item) => {
-              const isActive = pathname.startsWith(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    isActive
-                      ? "whitespace-nowrap rounded-lg bg-white px-3 py-2.5 text-sm font-semibold text-emerald-950 shadow-sm lg:w-full"
-                      : "whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-50/75 transition hover:bg-white/10 hover:text-white lg:w-full"
-                  }
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-        </nav>
-
-        <div className="flex gap-2 px-4 pb-4 lg:hidden">
-          <Link href="/" className="flex-1 rounded-lg border border-white/15 px-3 py-2 text-center text-xs font-semibold transition hover:bg-white/10">
-            {text.openEditor}
-          </Link>
-          <form action={logoutAction} className="flex-1">
-            <button className="w-full rounded-lg bg-white px-3 py-2 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-50">
-              {text.signOut}
-            </button>
-          </form>
-        </div>
-
-        <div className="mt-auto hidden grid-cols-2 gap-2 border-t border-white/10 p-4 lg:grid">
-          <button
-            type="button"
-            aria-label={text.languageToggle}
-            title={text.languageToggle}
-            onClick={() => setLanguage(nextLanguage)}
-            className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold transition hover:bg-white/10"
-          >
-            {language.toUpperCase()}
-          </button>
-          <Link href="/" className="rounded-lg border border-white/15 px-3 py-2 text-center text-xs font-semibold transition hover:bg-white/10">
-            {text.openEditor}
-          </Link>
-          <form action={logoutAction} className="col-span-2">
-            <button className="w-full rounded-lg bg-white px-3 py-2 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-50">
-              {text.signOut}
-            </button>
-          </form>
-        </div>
-      </aside>
-
+    <main className="min-h-screen bg-neutral-100 text-neutral-950">
+      <AppHeader user={user} onLogout={logoutAction} />
       <section className="min-w-0">
-        <header className="sticky top-0 z-20 hidden border-b border-neutral-200/80 bg-[#f5f6f4]/90 px-6 py-4 backdrop-blur lg:flex lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">{text.activeRole}: {user.role}</p>
-            <h2 className="mt-0.5 text-lg font-semibold">{text.title}</h2>
+        <div className="sticky top-16 z-10 border-b border-neutral-200/80 bg-white/95 shadow-sm shadow-neutral-200/60 backdrop-blur">
+          <div className="flex w-full flex-col gap-2 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-5 2xl:px-6">
+            <nav className="flex gap-2 overflow-x-auto">
+              {navItems
+                .filter((item) => item.roles.includes(user.role))
+                .map((item) => {
+                  const isActive = pathname.startsWith(item.href);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      className={
+                        isActive
+                          ? "whitespace-nowrap rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 shadow-sm"
+                          : "whitespace-nowrap rounded-md border border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-950"
+                      }
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+            </nav>
+            <div className="hidden items-center gap-2 text-xs lg:flex">
+              <span className="font-semibold uppercase tracking-wider text-emerald-700">
+                {text.activeRole}: {user.role}
+              </span>
+              {user.organizationName ? (
+                <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 font-medium text-neutral-600">
+                  {user.organizationName}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <p className="text-sm text-neutral-500">
-            {text.signedIn} {user.fullName}
-            {user.organizationName ? ` · ${user.organizationName}` : ""}
-          </p>
-        </header>
+        </div>
         <div className="grid w-full gap-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6 2xl:px-8">{children}</div>
       </section>
     </main>

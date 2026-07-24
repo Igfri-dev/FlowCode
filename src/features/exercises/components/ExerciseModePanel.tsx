@@ -5,12 +5,14 @@ type ExerciseModePanelProps = {
   exercises: Exercise[];
   selectedExercise: Exercise | null;
   onSelectExercise: (exerciseId: string) => void;
+  showExerciseSelector?: boolean;
 };
 
 export function ExerciseModePanel({
   exercises,
   selectedExercise,
   onSelectExercise,
+  showExerciseSelector = true,
 }: ExerciseModePanelProps) {
   const { t } = useI18n();
   const localizedDifficultyLabels: Record<ExerciseDifficulty, string> = {
@@ -21,32 +23,34 @@ export function ExerciseModePanel({
 
   return (
     <section className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-stretch">
-      <div className="min-w-0 rounded-md border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50 sm:w-72 sm:shrink-0">
-        <label
-          className="block text-sm font-semibold text-neutral-950"
-          htmlFor="exercise-mode-select"
-        >
-          {t("exercise.mode")}
-        </label>
-        <p className="mt-1 text-xs text-neutral-600">
-          {t("exercise.modeHelp")}
-        </p>
-        <select
-          id="exercise-mode-select"
-          className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
-          value={selectedExercise?.id ?? ""}
-          onChange={(event) => onSelectExercise(event.target.value)}
-        >
-          <option value="" disabled>
-            {t("exercise.select")}
-          </option>
-          {exercises.map((exercise) => (
-            <option key={exercise.id} value={exercise.id}>
-              {exercise.title} - {localizedDifficultyLabels[exercise.difficulty]}
+      {showExerciseSelector ? (
+        <div className="min-w-0 rounded-md border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50 sm:w-72 sm:shrink-0">
+          <label
+            className="block text-sm font-semibold text-neutral-950"
+            htmlFor="exercise-mode-select"
+          >
+            {t("exercise.mode")}
+          </label>
+          <p className="mt-1 text-xs text-neutral-600">
+            {t("exercise.modeHelp")}
+          </p>
+          <select
+            id="exercise-mode-select"
+            className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
+            value={selectedExercise?.id ?? ""}
+            onChange={(event) => onSelectExercise(event.target.value)}
+          >
+            <option value="" disabled>
+              {t("exercise.select")}
             </option>
-          ))}
-        </select>
-      </div>
+            {exercises.map((exercise) => (
+              <option key={exercise.id} value={exercise.id}>
+                {exercise.title} - {localizedDifficultyLabels[exercise.difficulty]}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       {selectedExercise ? (
         <article className="min-w-0 flex-1 rounded-md border border-emerald-300 bg-white p-3 shadow-md shadow-emerald-100/70 transition hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100">

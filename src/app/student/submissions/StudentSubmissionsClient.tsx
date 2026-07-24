@@ -44,8 +44,30 @@ export function StudentSubmissionsClient({
             {submissions.length}
           </span>
         </div>
-        <div className="overflow-x-hidden">
-          <table className="w-full table-fixed text-left text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-1/4" />
+              <col className="w-1/4" />
+              <col />
+              <col className="w-44" />
+            </colgroup>
+            <thead className="border-b border-neutral-200 bg-neutral-50/60 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              <tr>
+                <th className={tableHeaderClassName} scope="col">
+                  Submission
+                </th>
+                <th className={tableHeaderClassName} scope="col">
+                  Dates
+                </th>
+                <th className={tableHeaderClassName} scope="col">
+                  Status and feedback
+                </th>
+                <th className={tableHeaderClassName} scope="col">
+                  Actions
+                </th>
+              </tr>
+            </thead>
             <tbody>
               {submissions.length > 0 ? (
                 submissions.map((submission) => (
@@ -89,15 +111,17 @@ export function StudentSubmissionsClient({
                           </span>
                         </div>
                       ) : null}
+                    </td>
+                    <td className={tableCellClassName}>
                       {submission.canEdit ? (
                         <Link
                           href={`/student/submissions/${submission.id}/edit`}
-                          className="mt-3 inline-flex rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+                          className="inline-flex rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800"
                         >
                           Edit and correct
                         </Link>
                       ) : (
-                        <span className="mt-3 inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-500">
+                        <span className="inline-flex rounded-md border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-500">
                           Locked after deadline
                         </span>
                       )}
@@ -106,7 +130,7 @@ export function StudentSubmissionsClient({
                 ))
               ) : (
                 <tr>
-                  <td className="px-3 py-4 text-neutral-500">
+                  <td className="px-3 py-4 text-neutral-500" colSpan={4}>
                     You have not submitted work yet.
                   </td>
                 </tr>
@@ -139,6 +163,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const tableCellClassName = "break-words px-3 py-2 align-top";
+
+const tableHeaderClassName = "px-3 py-2.5";
 
 const primaryButtonClassName =
   "rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0";

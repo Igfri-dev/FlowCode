@@ -30,26 +30,28 @@ export function useFlowExerciseMode({
   setIsAutoRunning: (isAutoRunning: boolean) => void;
   setSelectedExerciseId: (exerciseId: string | null) => void;
 }) {
-  const exerciseCatalog = useMemo(() => {
+  const exercisesIncludingHidden = useMemo(() => {
     const managedSourceIds = new Set(
       databaseExercises
         .map((exercise) => exercise.sourceId)
         .filter((sourceId): sourceId is string => Boolean(sourceId)),
     );
-    const activeDatabaseExercises = databaseExercises.filter(
-      (exercise) => !exercise.isHidden,
-    );
     const untouchedBuiltIns = getExercises(language).filter(
       (exercise) => !managedSourceIds.has(exercise.id),
     );
 
-    return [...activeDatabaseExercises, ...untouchedBuiltIns];
+    return [...databaseExercises, ...untouchedBuiltIns];
   }, [databaseExercises, language]);
+  const exerciseCatalog = useMemo(
+    () => exercisesIncludingHidden.filter((exercise) => !exercise.isHidden),
+    [exercisesIncludingHidden],
+  );
   const selectedExercise = useMemo(
     () =>
-      exerciseCatalog.find((exercise) => exercise.id === selectedExerciseId) ??
-      null,
-    [exerciseCatalog, selectedExerciseId],
+      exercisesIncludingHidden.find(
+        (exercise) => exercise.id === selectedExerciseId,
+      ) ?? null,
+    [exercisesIncludingHidden, selectedExerciseId],
   );
 
   const clearExerciseSelection = useCallback(() => {
