@@ -10,7 +10,7 @@
     "test:exercise-scope": "tsx scripts/integration-exercise-scope.ts",
     "test:user-groups": "tsx scripts/integration-user-groups.ts",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "biome lint .",
     "test": "tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
@@ -24,13 +24,12 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.5",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "^16.2.11",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5"

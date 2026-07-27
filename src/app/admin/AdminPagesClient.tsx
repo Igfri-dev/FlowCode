@@ -88,7 +88,7 @@ const copy = {
     eyebrow: "Panel",
     title: "Administracion de FlowCode",
     signedIn: "Sesion iniciada como",
-    openEditor: "Abrir editor",
+    openEditor: "Creador de diagramas",
     signOut: "Cerrar sesion",
     createUser: "Crear usuario",
     createOrganization: "Crear organizacion",
@@ -195,7 +195,7 @@ const copy = {
     eyebrow: "Panel",
     title: "FlowCode administration",
     signedIn: "Signed in as",
-    openEditor: "Open editor",
+    openEditor: "Diagram creator",
     signOut: "Sign out",
     createUser: "Create user",
     createOrganization: "Create organization",
@@ -2467,6 +2467,7 @@ function AdminChrome({ children, user }: AdminChromeProps) {
   const text = copy[language];
   const pathname = usePathname();
   const navItems = [
+    { href: "/", label: text.openEditor, roles: ["teacher", "admin"] },
     { href: "/admin/submissions", label: text.submissions, roles: ["teacher", "admin"] },
     { href: "/admin/users", label: text.users, roles: ["teacher", "admin"] },
     { href: "/admin/exercises", label: text.exercises, roles: ["teacher", "admin"] },
@@ -2483,7 +2484,10 @@ function AdminChrome({ children, user }: AdminChromeProps) {
               {navItems
                 .filter((item) => item.roles.includes(user.role))
                 .map((item) => {
-                  const isActive = pathname.startsWith(item.href);
+                  const isActive =
+                    item.href === "/"
+                      ? pathname === item.href
+                      : pathname.startsWith(item.href);
 
                   return (
                     <Link

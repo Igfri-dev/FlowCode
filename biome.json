@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!!**/.next",
+      "!!**/out",
+      "!!**/build",
+      "!!next-env.d.ts"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": {
+            "reportUnnecessaryDependencies": false
+          }
+        }
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off"
+      }
+    },
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}

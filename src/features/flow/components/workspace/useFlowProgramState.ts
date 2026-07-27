@@ -66,10 +66,9 @@ export function useFlowProgramState({
     () => getPositionAgnosticNodeSignature(nodes),
     [nodes],
   );
+  // biome-ignore lint/correctness/useExhaustiveDependencies(nodes): Reuse the previous node snapshot when only its position changes.
   const analysisNodes = useMemo(
     () => nodes,
-    // Reuse the previous node snapshot when React Flow only changes position.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [analysisNodeSignature],
   );
   const analysisFunctions = useMemo(
