@@ -1,5 +1,93 @@
 # FlowCode
 
+## Motivation
+
+Learning to program is easier when students can see how an algorithm runs.
+FlowCode connects visual flowcharts with JavaScript so learners can build
+programs, follow decisions and loops, and inspect variables and outputs one
+step at a time. Guided exercises and classroom tools help teachers turn those
+experiments into structured practice.
+
+## Quick Start
+
+Use Node.js 22 (the version used by CI), npm, Git, and a running MySQL server.
+
+1. Clone the education branch and install its locked dependencies:
+
+   ```bash
+   git clone --branch FlowCodeEDU https://github.com/Igfri-dev/FlowCode.git
+   cd FlowCode
+   npm ci
+   ```
+
+2. Copy `.env.example` to `.env.local`. Set the `MYSQL_*` connection values,
+   bootstrap administrator credentials, `APP_URL`, SMTP settings, and a stable
+   `EMAIL_QUEUE_SECRET` of at least 32 random characters. If `.env.local`
+   already exists, update it with the settings you need.
+
+3. Import [the database schema](docs/database/flowcode-mysql.sql) into your
+   local MySQL server. The script creates and selects the `flowcode` database;
+   keep `MYSQL_DATABASE` consistent with the database you use.
+
+4. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) and sign in using the
+   bootstrap administrator credentials configured in `.env.local`. To process
+   queued verification and password-reset emails, run this in another terminal:
+
+   ```bash
+   npm run email:worker
+   ```
+
+See [Database, email, and bulk users](#database-email-and-bulk-users) for
+registration, email delivery, and classroom account details.
+
+## Usage
+
+1. Sign in with an account provided by your administrator or teacher, or use
+   personal registration and verify your email.
+2. Open the flow workspace and choose an exercise, import supported JavaScript,
+   or build a diagram by adding blocks and connecting their ports.
+3. Edit block instructions and resolve problems shown in **Validation**.
+4. Use **Step** to execute one block at a time or **Run** to execute
+   automatically. Inspect **Variables**, **Outputs**, and **History**, and
+   provide values when an input or function-parameter modal appears.
+5. Use the **JavaScript code** panel to inspect the code generated from your
+   diagram. Use **Reset** when you want to restart execution.
+
+The [English guide](#english) and [Spanish guide](#español) below cover the
+interface, keyboard controls, supported blocks, and exercises. See
+[JavaScript support](docs/javascript-support.md) for runtime capabilities and
+limitations.
+
+## Contributing
+
+Bug reports, documentation improvements, classroom exercises, and code changes
+are welcome.
+
+1. Open an issue describing the problem or proposed improvement. For bugs,
+   include reproduction steps, expected behavior, and an example diagram or
+   JavaScript snippet when relevant.
+2. Fork or clone the repository, follow [Quick Start](#quick-start), and create
+   a branch for your change.
+3. Keep changes focused and update documentation and relevant tests when
+   behavior changes. For AI-assisted changes, follow [AGENTS.md](AGENTS.md)
+   and read the relevant bundled Next.js documentation before writing code.
+4. Run the same checks used by CI:
+
+   ```bash
+   npm run lint
+   npm test
+   npm run build
+   ```
+
+5. Open a pull request explaining the change, linking any related issue, and
+   recording the checks you ran. Include screenshots for interface changes.
+
 ## English
 
 FlowCode is an educational visual programming environment for building,
@@ -261,7 +349,7 @@ npm run dev      # start the local Next.js development server
 npm run build    # create a production build
 npm run start    # start the production server after building
 npm run email:worker # continuously deliver queued email
-npm run lint     # run ESLint
+npm run lint     # run Biome
 npm test         # run the FlowCode test suite
 ```
 
@@ -571,7 +659,7 @@ npm run dev      # inicia el servidor local de desarrollo de Next.js
 npm run build    # crea una build de producción
 npm run start    # inicia el servidor de producción después de compilar
 npm run email:worker # envía y reintenta los correos pendientes
-npm run lint     # ejecuta ESLint
+npm run lint     # ejecuta Biome
 npm test         # ejecuta la suite de tests de FlowCode
 ```
 
