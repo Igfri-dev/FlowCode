@@ -12,7 +12,7 @@ import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
 import { getExercises } from "@/features/exercises/data/exercises";
 import { runFlowProgramTests } from "@/lib/flow-test-runner";
 import { validateFlowDiagram } from "@/features/flow/flow-validation";
-import { importJavaScriptToFlow } from "@/features/flow/parser";
+import { importJavaScriptToFlow, type ImportedFlowNode } from "@/features/flow/parser";
 
 describe("Flow expression runtime", () => {
   it("supports the expanded Math whitelist and Math.PI", () => {
@@ -230,10 +230,13 @@ describe("JavaScript import parser", () => {
         const result = runFlowProgramTests({
           program: {
             main: {
-              nodes: imported.nodes,
+              nodes: imported.nodes.map(createEditorNodeFromImport),
               edges: imported.edges,
             },
-            functions: imported.functions,
+            functions: imported.functions.map((flowFunction) => ({
+              ...flowFunction,
+              nodes: flowFunction.nodes.map(createEditorNodeFromImport),
+            })),
           },
           testCases: exercise.testCases,
         });
@@ -581,6 +584,18 @@ function createInstructionProgram(instructions: string[]): FlowProgram {
       edges,
     },
     functions: [],
+  };
+}
+
+function createEditorNodeFromImport(node: ImportedFlowNode): FlowEditorNode {
+  return {
+    ...node,
+    data: {
+      ...node.data,
+      onLabelChange: () => undefined,
+      onConfigChange: () => undefined,
+      onHandlePositionsChange: () => undefined,
+    },
   };
 }
 
