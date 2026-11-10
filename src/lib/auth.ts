@@ -59,7 +59,6 @@ export function isUserRole(value: string): value is UserRole {
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  await ensureRuntimeSchema();
   const cookieStore = await cookies();
   const token = cookieStore.get(sessionCookieName)?.value;
 
@@ -67,6 +66,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     return null;
   }
 
+  await ensureRuntimeSchema();
   const user = await queryOne<SessionRow>(
     `SELECT u.id, u.username, u.full_name, u.email, u.email_verified_at, u.role,
             u.must_change_password, u.organization_id,

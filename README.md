@@ -663,6 +663,11 @@ npm run lint     # ejecuta Biome
 npm test         # ejecuta la suite de tests de FlowCode
 ```
 
+La build de producción usa Webpack para permitir el fallback WASM de SWC en
+Hostinger, cuyo entorno no puede cargar el compilador nativo de Next.js.
+`next.config.mjs` se carga directamente en Node.js y evita transpilar la
+configuración con SWC. El desarrollo local sigue usando Turbopack.
+
 ### Base de datos, correo y usuarios masivos
 
 Copia `.env.example` como `.env.local` y configura MySQL y una cuenta SMTP.

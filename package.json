@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "email:worker": "tsx scripts/email-worker.ts",
     "layout:preview": "tsx scripts/flow-layout-preview.ts",
     "test:exercise-scope": "tsx scripts/integration-exercise-scope.ts",

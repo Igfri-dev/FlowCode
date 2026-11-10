@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 const minimumPasswordLength = 8;
 
 export function getPasswordPolicyError(password: string) {
@@ -32,7 +30,7 @@ export function isValidEmail(value: string) {
 
 export function generateTemporaryPassword() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$";
-  const bytes = randomBytes(16);
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   const password = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]);
 
   password[0] = String(bytes[0] % 10);
