@@ -63,6 +63,10 @@ export function runFlowProgramTests({
   program: FlowProgram;
   testCases: ExerciseTestCase[];
 }): ExerciseTestRunResult {
+  if (!Number.isSafeInteger(maxSteps) || maxSteps <= 0) {
+    throw new RangeError("maxSteps must be a positive safe integer.");
+  }
+
   const cases = testCases.map((testCase, index) =>
     runSingleTestCase({
       maxSteps,
@@ -132,14 +136,20 @@ function runSingleTestCase({
   }
 
   const actualOutputs = state.outputs.map((output) => output.content);
-  const passed = areOutputsEqual(actualOutputs, testCase.expectedOutputs);
+  const passed =
+    state.status === "finished" &&
+    areOutputsEqual(actualOutputs, testCase.expectedOutputs);
 
   return {
     name,
     passed,
     actualOutputs,
     expectedOutputs: testCase.expectedOutputs,
-    message: passed ? "Passed" : state.message,
+    message: passed
+      ? "Passed"
+      : state.status === "error"
+        ? state.message
+        : "Outputs do not match the expected outputs.",
   };
 }
 

@@ -209,16 +209,18 @@ async function main() {
     });
     assert.equal(adminPage.status, 200);
     const adminHtml = await adminPage.text();
-    assert.match(adminHtml, /Catálogo global de la plataforma/);
-    assert.doesNotMatch(adminHtml, /name="organizationId"/);
+    for (const title of ["Global scope exercise", "Organization A exercise", "Organization B exercise"]) {
+      assert.ok(adminHtml.includes(title));
+    }
 
     const teacherPage = await fetch(`${baseUrl}/admin/exercises`, {
       headers: { Cookie: teacherCookie },
     });
     assert.equal(teacherPage.status, 200);
     const teacherHtml = await teacherPage.text();
-    assert.match(teacherHtml, /privado para los alumnos y profesores/);
-    assert.match(teacherHtml, /name="organizationId"/);
+    assert.ok(teacherHtml.includes("Global scope exercise"));
+    assert.ok(teacherHtml.includes("Organization A exercise"));
+    assert.ok(!teacherHtml.includes("Organization B exercise"));
 
     const program = { main: { nodes: [], edges: [] }, functions: [] };
 

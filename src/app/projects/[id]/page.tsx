@@ -17,9 +17,8 @@ export default async function ProjectEditorPage({
   }
   const { id: rawId } = await params;
   const id = Number(rawId);
-  const project = Number.isInteger(id) && id > 0
-    ? await getSavedProject(id, user.id)
-    : null;
+  const project =
+    Number.isInteger(id) && id > 0 ? await getSavedProject(id, user.id) : null;
   if (!project) {
     notFound();
   }
@@ -30,7 +29,10 @@ export default async function ProjectEditorPage({
         <AppHeader user={user} onLogout={logoutAction} />
         <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
           <FlowWorkspace
+            key={`project-${user.id}-${project.id}`}
+            draftStorageKey={`flowcode:user-${user.id}:project-${project.id}`}
             databaseExercises={[]}
+            allowSubmissions={false}
             enableProjectSaving
             project={{ id: project.id, title: project.title }}
             initialProgram={project.diagramJson}
@@ -40,4 +42,3 @@ export default async function ProjectEditorPage({
     </I18nProvider>
   );
 }
-

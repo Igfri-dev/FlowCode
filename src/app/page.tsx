@@ -1,7 +1,7 @@
-import { AppHeader } from "@/components/ui/AppHeader";
 import { logoutAction } from "@/app/actions/auth";
-import { I18nProvider } from "@/features/i18n/I18nProvider";
+import { AppHeader } from "@/components/ui/AppHeader";
 import { FlowWorkspace } from "@/features/flow/components/FlowWorkspace";
+import { I18nProvider } from "@/features/i18n/I18nProvider";
 import { requireUser } from "@/lib/auth";
 import { listDatabaseExercises } from "@/lib/exercise-data";
 
@@ -19,6 +19,8 @@ export default async function Home() {
 
         <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
           <FlowWorkspace
+            key={`workspace-${user.id}`}
+            draftStorageKey={`flowcode:user-${user.id}:workspace`}
             allowSubmissions={user.role === "student"}
             databaseExercises={databaseExercises}
             enableProjectSaving={user.role === "independent"}

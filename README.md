@@ -58,6 +58,14 @@ registration, email delivery, and classroom account details.
    provide values when an input or function-parameter modal appears.
 5. Use the **JavaScript code** panel to inspect the code generated from your
    diagram. Use **Reset** when you want to restart execution.
+6. Use **Test solution** to check an exercise before submitting. Expand a case
+   to compare its inputs, expected outputs, actual outputs, and failure details.
+
+Editable workspaces keep a recovery draft in the current browser, separately
+for each user and project or submission. On returning, choose whether to restore
+or discard it. This local draft does not replace saving a project or submitting
+work to the teacher. **Undo/Redo** and `Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z` (or
+`Ctrl+Y`) restore diagram changes; text fields keep their native undo behavior.
 
 The [English guide](#english) and [Spanish guide](#español) below cover the
 interface, keyboard controls, supported blocks, and exercises. See
@@ -353,6 +361,16 @@ npm run lint     # run Biome
 npm test         # run the FlowCode test suite
 ```
 
+Run `npm run test:integration` with MySQL running to check project ownership,
+organization permissions, submissions, deadlines, and automatic evaluation over
+HTTP. The suite reads the `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, and
+`MYSQL_PASSWORD` settings, creates a fresh `flowcode_test_*` database, starts its
+own local server on an available port, and removes that database afterward.
+The MySQL user needs permission to create and drop databases. Stop any existing
+development server first because Next.js uses one development lock per project.
+Set `FLOWCODE_INTEGRATION_SERVER=production` to test an existing `npm run build`
+with `next start`; CI uses this mode on both `main` and `FlowCodeEDU`.
+
 ### Database, email, and bulk users
 
 Copy `.env.example` to `.env.local` and configure MySQL plus an SMTP account.
@@ -489,6 +507,17 @@ El espacio principal se organiza alrededor del lienzo del diagrama:
   inline del nombre.
 
 ### Controles de Ejecución
+
+El editor conserva un borrador local por usuario y proyecto o entrega. Al volver,
+puedes recuperarlo o descartarlo; el borrador solo existe en ese navegador y no
+reemplaza guardar el proyecto o entregar el trabajo. Usa **Deshacer/Rehacer** o
+`Ctrl/Cmd+Z` y `Ctrl/Cmd+Shift+Z` para recuperar cambios del diagrama. Dentro de
+los campos de texto, los atajos conservan su comportamiento habitual.
+
+**Probar solución** ejecuta los casos del ejercicio sin entregar el trabajo.
+Despliega cada caso para comparar entradas, salidas esperadas, salidas obtenidas
+y errores. Una ejecución que termina con error o agota los pasos nunca aprueba,
+aunque haya alcanzado a imprimir la salida esperada.
 
 FlowCode puede ejecutar un diagrama bloque por bloque o automáticamente:
 

@@ -1,42 +1,40 @@
 "use client";
 
+import { addEdge, type IsValidConnection, type OnConnect } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  addEdge,
-  type IsValidConnection,
-  type OnConnect,
-} from "@xyflow/react";
-import { FlowEditor } from "@/components/editor/FlowEditor";
 import { flowEdgeComponents } from "@/components/editor/edges";
+import { FlowEditor } from "@/components/editor/FlowEditor";
 import { ExerciseModePanel } from "@/features/exercises/components/ExerciseModePanel";
-import type { Exercise, ExerciseStarterDiagram } from "@/features/exercises/types";
-import { useI18n } from "@/features/i18n/I18nProvider";
+import type {
+  Exercise,
+  ExerciseStarterDiagram,
+} from "@/features/exercises/types";
 import { createFlowEditorEdge } from "@/features/flow/flow-edge-factory";
 import { createFlowEditorNode } from "@/features/flow/flow-node-factory";
 import { validateFlowConnection } from "@/features/flow/flow-validation";
 import { initialFlowNodes } from "@/features/flow/initial-diagram";
 import type { ImportedFlowNode } from "@/features/flow/parser";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type {
   FlowFunctionDefinition,
   FlowNodeType,
   FlowProgram,
 } from "@/types/flow";
 import { FlowCodePanel } from "./FlowCodePanel";
-import {
-  FlowDialogModal,
-  type FlowDialogRequest,
-} from "./FlowDialogModal";
+import { FlowDialogModal, type FlowDialogRequest } from "./FlowDialogModal";
 import { FlowExecutionHistoryPanel } from "./FlowExecutionHistoryPanel";
 import { FlowExecutionPanel } from "./FlowExecutionPanel";
+import { FlowExerciseTestPanel } from "./FlowExerciseTestPanel";
 import { FlowExportModal } from "./FlowExportModal";
 import { FlowFunctionPanel } from "./FlowFunctionPanel";
 import { FlowFunctionParameterModal } from "./FlowFunctionParameterModal";
 import { FlowImportPanel } from "./FlowImportPanel";
 import { FlowInputModal } from "./FlowInputModal";
 import { FlowOutputPanel } from "./FlowOutputPanel";
+import { FlowProjectPanel } from "./FlowProjectPanel";
+import { FlowRecoveryPanel } from "./FlowRecoveryPanel";
 import { FlowSidebar } from "./FlowSidebar";
 import { FlowSubmissionPanel } from "./FlowSubmissionPanel";
-import { FlowProjectPanel } from "./FlowProjectPanel";
 import { FlowValidationPanel } from "./FlowValidationPanel";
 import { FlowVariablesPanel } from "./FlowVariablesPanel";
 import { flowNodeComponents } from "./nodes";
@@ -58,6 +56,7 @@ import {
   useFlowNodeEditing,
 } from "./workspace/useFlowNodeEditing";
 import { useFlowProgramState } from "./workspace/useFlowProgramState";
+import { useFlowWorkspaceRecovery } from "./workspace/useFlowWorkspaceRecovery";
 
 type PendingFlowDialog = FlowDialogRequest & {
   onConfirm: () => void;
@@ -72,6 +71,7 @@ type FlowWorkspaceProps = {
   };
   initialExerciseId?: string | null;
   initialProgram?: FlowProgram;
+  draftStorageKey?: string;
   isReviewMode?: boolean;
   allowSubmissions?: boolean;
   enableProjectSaving?: boolean;
@@ -86,6 +86,7 @@ export function FlowWorkspace({
   editingSubmission,
   initialExerciseId,
   initialProgram,
+  draftStorageKey,
   isReviewMode = false,
   allowSubmissions = true,
   enableProjectSaving = false,
@@ -96,12 +97,14 @@ export function FlowWorkspace({
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
   const hasLoadedInitialProgramRef = useRef(false);
+  const [programReady, setProgramReady] = useState(!initialProgram);
   const loadedExerciseStarterCodeRef = useRef<string | null>(null);
   const [blockedConnectionMessage, setBlockedConnectionMessage] = useState<
     string | null
   >(null);
-  const [dialogRequest, setDialogRequest] =
-    useState<PendingFlowDialog | null>(null);
+  const [dialogRequest, setDialogRequest] = useState<PendingFlowDialog | null>(
+    null,
+  );
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
     initialExerciseId ?? null,
   );
@@ -345,7 +348,71 @@ export function FlowWorkspace({
 
     hasLoadedInitialProgramRef.current = true;
     loadProgramForReview(initialProgram);
+    setProgramReady(true);
   }, [initialProgram, loadProgramForReview]);
+
+  const restoreWorkspace = useCallback(
+    ({
+      snapshot,
+      program,
+    }: {
+      snapshot: { activeDiagramId: string; exerciseId: string | null };
+      program: FlowProgram;
+    }) => {
+      loadProgramForReview(program);
+      const diagram = program.functions.find(
+        (item) => item.id === snapshot.activeDiagramId,
+      );
+      if (diagram) {
+        setActiveDiagramId(diagram.id);
+        setNodes(diagram.nodes);
+        setEdges(diagram.edges);
+        resetExecutionForDiagram(
+          diagram.id,
+          `${t("flow.function")} ${diagram.name}`,
+        );
+      }
+      if (!isEditingSubmission) setSelectedExerciseId(snapshot.exerciseId);
+      loadedExerciseStarterCodeRef.current = null;
+      setBlockedConnectionMessage(null);
+      setCodeGenerationResult(initialCodeGenerationResult);
+    },
+    [
+      isEditingSubmission,
+      loadProgramForReview,
+      resetExecutionForDiagram,
+      setActiveDiagramId,
+      setCodeGenerationResult,
+      setEdges,
+      setNodes,
+      t,
+    ],
+  );
+  const requestLeaveConfirmation = useCallback(
+    (proceed: () => void) => {
+      setDialogRequest({
+        title: language === "es" ? "¿Salir del editor?" : "Leave the editor?",
+        message:
+          language === "es"
+            ? "Tienes cambios pendientes. Puedes cancelar para guardar o entregar tu trabajo antes de salir."
+            : "You have unsaved changes. Cancel to save or submit your work before leaving.",
+        confirmLabel: language === "es" ? "Salir" : "Leave",
+        onConfirm: proceed,
+      });
+    },
+    [language],
+  );
+  const recovery = useFlowWorkspaceRecovery({
+    activeDiagramId,
+    currentProgram,
+    selectedExerciseId,
+    storageKey: draftStorageKey,
+    ready: programReady,
+    enabled: !isReviewMode,
+    createEditorNodeFromImport,
+    onRestore: restoreWorkspace,
+    onRequestLeave: requestLeaveConfirmation,
+  });
 
   const handleAddNode = useCallback(
     (type: FlowNodeType) => {
@@ -675,12 +742,19 @@ export function FlowWorkspace({
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+          {!isReviewMode ? <FlowRecoveryPanel recovery={recovery} /> : null}
           <ExerciseModePanel
             exercises={exerciseCatalog}
             selectedExercise={selectedExercise}
             onSelectExercise={handleSelectExercise}
             showExerciseSelector={!isEditingSubmission}
           />
+          {!isReviewMode ? (
+            <FlowExerciseTestPanel
+              currentProgram={currentProgram}
+              selectedExercise={selectedExercise}
+            />
+          ) : null}
           <div className="flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-lg shadow-neutral-300/50">
             <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -692,6 +766,36 @@ export function FlowWorkspace({
                 </p>
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+                {!isReviewMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={recovery.undo}
+                      disabled={!recovery.canUndo}
+                      title={
+                        language === "es"
+                          ? "Deshacer (Ctrl/Cmd+Z)"
+                          : "Undo (Ctrl/Cmd+Z)"
+                      }
+                      className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                    >
+                      {language === "es" ? "Deshacer" : "Undo"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={recovery.redo}
+                      disabled={!recovery.canRedo}
+                      title={
+                        language === "es"
+                          ? "Rehacer (Ctrl/Cmd+Shift+Z)"
+                          : "Redo (Ctrl/Cmd+Shift+Z)"
+                      }
+                      className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                    >
+                      {language === "es" ? "Rehacer" : "Redo"}
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleImportJsonButtonClick}
@@ -812,7 +916,9 @@ export function FlowWorkspace({
                       label: t("flow.variablesPanel"),
                       buttonLabel: "v",
                       children: (
-                        <FlowVariablesPanel variables={executionState.variables} />
+                        <FlowVariablesPanel
+                          variables={executionState.variables}
+                        />
                       ),
                     },
                     {
@@ -864,13 +970,18 @@ export function FlowWorkspace({
             onImportCode={handleImportCode}
           />
           {!isReviewMode && enableProjectSaving ? (
-            <FlowProjectPanel currentProgram={currentProgram} project={project} />
+            <FlowProjectPanel
+              currentProgram={currentProgram}
+              project={project}
+              onSaved={recovery.markSaved}
+            />
           ) : null}
           {!isReviewMode && allowSubmissions ? (
             <FlowSubmissionPanel
               currentProgram={currentProgram}
               editingSubmission={editingSubmission}
               selectedExercise={selectedExercise}
+              onSaved={recovery.markSaved}
             />
           ) : null}
         </div>

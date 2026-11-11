@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
+import { FlowTestResultDetails } from "@/features/flow/components/FlowTestResultDetails";
+import { useI18n } from "@/features/i18n/I18nProvider";
 import type { AdminSubmission } from "@/lib/admin-data";
 import type { SessionUser } from "@/lib/auth";
 
@@ -12,6 +14,7 @@ export function StudentSubmissionsClient({
   submissions: AdminSubmission[];
   user: SessionUser;
 }) {
+  const { language } = useI18n();
   return (
     <main className="min-h-screen bg-neutral-100 px-4 py-6 text-neutral-950 lg:px-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -103,6 +106,20 @@ export function StudentSubmissionsClient({
                             ? "Tests passed"
                             : "Tests failed"}
                       </span>
+                      {submission.testResult ? (
+                        <details className="mt-2 text-xs">
+                          <summary className="cursor-pointer font-semibold text-blue-800">
+                            {language === "es"
+                              ? "Ver resultados de las pruebas"
+                              : "View test results"}
+                            {` (${submission.testResult.passedCount}/${submission.testResult.total})`}
+                          </summary>
+                          <FlowTestResultDetails
+                            cases={submission.testResult.cases}
+                            language={language}
+                          />
+                        </details>
+                      ) : null}
                       {submission.feedback ? (
                         <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-950">
                           <span className="block font-semibold">Teacher corrections</span>

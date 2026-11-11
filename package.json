@@ -9,6 +9,7 @@
     "layout:preview": "tsx scripts/flow-layout-preview.ts",
     "test:exercise-scope": "tsx scripts/integration-exercise-scope.ts",
     "test:user-groups": "tsx scripts/integration-user-groups.ts",
+    "test:integration": "tsx scripts/integration-suite.ts",
     "start": "next start",
     "lint": "biome lint .",
     "test": "tsx --test tests/**/*.test.ts"

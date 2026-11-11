@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { logoutAction } from "@/app/actions/auth";
 import { AppHeader } from "@/components/ui/AppHeader";
-import { I18nProvider } from "@/features/i18n/I18nProvider";
 import { FlowWorkspace } from "@/features/flow/components/FlowWorkspace";
-import { requireUser } from "@/lib/auth";
+import { I18nProvider } from "@/features/i18n/I18nProvider";
 import { getStudentEditableSubmission } from "@/lib/admin-data";
+import { requireUser } from "@/lib/auth";
 import { listDatabaseExercises } from "@/lib/exercise-data";
 
 type EditSubmissionPageProps = {
@@ -47,9 +47,12 @@ export default async function EditSubmissionPage({
           <p className="text-sm font-semibold uppercase tracking-wide text-amber-700">
             Submission locked
           </p>
-          <h1 className="mt-2 text-2xl font-semibold">The deadline has passed</h1>
+          <h1 className="mt-2 text-2xl font-semibold">
+            The deadline has passed
+          </h1>
           <p className="mt-3 text-sm leading-relaxed text-neutral-600">
-            {submission.exerciseTitle ?? submission.title} can no longer be changed.
+            {submission.exerciseTitle ?? submission.title} can no longer be
+            changed.
             {submission.submissionDeadline
               ? ` The deadline was ${submission.submissionDeadline.replace("T", " ")}.`
               : ""}
@@ -86,6 +89,8 @@ export default async function EditSubmissionPage({
         </div>
         <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
           <FlowWorkspace
+            key={`submission-${user.id}-${submission.id}`}
+            draftStorageKey={`flowcode:user-${user.id}:submission-${submission.id}`}
             databaseExercises={databaseExercises}
             editingSubmission={{
               id: submission.id,

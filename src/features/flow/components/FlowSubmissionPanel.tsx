@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import type { Exercise } from "@/features/exercises/types";
 import { generateJavaScriptFromFlow } from "@/features/flow/codegen";
 import { useI18n } from "@/features/i18n/I18nProvider";
@@ -13,12 +13,14 @@ type FlowSubmissionPanelProps = {
     submissionDeadline: string | null;
   };
   selectedExercise: Exercise | null;
+  onSaved?: () => boolean;
 };
 
 export function FlowSubmissionPanel({
   currentProgram,
   editingSubmission,
   selectedExercise,
+  onSaved,
 }: FlowSubmissionPanelProps) {
   const { language } = useI18n();
   const router = useRouter();
@@ -47,20 +49,20 @@ export function FlowSubmissionPanel({
           ? `/api/submissions/${editingSubmission.id}`
           : "/api/submissions",
         {
-        method: editingSubmission ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: generatedCode.code,
-          exerciseId: selectedExercise?.id ?? null,
-          exerciseKey:
-            selectedExercise?.sourceId ?? selectedExercise?.id ?? null,
-          exerciseLanguage: language,
-          exerciseTitle: selectedExercise?.title ?? null,
-          program: currentProgram,
-          title: title.trim() || defaultTitle,
-        }),
+          method: editingSubmission ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            code: generatedCode.code,
+            exerciseId: selectedExercise?.id ?? null,
+            exerciseKey:
+              selectedExercise?.sourceId ?? selectedExercise?.id ?? null,
+            exerciseLanguage: language,
+            exerciseTitle: selectedExercise?.title ?? null,
+            program: currentProgram,
+            title: title.trim() || defaultTitle,
+          }),
         },
       );
 
@@ -73,11 +75,15 @@ export function FlowSubmissionPanel({
 
       setStatus("success");
       setMessage(editingSubmission ? "Submission updated." : "Work submitted.");
+      const allChangesSaved = onSaved?.() ?? true;
+      if (!allChangesSaved) {
+        setMessage("Work submitted. New changes still need saving.");
+      }
 
-      if (editingSubmission) {
+      if (editingSubmission && allChangesSaved) {
         router.push("/student/submissions");
         router.refresh();
-      } else {
+      } else if (allChangesSaved) {
         setTitle("");
       }
     } catch (error) {
@@ -102,7 +108,8 @@ export function FlowSubmissionPanel({
           </p>
           {editingSubmission?.submissionDeadline ? (
             <p className="mt-1 text-xs font-semibold text-amber-800">
-              Editable until {editingSubmission.submissionDeadline.replace("T", " ")}
+              Editable until{" "}
+              {editingSubmission.submissionDeadline.replace("T", " ")}
             </p>
           ) : null}
           <input

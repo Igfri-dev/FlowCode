@@ -119,7 +119,7 @@ async function main() {
     assert.equal(adminResponse.status, 200);
     const adminHtml = await adminResponse.text();
     assert.match(adminHtml, /Carga masiva por CSV/);
-    assert.match(adminHtml, /plantilla-usuarios-flowcode\.csv/);
+    assert.match(adminHtml, /Grupos de usuarios/);
 
     console.log("Authentication and project HTTP integration checks passed.");
   } finally {
