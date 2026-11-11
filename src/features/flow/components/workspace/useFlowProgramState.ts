@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useEdgesState, useNodesState } from "@xyflow/react";
 import { createFlowGraph, hasFlowCycles } from "@/features/flow/flow-graph";
 import {
@@ -61,6 +61,26 @@ export function useFlowProgramState({
       ),
     }),
     [activeDiagramId, edges, functions, mainDiagram, nodes],
+  );
+  const showDiagram = useCallback(
+    (diagramId: string) => {
+      if (diagramId === activeDiagramId) return true;
+
+      const diagram =
+        diagramId === "main"
+          ? currentProgram.main
+          : currentProgram.functions.find((item) => item.id === diagramId);
+      if (!diagram) return false;
+
+      // Save the visible diagram before loading the next one, including unsaved edits.
+      setMainDiagram(currentProgram.main);
+      setFunctions(currentProgram.functions);
+      setActiveDiagramId(diagramId);
+      setNodes(diagram.nodes);
+      setEdges(diagram.edges);
+      return true;
+    },
+    [activeDiagramId, currentProgram, setEdges, setNodes],
   );
   const analysisNodeSignature = useMemo(
     () => getPositionAgnosticNodeSignature(nodes),
@@ -130,6 +150,7 @@ export function useFlowProgramState({
     setFunctions,
     setMainDiagram,
     setNodes,
+    showDiagram,
     validationIssues,
   };
 }

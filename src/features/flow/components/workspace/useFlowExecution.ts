@@ -42,6 +42,7 @@ export function useFlowExecution({
   availableFunctions,
   currentProgram,
   edges,
+  onExecutionDiagramChange,
   t,
 }: {
   activeDiagramId: string;
@@ -49,18 +50,28 @@ export function useFlowExecution({
   availableFunctions: AvailableFlowFunctions;
   currentProgram: FlowProgram;
   edges: FlowEditorEdge[];
+  onExecutionDiagramChange: (diagramId: string) => void;
   t: ReturnType<typeof useI18n>["t"];
 }) {
   const [executionState, commitExecutionState] = useState(
     createEditorExecution,
   );
   const executionRef = useRef(executionState);
+  const executionRootRef = useRef({ id: activeDiagramId, name: activeDiagramName });
+  const onExecutionDiagramChangeRef = useRef(onExecutionDiagramChange);
+  onExecutionDiagramChangeRef.current = onExecutionDiagramChange;
   const setExecutionState = useCallback(
     (update: SetStateAction<FlowExecutionState>) => {
+      const previousDiagramId = executionRef.current.currentDiagramId;
       const next =
         typeof update === "function" ? update(executionRef.current) : update;
       executionRef.current = next;
       commitExecutionState(next);
+      // Loading/editing a program resets execution separately; only runtime
+      // transitions should navigate through the existing program here.
+      if (next.status !== "idle" && next.currentDiagramId !== previousDiagramId) {
+        onExecutionDiagramChangeRef.current(next.currentDiagramId);
+      }
     },
     [],
   );
@@ -173,7 +184,7 @@ export function useFlowExecution({
       };
       const next =
         executionMode === "instant"
-          ? runFlowExecutionBatch(input)
+          ? runFlowExecutionBatch({ ...input, stopAtDiagramChange: true })
           : stepFlowExecution(input);
       setExecutionState(next);
       if (!cancelled && runningRef.current && canContinueFlowExecution(next)) {
@@ -199,6 +210,7 @@ export function useFlowExecution({
   const resetExecutionForDiagram = useCallback(
     (diagramId: string, name: string) => {
       setIsAutoRunning(false);
+      executionRootRef.current = { id: diagramId, name };
       setExecutionState(createEditorExecution(diagramId, name));
     },
     [setExecutionState, setIsAutoRunning],
@@ -230,11 +242,10 @@ export function useFlowExecution({
   }, [setIsAutoRunning]);
 
   const handleResetExecution = useCallback(() => {
-    setIsAutoRunning(false);
-    setExecutionState(
-      createEditorExecution(activeDiagramId, activeDiagramName),
-    );
-  }, [activeDiagramId, activeDiagramName, setExecutionState, setIsAutoRunning]);
+    const root = executionRootRef.current;
+    resetExecutionForDiagram(root.id, root.name);
+    onExecutionDiagramChangeRef.current(root.id);
+  }, [resetExecutionForDiagram]);
 
   const handleInputConfirm = useCallback(
     (value: Parameters<typeof resumeFlowExecutionWithInput>[0]["value"]) => {

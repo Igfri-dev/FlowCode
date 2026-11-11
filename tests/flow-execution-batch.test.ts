@@ -191,7 +191,148 @@ describe("Instant and unlimited flow execution", () => {
       ),
     );
   });
+
+  it("yields at each nested call and return when following diagrams", () => {
+    const program = importProgram(
+      "function inner(value) { return value * 2; } " +
+      "function outer(value) { let doubled = inner(value); return doubled + 1; } " +
+      "let answer = outer(3); console.log(answer);",
+    );
+    const inner = program.functions.find((item) => item.name === "inner")!;
+    const outer = program.functions.find((item) => item.name === "outer")!;
+    const enteringOuter = runUntilDiagramChange(program);
+    assert.equal(enteringOuter.currentDiagramId, outer.id);
+    assert.equal(enteringOuter.currentNodeId, outer.nodes.find((node) => node.type === "start")!.id);
+    assert.equal(enteringOuter.callStack.length, 1);
+    assert.equal(enteringOuter.history.at(-1)?.nodeType, "functionCall");
+
+    const enteringInner = runUntilDiagramChange(program, enteringOuter);
+    assert.equal(enteringInner.currentDiagramId, inner.id);
+    assert.equal(enteringInner.currentNodeId, inner.nodes.find((node) => node.type === "start")!.id);
+    assert.equal(enteringInner.callStack.length, 2);
+    assert.equal(enteringInner.history.at(-1)?.nodeType, "functionCall");
+
+    const returningToOuter = runUntilDiagramChange(program, enteringInner);
+    assert.equal(returningToOuter.currentDiagramId, outer.id);
+    assert.equal(returningToOuter.currentNodeId, outer.nodes.find((node) => node.type === "return")!.id);
+    assert.equal(returningToOuter.variables.doubled, 6);
+    assert.equal(returningToOuter.callStack.length, 1);
+    assert.equal(returningToOuter.history.at(-1)?.nodeType, "return");
+
+    const returningToMain = runUntilDiagramChange(program, returningToOuter);
+    assert.equal(returningToMain.currentDiagramId, "main");
+    assert.equal(returningToMain.variables.answer, 7);
+    assert.equal(returningToMain.callStack.length, 0);
+    assert.equal(returningToMain.history.at(-1)?.nodeType, "return");
+    assert.equal(returningToMain.outputs.length, 0);
+
+    const state = runUntilDiagramChange(program, returningToMain);
+    assert.equal(state.status, "finished");
+    assert.deepEqual(state.outputs.map((item) => item.content), ["7"]);
+  });
+
+  it("keeps completing nested calls in one batch by default", () => {
+    const program = importProgram(
+      "function inner(value) { return value * 2; } " +
+      "function outer(value) { let doubled = inner(value); return doubled + 1; } " +
+      "let answer = outer(3); console.log(answer);",
+    );
+    const state = runFlowExecutionBatch({
+      program,
+      activeDiagramId: "main",
+      state: resetFlowExecution(),
+      now: () => 0,
+    });
+    assert.equal(state.status, "finished");
+    assert.equal(state.currentDiagramId, "main");
+    assert.equal(state.callStack.length, 0);
+    assert.deepEqual(state.outputs.map((item) => item.content), ["7"]);
+  });
+
+  it("keeps recursive calls on the same diagram until returning to the caller", () => {
+    const program = importProgram(
+      "function sum(value) { if (value <= 0) { return 0; } " +
+      "let rest = sum(value - 1); return value + rest; } " +
+      "let answer = sum(3); console.log(answer);",
+    );
+    const entered = runUntilDiagramChange(program);
+    assert.equal(entered.currentDiagramId, program.functions[0].id);
+    const returned = runUntilDiagramChange(program, entered);
+    assert.equal(returned.currentDiagramId, "main");
+    assert.equal(returned.variables.answer, 6);
+    assert.equal(returned.callStack.length, 0);
+    assert.equal(returned.history.filter((item) => item.nodeType === "functionCall").length, 4);
+    assert.equal(returned.history.filter((item) => item.nodeType === "return").length, 4);
+    const state = runUntilDiagramChange(program, returned);
+    assert.equal(state.status, "finished");
+    assert.deepEqual(state.outputs.map((item) => item.content), ["6"]);
+  });
+
+  it("yields when a function ends without an explicit return", () => {
+    const program = importProgram(
+      'function announce() { console.log("inside"); } announce(); console.log("outside");',
+    );
+    const entered = runUntilDiagramChange(program);
+    assert.equal(entered.currentDiagramId, program.functions[0].id);
+    const returned = runUntilDiagramChange(program, entered);
+    assert.equal(returned.currentDiagramId, "main");
+    assert.equal(returned.history.at(-1)?.nodeType, "end");
+    assert.equal(returned.callStack.length, 0);
+    assert.deepEqual(returned.outputs.map((item) => item.content), ["inside"]);
+    const state = runUntilDiagramChange(program, returned);
+    assert.equal(state.status, "finished");
+    assert.deepEqual(state.outputs.map((item) => item.content), ["inside", "outside"]);
+  });
+
+  it("keeps waiting input in its called function before returning to its caller", () => {
+    const program = importProgram(
+      "function read() { let value = 0; return value; } let answer = read(); console.log(answer);",
+    );
+    const calledFunction = program.functions[0];
+    calledFunction.nodes = calledFunction.nodes.map((node) =>
+      node.type === "process"
+        ? {
+            ...node,
+            type: "input",
+            data: {
+              ...node.data,
+              config: {
+                variableName: "value",
+                prompt: "Valor",
+                inputType: "number",
+              },
+            },
+          }
+        : node,
+    );
+    const entered = runUntilDiagramChange(program);
+    const waiting = runUntilDiagramChange(program, entered);
+    assert.equal(waiting.status, "waitingInput");
+    assert.equal(waiting.currentDiagramId, calledFunction.id);
+    assert.equal(waiting.callStack.length, 1);
+    assert.strictEqual(runUntilDiagramChange(program, waiting), waiting);
+    const resumed = resumeFlowExecutionWithInput({ state: waiting, value: 42 });
+    const returned = runUntilDiagramChange(program, resumed);
+    assert.equal(returned.currentDiagramId, "main");
+    assert.equal(returned.variables.answer, 42);
+    const state = runUntilDiagramChange(program, returned);
+    assert.equal(state.status, "finished");
+    assert.deepEqual(state.outputs.map((item) => item.content), ["42"]);
+  });
 });
+
+function runUntilDiagramChange(
+  program: FlowProgram,
+  state = resetFlowExecution(),
+): FlowExecutionState {
+  return runFlowExecutionBatch({
+    program,
+    activeDiagramId: "main",
+    state,
+    stopAtDiagramChange: true,
+    now: () => 0,
+  });
+}
 
 function finish(
   program: FlowProgram,

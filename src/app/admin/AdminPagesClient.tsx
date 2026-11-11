@@ -2,20 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  useActionState,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MiniMap,
-  ReactFlow,
-} from "@xyflow/react";
+import { useActionState, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import {
   checkEmailAvailabilityAction,
   checkUsernameAvailabilityAction,
@@ -55,6 +43,7 @@ import type {
   AdminUserGroup,
 } from "@/lib/admin-data";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
+import { AdminIcon } from "./AdminIcon";
 
 type AdminChromeProps = {
   children: ReactNode;
@@ -86,26 +75,26 @@ type AdminSubmissionsPageProps = {
 const copy = {
   es: {
     eyebrow: "Panel",
-    title: "Administracion de FlowCode",
-    signedIn: "Sesion iniciada como",
+    title: "Administración de FlowCode",
+    signedIn: "Sesión iniciada como",
     openEditor: "Creador de diagramas",
-    signOut: "Cerrar sesion",
+    signOut: "Cerrar sesión",
     createUser: "Crear usuario",
-    createOrganization: "Crear organizacion",
-    organizationName: "Nombre de la organizacion",
-    organization: "Organizacion",
+    createOrganization: "Crear organización",
+    organizationName: "Nombre de la organización",
+    organization: "Organización",
     organizations: "Organizaciones",
     organizationsHelp:
       "Crea espacios independientes para profesores, alumnos, ejercicios y entregas.",
     assignOrganization: "Asignar",
-    selectOrganization: "Selecciona una organizacion",
+    selectOrganization: "Selecciona una organización",
     teachers: "Profesores",
     students: "Alumnos",
     adminGlobalAccess: "Los administradores tienen acceso global.",
     fullName: "Nombre completo",
     username: "Usuario",
-    password: "Contrasena",
-    email: "Correo electronico",
+    password: "Contraseña",
+    email: "Correo electrónico",
     passwordOptional: "Contraseña inicial (opcional)",
     passwordConfirmation: "Confirmar contraseña inicial",
     passwordHelp:
@@ -117,8 +106,7 @@ const copy = {
     emailChecking: "Comprobando correo...",
     emailCheckFailed: "No se pudo comprobar el correo electrónico.",
     bulkUsers: "Carga masiva por CSV",
-    bulkUsersHelp:
-      "Columnas: nombre, usuario, contraseña, correo, tipo_de_usuario y organizacion.",
+    bulkUsersHelp: "Columnas: nombre, usuario, contraseña, correo, tipo_de_usuario y organizacion.",
     selectCsv: "Seleccionar archivo CSV",
     uploadCsv: "Crear usuarios del CSV",
     downloadTemplate: "Descargar plantilla",
@@ -129,18 +117,17 @@ const copy = {
     saveChanges: "Guardar cambios",
     deleteExercise: "Eliminar",
     deleteExerciseConfirm:
-      "¿Eliminar este ejercicio? Las entregas existentes se conservaran como entregas libres.",
-    exerciseTitle: "Titulo",
-    description: "Descripcion",
+      "¿Eliminar este ejercicio? Las entregas existentes se conservarán como entregas libres.",
+    exerciseTitle: "Título",
+    description: "Descripción",
     objective: "Objetivo",
     starterCode:
-      "JavaScript inicial opcional. Se guardara, pero no se mostrara como solucion en el importador.",
-    testCases:
-      'Tests en JSON. Ejemplo: [{"name":"caso 1","inputs":[5],"expectedOutputs":["10"]}]',
-    submissionDeadline: "Fecha limite de entrega",
+      "JavaScript inicial opcional. Se guardará, pero no se mostrará como solución en el importador.",
+    testCases: 'Tests en JSON. Ejemplo: [{"name":"caso 1","inputs":[5],"expectedOutputs":["10"]}]',
+    submissionDeadline: "Fecha límite de entrega",
     submissionDeadlineHelp:
-      "Opcional. Despues de esta fecha los alumnos no pueden entregar ni editar.",
-    noDeadline: "Sin fecha limite",
+      "Opcional. Después de esta fecha los alumnos no pueden entregar ni editar.",
+    noDeadline: "Sin fecha límite",
     tags: "Etiquetas separadas por coma",
     users: "Usuarios",
     usersHelp: "Gestiona las cuentas de alumnos, profesores y administradores.",
@@ -153,7 +140,7 @@ const copy = {
     organizationExerciseHelp:
       "Este ejercicio será privado para los alumnos y profesores de esta organización.",
     submissions: "Entregas",
-    submissionsHelp: "Revisa diagramas enviados y ejecutalos para evaluarlos.",
+    submissionsHelp: "Revisa diagramas enviados y ejecútalos para evaluarlos.",
     search: "Buscar por alumno, ejercicio o entrega",
     searchExercises: "Buscar ejercicios",
     allStudents: "Todos los alumnos",
@@ -173,14 +160,14 @@ const copy = {
     blocks: "bloques",
     failedCases: "casos fallidos",
     awaitingReview: "Por revisar",
-    needsWork: "Necesitan correccion",
+    needsWork: "Necesitan corrección",
     passed: "Aprobadas",
     submissionsCount: "entregas",
     edit: "Editar",
     createdBy: "Creado por",
     noMatchingRows: "No hay resultados para estos filtros.",
     correctionsSaved: "Correcciones guardadas",
-    noRows: "Sin registros todavia.",
+    noRows: "Sin registros todavía.",
     freeSubmission: "Entrega libre",
     review: "Revisar",
     tests: "Tests",
@@ -190,6 +177,15 @@ const copy = {
     languageToggle: "Cambiar idioma",
     activeRole: "Rol activo",
     total: "Total",
+    close: "Cerrar",
+    preview: "Vista previa del diagrama",
+    originalLayout: "Distribución original",
+    previewHelp: "Posiciones y conexiones guardadas · Solo lectura",
+    selectDiagram: "Seleccionar diagrama",
+    mainDiagram: "Diagrama principal",
+    function: "Función",
+    difficulty: "Dificultad",
+    starterCodeLabel: "Código inicial",
   },
   en: {
     eyebrow: "Panel",
@@ -202,8 +198,7 @@ const copy = {
     organizationName: "Organization name",
     organization: "Organization",
     organizations: "Organizations",
-    organizationsHelp:
-      "Create isolated spaces for teachers, students, exercises, and submissions.",
+    organizationsHelp: "Create isolated spaces for teachers, students, exercises, and submissions.",
     assignOrganization: "Assign",
     selectOrganization: "Select an organization",
     teachers: "Teachers",
@@ -242,11 +237,9 @@ const copy = {
     objective: "Objective",
     starterCode:
       "Optional starter JavaScript. It will be saved but not shown as the solution in the import panel.",
-    testCases:
-      'JSON tests. Example: [{"name":"case 1","inputs":[5],"expectedOutputs":["10"]}]',
+    testCases: 'JSON tests. Example: [{"name":"case 1","inputs":[5],"expectedOutputs":["10"]}]',
     submissionDeadline: "Submission deadline",
-    submissionDeadlineHelp:
-      "Optional. After this time, students cannot submit or edit their work.",
+    submissionDeadlineHelp: "Optional. After this time, students cannot submit or edit their work.",
     noDeadline: "No deadline",
     tags: "Tags separated by comma",
     users: "Users",
@@ -297,15 +290,19 @@ const copy = {
     languageToggle: "Change language",
     activeRole: "Active role",
     total: "Total",
+    close: "Close",
+    preview: "Diagram preview",
+    originalLayout: "Original layout",
+    previewHelp: "Stored node positions and connections · Read only",
+    selectDiagram: "Select diagram",
+    mainDiagram: "Main diagram",
+    function: "Function",
+    difficulty: "Difficulty",
+    starterCodeLabel: "Starter code",
   },
 } as const;
 
-export function AdminUsersPage({
-  groups,
-  organizations,
-  user,
-  users,
-}: AdminUsersPageProps) {
+export function AdminUsersPage({ groups, organizations, user, users }: AdminUsersPageProps) {
   const { language } = useI18n();
   const text = copy[language];
   const ui =
@@ -325,14 +322,12 @@ export function AdminUsersPage({
           delete: "Eliminar",
           deleteGroup: "Eliminar grupo",
           deleteGroupAndUsers: "Eliminar grupo y usuarios",
-          deleteGroupConfirm:
-            "¿Eliminar solo este grupo? Las cuentas de usuario se conservarán.",
+          deleteGroupConfirm: "¿Eliminar solo este grupo? Las cuentas de usuario se conservarán.",
           deleteGroupUsersConfirm:
             "¿Eliminar este grupo Y todas sus cuentas de usuario? También se borrarán sus sesiones, proyectos y entregas. Esta acción no se puede deshacer.",
           deleteSelectedConfirm:
             "¿Eliminar definitivamente las cuentas seleccionadas? También se borrarán sus sesiones, proyectos y entregas.",
-          deleteUserConfirm:
-            "¿Eliminar definitivamente esta cuenta y todos sus datos asociados?",
+          deleteUserConfirm: "¿Eliminar definitivamente esta cuenta y todos sus datos asociados?",
           filterUsers: "Buscar por nombre, usuario o correo",
           global: "Global",
           group: "Grupo",
@@ -364,14 +359,12 @@ export function AdminUsersPage({
           delete: "Delete",
           deleteGroup: "Delete group",
           deleteGroupAndUsers: "Delete group and users",
-          deleteGroupConfirm:
-            "Delete only this group? User accounts will be preserved.",
+          deleteGroupConfirm: "Delete only this group? User accounts will be preserved.",
           deleteGroupUsersConfirm:
             "Delete this group AND all its user accounts? Their sessions, projects, and submissions will also be deleted. This cannot be undone.",
           deleteSelectedConfirm:
             "Permanently delete the selected accounts? Their sessions, projects, and submissions will also be deleted.",
-          deleteUserConfirm:
-            "Permanently delete this account and all associated data?",
+          deleteUserConfirm: "Permanently delete this account and all associated data?",
           filterUsers: "Search by name, username, or email",
           global: "Global",
           group: "Group",
@@ -401,11 +394,10 @@ export function AdminUsersPage({
   const [roleFilter, setRoleFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [managementState, managementAction, managementPending] =
-    useActionState(
-      manageSelectedUsersAction,
-      {} as UserManagementState,
-    );
+  const [managementState, managementAction, managementPending] = useActionState(
+    manageSelectedUsersAction,
+    {} as UserManagementState,
+  );
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const filteredUsers = useMemo(() => {
     const selectedGroup =
@@ -420,8 +412,7 @@ export function AdminUsersPage({
         item.username.toLocaleLowerCase().includes(normalizedQuery) ||
         (item.email ?? "").toLocaleLowerCase().includes(normalizedQuery);
       const matchesRole = roleFilter === "all" || item.role === roleFilter;
-      const matchesGroup =
-        selectedGroup === null || selectedGroup.memberIds.includes(item.id);
+      const matchesGroup = selectedGroup === null || selectedGroup.memberIds.includes(item.id);
 
       return matchesQuery && matchesRole && matchesGroup;
     });
@@ -430,17 +421,14 @@ export function AdminUsersPage({
     .filter((item) => item.id !== user.id)
     .map((item) => item.id);
   const allVisibleSelected =
-    selectableVisibleIds.length > 0 &&
-    selectableVisibleIds.every((id) => selectedIds.includes(id));
+    selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selectedIds.includes(id));
   const activeSelectedIds = selectedIds.filter((id) =>
     users.some((item) => item.id === id && item.id !== user.id),
   );
   const selectedUserIds = activeSelectedIds.join(",");
   function toggleUser(userId: number) {
     setSelectedIds((current) =>
-      current.includes(userId)
-        ? current.filter((id) => id !== userId)
-        : [...current, userId],
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId],
     );
   }
 
@@ -454,54 +442,58 @@ export function AdminUsersPage({
 
   return (
     <AdminChrome user={user}>
-      <PageHeader count={users.length} help={text.usersHelp} title={text.users} />
-      <section className="rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-          {language === "es" ? "Acciones de usuarios" : "User actions"}
-        </p>
-        <div className="mt-2 grid gap-2 md:grid-cols-3">
-          <button
-            className={`${secondaryButtonClassName} w-full`}
-            onClick={() => setIsCreateGroupOpen(true)}
-            type="button"
-          >
-            {ui.createGroup}
-          </button>
-          <button
-            className={`${secondaryButtonClassName} w-full`}
-            onClick={() => setIsBulkUploadOpen(true)}
-            type="button"
-          >
-            {text.bulkUsers}
-          </button>
-          <button
-            className={`${primaryButtonClassName} w-full`}
-            onClick={() => setIsCreateUserOpen(true)}
-            type="button"
-          >
-            {createUserLabel}
-          </button>
-        </div>
-      </section>
-      <section className={`${panelClassName} mb-4`}>
+      <PageHeader
+        count={users.length}
+        help={text.usersHelp}
+        title={text.users}
+        actions={
+          <>
+            <button
+              className={secondaryButtonClassName}
+              onClick={() => setIsCreateGroupOpen(true)}
+              type="button"
+            >
+              <AdminIcon name="users" />
+              {ui.createGroup}
+            </button>
+            <button
+              className={secondaryButtonClassName}
+              onClick={() => setIsBulkUploadOpen(true)}
+              type="button"
+            >
+              <AdminIcon name="upload" />
+              {text.bulkUsers}
+            </button>
+            <button
+              className={primaryButtonClassName}
+              onClick={() => setIsCreateUserOpen(true)}
+              type="button"
+            >
+              <AdminIcon name="plus" />
+              {createUserLabel}
+            </button>
+          </>
+        }
+      />
+      <section className={panelClassName}>
         <div className="w-full">
           <PanelTitle>{ui.groups}</PanelTitle>
-          <p className="mt-2 text-sm leading-6 text-neutral-600">{ui.groupsHelp}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{ui.groupsHelp}</p>
         </div>
         <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
           {groups.map((group) => (
             <article
               key={group.id}
-              className="w-full rounded-lg border border-neutral-200 bg-neutral-50/70 p-3"
+              className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/60 p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate font-semibold text-neutral-950">{group.name}</h3>
-                  <p className="mt-0.5 text-xs text-neutral-500">
+                  <h3 className="truncate font-semibold text-slate-950">{group.name}</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
                     {groupTypeLabel(group.type, ui)} · {group.organizationName ?? ui.global}
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-neutral-600 shadow-sm ring-1 ring-neutral-200">
+                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
                   {group.memberCount} {ui.members}
                 </span>
               </div>
@@ -510,9 +502,7 @@ export function AdminUsersPage({
                   className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
                   type="button"
                   onClick={() => {
-                    setSelectedIds(
-                      group.memberIds.filter((memberId) => memberId !== user.id),
-                    );
+                    setSelectedIds(group.memberIds.filter((memberId) => memberId !== user.id));
                     setGroupFilter(String(group.id));
                   }}
                 >
@@ -540,7 +530,7 @@ export function AdminUsersPage({
                   }}
                 >
                   <input name="groupId" type="hidden" value={group.id} />
-                  <button className={`${dangerButtonClassName} border-red-600 bg-red-600 px-2.5 py-1.5 text-xs text-white hover:bg-red-700`}>
+                  <button className={`${dangerButtonClassName} px-2.5 py-1.5 text-xs`}>
                     {ui.deleteGroupAndUsers}
                   </button>
                 </form>
@@ -548,7 +538,7 @@ export function AdminUsersPage({
             </article>
           ))}
           {groups.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-neutral-300 px-4 py-5 text-sm text-neutral-500">
+            <p className="rounded-lg border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500">
               {text.noRows}
             </p>
           ) : null}
@@ -556,62 +546,66 @@ export function AdminUsersPage({
       </section>
 
       <AdminTable
-          count={filteredUsers.length}
-          emptyLabel={text.noMatchingRows}
-          title={text.users}
-          head={
-            <tr className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500">
-              <th className="w-12 px-3 py-2">
-                <input
-                  aria-label={ui.selectAll}
-                  checked={allVisibleSelected}
-                  className="h-4 w-4 accent-emerald-700"
-                  onChange={toggleVisibleUsers}
-                  type="checkbox"
-                />
-              </th>
-              <th className="w-48 px-3 py-2">{text.fullName}</th>
-              <th className="w-64 px-3 py-2">{text.email}</th>
-              <th className="w-28 px-3 py-2">{text.activeRole}</th>
-              <th className="w-64 px-3 py-2">{text.organization}</th>
-              <th className="w-52 px-3 py-2">{ui.groups}</th>
-              <th className="w-28 px-3 py-2" aria-label={ui.delete} />
-            </tr>
-          }
-          toolbar={
-            <div className="grid gap-3">
-              <div className="grid gap-2 md:grid-cols-3">
-                <input
-                  className={inputClassName}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={ui.filterUsers}
-                  type="search"
-                  value={searchQuery}
-                />
-                <select
-                  className={inputClassName}
-                  onChange={(event) => setRoleFilter(event.target.value)}
-                  value={roleFilter}
-                >
-                  <option value="all">{ui.allRoles}</option>
-                  <option value="student">student</option>
-                  <option value="teacher">teacher</option>
-                  <option value="admin">admin</option>
-                  <option value="independent">independent</option>
-                </select>
-                <select
-                  className={inputClassName}
-                  onChange={(event) => setGroupFilter(event.target.value)}
-                  value={groupFilter}
-                >
-                  <option value="all">{ui.allGroups}</option>
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name} ({group.memberCount})
-                    </option>
-                  ))}
-                </select>
-              </div>
+        count={filteredUsers.length}
+        emptyLabel={text.noMatchingRows}
+        title={text.users}
+        head={
+          <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <th className="w-12 px-3 py-2">
+              <input
+                aria-label={ui.selectAll}
+                checked={allVisibleSelected}
+                className="h-4 w-4 accent-emerald-700"
+                onChange={toggleVisibleUsers}
+                type="checkbox"
+              />
+            </th>
+            <th className="w-48 px-3 py-2">{text.fullName}</th>
+            <th className="w-64 px-3 py-2">{text.email}</th>
+            <th className="w-28 px-3 py-2">{text.activeRole}</th>
+            <th className="w-64 px-3 py-2">{text.organization}</th>
+            <th className="w-52 px-3 py-2">{ui.groups}</th>
+            <th className="w-28 px-3 py-2" aria-label={ui.delete} />
+          </tr>
+        }
+        toolbar={
+          <div className="grid gap-3">
+            <div className="grid gap-2 md:grid-cols-3">
+              <input
+                aria-label={ui.filterUsers}
+                className={inputClassName}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={ui.filterUsers}
+                type="search"
+                value={searchQuery}
+              />
+              <select
+                aria-label={ui.allRoles}
+                className={inputClassName}
+                onChange={(event) => setRoleFilter(event.target.value)}
+                value={roleFilter}
+              >
+                <option value="all">{ui.allRoles}</option>
+                <option value="student">student</option>
+                <option value="teacher">teacher</option>
+                <option value="admin">admin</option>
+                <option value="independent">independent</option>
+              </select>
+              <select
+                aria-label={ui.allGroups}
+                className={inputClassName}
+                onChange={(event) => setGroupFilter(event.target.value)}
+                value={groupFilter}
+              >
+                <option value="all">{ui.allGroups}</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name} ({group.memberCount})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {activeSelectedIds.length > 0 ? (
               <form
                 action={managementAction}
                 className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3"
@@ -619,10 +613,7 @@ export function AdminUsersPage({
                   const submitter = (event.nativeEvent as SubmitEvent)
                     .submitter as HTMLButtonElement | null;
 
-                  if (
-                    submitter?.value === "delete" &&
-                    !window.confirm(ui.deleteSelectedConfirm)
-                  ) {
+                  if (submitter?.value === "delete" && !window.confirm(ui.deleteSelectedConfirm)) {
                     event.preventDefault();
                   }
                 }}
@@ -648,15 +639,26 @@ export function AdminUsersPage({
                   >
                     {ui.deactivate}
                   </button>
-                  <select className={`${inputClassName} py-1.5 text-xs`} name="groupId" defaultValue="">
-                    <option value="" disabled>{ui.group}</option>
+                  <select
+                    aria-label={ui.group}
+                    className={`${inputClassName} w-auto max-w-full py-1.5 text-xs`}
+                    name="groupId"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>
+                      {ui.group}
+                    </option>
                     {groups.map((group) => (
-                      <option key={group.id} value={group.id}>{group.name}</option>
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
                     ))}
                   </select>
                   <button
                     className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
-                    disabled={managementPending || activeSelectedIds.length === 0 || groups.length === 0}
+                    disabled={
+                      managementPending || activeSelectedIds.length === 0 || groups.length === 0
+                    }
                     name="operation"
                     value="addToGroup"
                   >
@@ -664,7 +666,9 @@ export function AdminUsersPage({
                   </button>
                   <button
                     className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
-                    disabled={managementPending || activeSelectedIds.length === 0 || groups.length === 0}
+                    disabled={
+                      managementPending || activeSelectedIds.length === 0 || groups.length === 0
+                    }
                     name="operation"
                     value="removeFromGroup"
                   >
@@ -672,11 +676,22 @@ export function AdminUsersPage({
                   </button>
                   {user.role === "admin" ? (
                     <>
-                      <select className={`${inputClassName} py-1.5 text-xs`} name="organizationId" defaultValue="">
-                        <option value="" disabled>{text.selectOrganization}</option>
-                        {organizations.filter((organization) => organization.isActive).map((organization) => (
-                          <option key={organization.id} value={organization.id}>{organization.name}</option>
-                        ))}
+                      <select
+                        aria-label={text.organization}
+                        className={`${inputClassName} w-auto max-w-full py-1.5 text-xs`}
+                        name="organizationId"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>
+                          {text.selectOrganization}
+                        </option>
+                        {organizations
+                          .filter((organization) => organization.isActive)
+                          .map((organization) => (
+                            <option key={organization.id} value={organization.id}>
+                              {organization.name}
+                            </option>
+                          ))}
                       </select>
                       <button
                         className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}
@@ -701,16 +716,22 @@ export function AdminUsersPage({
                   <CreationMessage state={managementState} />
                 </div>
               </form>
-            </div>
-          }
-        >
-          {filteredUsers.map((item) => {
-            const itemGroups = groups.filter((group) =>
-              group.memberIds.includes(item.id),
-            );
-            const isCurrentUser = item.id === user.id;
+            ) : (
+              <p className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+                <AdminIcon name="users" />
+                {language === "es"
+                  ? "Selecciona usuarios de la tabla para administrar sus cuentas y grupos."
+                  : "Select users in the table to manage their accounts and groups."}
+              </p>
+            )}
+          </div>
+        }
+      >
+        {filteredUsers.map((item) => {
+          const itemGroups = groups.filter((group) => group.memberIds.includes(item.id));
+          const isCurrentUser = item.id === user.id;
 
-            return (
+          return (
             <tr key={item.id} className={tableRowClassName}>
               <td className={tableCellClassName}>
                 <input
@@ -723,9 +744,11 @@ export function AdminUsersPage({
                 />
               </td>
               <td className={tableCellClassName}>
-                <p className="font-semibold text-neutral-900">{item.fullName}</p>
-                <p className="mt-0.5 text-xs text-neutral-500">@{item.username}</p>
-                <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.isActive ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"}`}>
+                <p className="font-semibold text-slate-900">{item.fullName}</p>
+                <p className="mt-0.5 text-xs text-slate-500">@{item.username}</p>
+                <span
+                  className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.isActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}
+                >
                   {item.isActive ? ui.active : ui.inactive}
                 </span>
               </td>
@@ -741,19 +764,16 @@ export function AdminUsersPage({
                     placeholder={text.email}
                     required
                   />
-                  <button className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold transition hover:border-emerald-400 hover:bg-emerald-50">
+                  <button className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}>
                     Guardar
                   </button>
                 </form>
               </td>
               <td className={tableCellClassName}>
-                <span className="rounded bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-700">
-                  {item.role}
-                </span>
+                <span className="workspace-pill bg-slate-100 text-slate-600">{item.role}</span>
               </td>
               <td className={tableCellClassName}>
-                {user.role === "admin" &&
-                (item.role === "student" || item.role === "teacher") ? (
+                {user.role === "admin" && (item.role === "student" || item.role === "teacher") ? (
                   <form action={updateUserOrganizationAction} className="flex min-w-52 gap-2">
                     <input name="userId" type="hidden" value={item.id} />
                     <select
@@ -774,7 +794,7 @@ export function AdminUsersPage({
                           </option>
                         ))}
                     </select>
-                    <button className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold transition hover:border-emerald-400 hover:bg-emerald-50">
+                    <button className={`${secondaryButtonClassName} px-2.5 py-1.5 text-xs`}>
                       {text.assignOrganization}
                     </button>
                   </form>
@@ -785,16 +805,21 @@ export function AdminUsersPage({
               <td className={tableCellClassName}>
                 <div className="flex flex-wrap gap-1">
                   {itemGroups.map((group) => (
-                    <span key={group.id} className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                    <span
+                      key={group.id}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800"
+                    >
                       {group.name}
                     </span>
                   ))}
-                  {itemGroups.length === 0 ? <span className="text-xs text-neutral-400">—</span> : null}
+                  {itemGroups.length === 0 ? (
+                    <span className="text-xs text-slate-400">—</span>
+                  ) : null}
                 </div>
               </td>
               <td className={tableCellClassName}>
                 {isCurrentUser ? (
-                  <span className="text-xs text-neutral-400">{text.signedIn}</span>
+                  <span className="text-xs text-slate-400">{text.signedIn}</span>
                 ) : (
                   <form
                     action={deleteUserAction}
@@ -812,14 +837,11 @@ export function AdminUsersPage({
                 )}
               </td>
             </tr>
-            );
-          })}
+          );
+        })}
       </AdminTable>
       {isBulkUploadOpen ? (
-        <BulkUsersModal
-          onClose={() => setIsBulkUploadOpen(false)}
-          user={user}
-        />
+        <BulkUsersModal onClose={() => setIsBulkUploadOpen(false)} user={user} />
       ) : null}
       {isCreateGroupOpen ? (
         <CreateGroupModal
@@ -877,7 +899,7 @@ function AdminFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-neutral-950/55 p-4 backdrop-blur-sm sm:p-8"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm sm:p-8"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -888,25 +910,18 @@ function AdminFormModal({
       <section
         aria-labelledby="admin-form-modal-title"
         aria-modal="true"
-        className={`my-auto w-full rounded-xl border border-neutral-200 bg-white p-5 shadow-2xl shadow-neutral-950/20 sm:p-6 ${
+        className={`my-auto w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-950/20 sm:p-6 ${
           extraWide ? "max-w-3xl" : wide ? "max-w-2xl" : "max-w-lg"
         }`}
         role="dialog"
       >
-        <div className="mb-5 flex items-start justify-between gap-4 border-b border-neutral-200 pb-4">
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-              FlowCode
-            </p>
-            <h2
-              className="mt-1 text-xl font-semibold text-neutral-950"
-              id="admin-form-modal-title"
-            >
+            <p className="workspace-eyebrow text-emerald-700">FlowCode</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950" id="admin-form-modal-title">
               {title}
             </h2>
-            <p className="mt-1 text-sm leading-6 text-neutral-600">
-              {description}
-            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
           </div>
           <button
             aria-label={closeLabel}
@@ -923,21 +938,12 @@ function AdminFormModal({
   );
 }
 
-function BulkUsersModal({
-  onClose,
-  user,
-}: {
-  onClose: () => void;
-  user: SessionUser;
-}) {
+function BulkUsersModal({ onClose, user }: { onClose: () => void; user: SessionUser }) {
   const { language } = useI18n();
   const text = copy[language];
   const closeLabel = language === "es" ? "Cerrar" : "Close";
   const processingLabel = language === "es" ? "Procesando..." : "Processing...";
-  const [state, action, pending] = useActionState(
-    bulkCreateUsersAction,
-    {} as UserCreationState,
-  );
+  const [state, action, pending] = useActionState(bulkCreateUsersAction, {} as UserCreationState);
   const csvTemplate = encodeURIComponent(
     "nombre,usuario,contraseña,correo,tipo_de_usuario,organizacion\nAna Pérez,ana.perez,,ana@example.com,student,Mi organización\n",
   );
@@ -956,12 +962,12 @@ function BulkUsersModal({
       title={text.bulkUsers}
     >
       <form action={action} className="grid gap-3">
-        <label className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm font-semibold text-neutral-700 transition hover:border-emerald-400 hover:bg-emerald-50/40">
+        <label className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:bg-emerald-50/40">
           {text.selectCsv}
           <input
             accept=".csv,text/csv"
             autoFocus
-            className="mt-3 block w-full text-xs font-normal file:mr-3 file:rounded-md file:border-0 file:bg-neutral-900 file:px-3 file:py-2 file:font-semibold file:text-white"
+            className="mt-3 block w-full text-xs font-normal file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:font-semibold file:text-white"
             name="csvFile"
             required
             type="file"
@@ -976,11 +982,7 @@ function BulkUsersModal({
         </a>
         <CreationMessage state={state} />
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-          <button
-            className={secondaryButtonClassName}
-            onClick={onClose}
-            type="button"
-          >
+          <button className={secondaryButtonClassName} onClick={onClose} type="button">
             {closeLabel}
           </button>
           <button className={primaryButtonClassName} disabled={pending}>
@@ -989,13 +991,8 @@ function BulkUsersModal({
         </div>
       </form>
       {user.role === "admin" ? (
-        <form
-          action={retryPendingEmailsAction}
-          className="mt-4 border-t border-neutral-200 pt-4"
-        >
-          <button className={`${secondaryButtonClassName} w-full`}>
-            {text.retryEmails}
-          </button>
+        <form action={retryPendingEmailsAction} className="mt-4 border-t border-slate-200 pt-4">
+          <button className={`${secondaryButtonClassName} w-full`}>{text.retryEmails}</button>
         </form>
       ) : null}
     </AdminFormModal>
@@ -1027,10 +1024,7 @@ function CreateGroupModal({
   const { language } = useI18n();
   const text = copy[language];
   const [newGroupType, setNewGroupType] = useState("course");
-  const [state, action, pending] = useActionState(
-    createUserGroupAction,
-    {} as UserManagementState,
-  );
+  const [state, action, pending] = useActionState(createUserGroupAction, {} as UserManagementState);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -1073,15 +1067,9 @@ function CreateGroupModal({
           ) : null}
         </select>
         {user.role === "admin" && newGroupType !== "administrators" ? (
-          <select
-            className={inputClassName}
-            name="organizationId"
-            defaultValue=""
-          >
+          <select className={inputClassName} name="organizationId" defaultValue="">
             <option value="">
-              {newGroupType === "custom"
-                ? labels.global
-                : text.selectOrganization}
+              {newGroupType === "custom" ? labels.global : text.selectOrganization}
             </option>
             {organizations
               .filter((organization) => organization.isActive)
@@ -1096,11 +1084,7 @@ function CreateGroupModal({
         )}
         <CreationMessage state={state} />
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-          <button
-            className={secondaryButtonClassName}
-            onClick={onClose}
-            type="button"
-          >
+          <button className={secondaryButtonClassName} onClick={onClose} type="button">
             {labels.close}
           </button>
           <button className={primaryButtonClassName} disabled={pending}>
@@ -1131,10 +1115,7 @@ function CreateUserModal({
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
-  const [state, action, pending] = useActionState(
-    createUserAction,
-    {} as UserCreationState,
-  );
+  const [state, action, pending] = useActionState(createUserAction, {} as UserCreationState);
   const normalizedNewUsername = newUsername.trim();
   const normalizedNewEmail = newEmail.trim().toLowerCase();
   const passwordMismatch = newPassword !== newPasswordConfirmation;
@@ -1197,14 +1178,10 @@ function CreateUserModal({
             id="new-username-status"
             aria-live="polite"
             className={`min-h-5 text-xs ${
-              usernameCheck.availability?.available
-                ? "text-emerald-700"
-                : "text-red-700"
+              usernameCheck.availability?.available ? "text-emerald-700" : "text-red-700"
             }`}
           >
-            {usernameCheck.pending
-              ? text.usernameChecking
-              : usernameCheck.availability?.message}
+            {usernameCheck.pending ? text.usernameChecking : usernameCheck.availability?.message}
           </p>
         </div>
         <div className="grid gap-1">
@@ -1224,14 +1201,10 @@ function CreateUserModal({
             id="new-email-status"
             aria-live="polite"
             className={`min-h-5 text-xs ${
-              emailCheck.availability?.available
-                ? "text-emerald-700"
-                : "text-red-700"
+              emailCheck.availability?.available ? "text-emerald-700" : "text-red-700"
             }`}
           >
-            {emailCheck.pending
-              ? text.emailChecking
-              : emailCheck.availability?.message}
+            {emailCheck.pending ? text.emailChecking : emailCheck.availability?.message}
           </p>
         </div>
         <input
@@ -1253,13 +1226,9 @@ function CreateUserModal({
           minLength={8}
           required={Boolean(newPassword)}
           value={newPasswordConfirmation}
-          onChange={(event) =>
-            setNewPasswordConfirmation(event.target.value)
-          }
+          onChange={(event) => setNewPasswordConfirmation(event.target.value)}
         />
-        <p className="text-xs leading-5 text-neutral-600 sm:col-span-2">
-          {text.passwordHelp}
-        </p>
+        <p className="text-xs leading-5 text-slate-600 sm:col-span-2">{text.passwordHelp}</p>
         {newPassword || newPasswordConfirmation ? (
           <p
             aria-live="polite"
@@ -1283,12 +1252,7 @@ function CreateUserModal({
               <option value="admin">admin</option>
             </select>
             {newUserRole !== "admin" ? (
-              <select
-                name="organizationId"
-                className={inputClassName}
-                defaultValue=""
-                required
-              >
+              <select name="organizationId" className={inputClassName} defaultValue="" required>
                 <option value="" disabled>
                   {text.selectOrganization}
                 </option>
@@ -1301,7 +1265,7 @@ function CreateUserModal({
                   ))}
               </select>
             ) : (
-              <p className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {text.adminGlobalAccess}
               </p>
             )}
@@ -1312,11 +1276,11 @@ function CreateUserModal({
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 sm:col-span-2">
               {text.organization}: {user.organizationName ?? "—"}
             </p>
-            {(organizations.find(
-              (organization) => organization.id === user.organizationId,
-            )?.studentCount ?? 0) >= 60 ? (
+            {(organizations.find((organization) => organization.id === user.organizationId)
+              ?.studentCount ?? 0) >= 60 ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 sm:col-span-2">
-                La organización alcanzó 60 alumnos. Contacta a contacto@igfri.dev para ampliar el cupo.
+                La organización alcanzó 60 alumnos. Contacta a contacto@igfri.dev para ampliar el
+                cupo.
               </p>
             ) : null}
           </>
@@ -1325,11 +1289,7 @@ function CreateUserModal({
           <CreationMessage state={state} />
         </div>
         <div className="flex flex-col-reverse gap-2 pt-2 sm:col-span-2 sm:flex-row sm:justify-end">
-          <button
-            className={secondaryButtonClassName}
-            onClick={onClose}
-            type="button"
-          >
+          <button className={secondaryButtonClassName} onClick={onClose} type="button">
             {closeLabel}
           </button>
           <button
@@ -1338,14 +1298,8 @@ function CreateUserModal({
               pending ||
               usernameCheck.pending ||
               emailCheck.pending ||
-              Boolean(
-                normalizedNewUsername &&
-                  !usernameCheck.availability?.available,
-              ) ||
-              Boolean(
-                normalizedNewEmail &&
-                  !emailCheck.availability?.available,
-              ) ||
+              Boolean(normalizedNewUsername && !usernameCheck.availability?.available) ||
+              Boolean(normalizedNewEmail && !emailCheck.availability?.available) ||
               passwordMismatch
             }
           >
@@ -1357,10 +1311,7 @@ function CreateUserModal({
   );
 }
 
-export function AdminOrganizationsPage({
-  organizations,
-  user,
-}: AdminOrganizationsPageProps) {
+export function AdminOrganizationsPage({ organizations, user }: AdminOrganizationsPageProps) {
   const { language } = useI18n();
   const text = copy[language];
 
@@ -1372,10 +1323,10 @@ export function AdminOrganizationsPage({
         title={text.organizations}
       />
       <div className="grid items-start gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className={`${panelClassName} xl:sticky xl:top-28`}>
+        <section className={`${panelClassName} xl:sticky xl:top-[160px]`}>
           <PanelTitle>{text.createOrganization}</PanelTitle>
           <form action={createOrganizationAction} className="mt-4 grid gap-3">
-            <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+            <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
               {text.organizationName}
               <input
                 className={`${inputClassName} normal-case tracking-normal`}
@@ -1393,29 +1344,46 @@ export function AdminOrganizationsPage({
             organizations.map((organization) => (
               <article
                 key={organization.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+                className="workspace-panel min-w-0 p-5 transition-colors hover:border-slate-300"
               >
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100">
+                  <AdminIcon name="organizations" className="h-5 w-5" />
+                </div>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                      #{organization.id}
-                    </p>
-                    <h2 className="mt-1 text-lg font-semibold">{organization.name}</h2>
-                    <p className="mt-0.5 text-xs text-neutral-500">{organization.slug}</p>
+                    <p className="workspace-eyebrow text-emerald-700">#{organization.id}</p>
+                    <h2 className="mt-1 break-words text-lg font-semibold">{organization.name}</h2>
+                    <p className="mt-0.5 break-all text-xs text-slate-500">{organization.slug}</p>
                   </div>
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                    {organization.isActive ? "Active" : "Inactive"}
+                  <span
+                    className={`workspace-pill shrink-0 ${organization.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                  >
+                    {organization.isActive
+                      ? language === "es"
+                        ? "Activa"
+                        : "Active"
+                      : language === "es"
+                        ? "Inactiva"
+                        : "Inactive"}
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                   <OrganizationMetric label={text.teachers} value={organization.teacherCount} />
-                  <OrganizationMetric label={text.students} value={`${organization.studentCount}/60`} />
+                  <OrganizationMetric
+                    label={text.students}
+                    value={`${organization.studentCount}/60`}
+                  />
                   <OrganizationMetric label={text.exercises} value={organization.exerciseCount} />
-                  <OrganizationMetric label={text.submissions} value={organization.submissionCount} />
+                  <OrganizationMetric
+                    label={text.submissions}
+                    value={organization.submissionCount}
+                  />
                 </div>
                 {organization.studentCount >= 60 ? (
                   <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
-                    Cupo completo. Para ampliarlo, contacta a contacto@igfri.dev.
+                    {language === "es"
+                      ? "Cupo completo. Para ampliarlo, contacta a contacto@igfri.dev."
+                      : "Full capacity. To increase it, contact contacto@igfri.dev."}
                   </p>
                 ) : null}
               </article>
@@ -1431,24 +1399,19 @@ export function AdminOrganizationsPage({
 
 function OrganizationMetric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-      <span className="block font-semibold text-neutral-900">{value}</span>
-      <span className="text-neutral-500">{label}</span>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="block text-lg font-semibold tabular-nums text-slate-900">{value}</span>
+      <span className="text-[11px] text-slate-500">{label}</span>
     </div>
   );
 }
 
-export function AdminExercisesPage({
-  exercises,
-  user,
-}: AdminExercisesPageProps) {
+export function AdminExercisesPage({ exercises, user }: AdminExercisesPageProps) {
   const { language } = useI18n();
   const text = copy[language];
   const [query, setQuery] = useState("");
   const [isCreateExerciseOpen, setIsCreateExerciseOpen] = useState(false);
-  const [editingExercise, setEditingExercise] = useState<AdminExercise | null>(
-    null,
-  );
+  const [editingExercise, setEditingExercise] = useState<AdminExercise | null>(null);
   const filteredExercises = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
 
@@ -1474,50 +1437,53 @@ export function AdminExercisesPage({
         count={exercises.length}
         help={text.exercisesHelp}
         title={text.exercises}
+        actions={
+          <button
+            className={primaryButtonClassName}
+            onClick={() => setIsCreateExerciseOpen(true)}
+            type="button"
+          >
+            <AdminIcon name="plus" />
+            {text.createExercise}
+          </button>
+        }
       />
-      <section className="rounded-lg border border-neutral-300/80 bg-white p-3 shadow-md shadow-neutral-200/70">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-          {language === "es" ? "Acciones de ejercicios" : "Exercise actions"}
-        </p>
-        <button
-          className={`${primaryButtonClassName} mt-2 w-full`}
-          onClick={() => setIsCreateExerciseOpen(true)}
-          type="button"
-        >
-          {text.createExercise}
-        </button>
-      </section>
 
-      <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-        <div className="border-b border-neutral-200 p-4 sm:p-5">
+      <section className="workspace-panel min-w-0 overflow-hidden p-0">
+        <div className="border-b border-slate-200 p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">{text.exercises}</h2>
-              <p className="mt-0.5 text-sm text-neutral-500">
+              <h2 className="text-sm font-semibold text-slate-800">
+                {language === "es" ? "Catálogo de ejercicios" : "Exercise catalog"}
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
                 {text.showing} {filteredExercises.length} {text.of} {exercises.length}
               </p>
             </div>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={text.searchExercises}
-              className={`${inputClassName} w-full sm:max-w-xs`}
-            />
+            <div className="relative w-full sm:max-w-xs">
+              <AdminIcon
+                name="search"
+                className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400"
+              />
+              <input
+                aria-label={text.searchExercises}
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={text.searchExercises}
+                className={`${inputClassName} pl-9`}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 2xl:grid-cols-3">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
           {filteredExercises.length > 0 ? (
             filteredExercises.map((exercise) => (
               <ExerciseCard
                 exercise={exercise}
                 key={`${exercise.organizationId}:${exercise.sourceId ?? exercise.id}`}
-                onEdit={
-                  exercise.canManage
-                    ? () => setEditingExercise(exercise)
-                    : undefined
-                }
+                onEdit={exercise.canManage ? () => setEditingExercise(exercise) : undefined}
                 text={text}
               />
             ))
@@ -1550,53 +1516,28 @@ export function AdminExercisesPage({
       ) : null}
 
       {editingExercise ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-neutral-950/55 p-4 backdrop-blur-sm sm:p-8"
-          role="dialog"
-          aria-modal="true"
-          aria-label={text.editExercise}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setEditingExercise(null);
-            }
-          }}
+        <AdminFormModal
+          closeLabel={text.close}
+          description={editingExercise.title}
+          extraWide
+          onClose={() => setEditingExercise(null)}
+          title={text.editExercise}
         >
-          <section className="w-full max-w-3xl rounded-2xl border border-neutral-200 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="flex items-center justify-between gap-3 border-b border-neutral-200 pb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                  {text.editExercise}
-                </p>
-                <h2 className="mt-1 text-xl font-semibold">{editingExercise.title}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingExercise(null)}
-                className={iconButtonClassName}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <ExerciseForm
-              action={updateExerciseAction}
-              exercise={editingExercise}
-              onSubmit={() => setEditingExercise(null)}
-              submitLabel={text.saveChanges}
-              text={text}
-              user={user}
-            />
-          </section>
-        </div>
+          <ExerciseForm
+            action={updateExerciseAction}
+            exercise={editingExercise}
+            onSubmit={() => setEditingExercise(null)}
+            submitLabel={text.saveChanges}
+            text={text}
+            user={user}
+          />
+        </AdminFormModal>
       ) : null}
     </AdminChrome>
   );
 }
 
-export function AdminSubmissionsPage({
-  submissions,
-  user,
-}: AdminSubmissionsPageProps) {
+export function AdminSubmissionsPage({ submissions, user }: AdminSubmissionsPageProps) {
   const { language } = useI18n();
   const text = copy[language];
   const [query, setQuery] = useState("");
@@ -1605,11 +1546,8 @@ export function AdminSubmissionsPage({
   const [organization, setOrganization] = useState("all");
   const [status, setStatus] = useState("all");
   const [testResult, setTestResult] = useState("all");
-  const [groupBy, setGroupBy] = useState<"none" | "student" | "exercise">(
-    "none",
-  );
-  const [previewSubmission, setPreviewSubmission] =
-    useState<AdminSubmission | null>(null);
+  const [groupBy, setGroupBy] = useState<"none" | "student" | "exercise">("none");
+  const [previewSubmission, setPreviewSubmission] = useState<AdminSubmission | null>(null);
   const students = useMemo(
     () =>
       Array.from(
@@ -1628,11 +1566,7 @@ export function AdminSubmissionsPage({
   const exercises = useMemo(
     () =>
       Array.from(
-        new Set(
-          submissions.map(
-            (submission) => submission.exerciseTitle ?? text.freeSubmission,
-          ),
-        ),
+        new Set(submissions.map((submission) => submission.exerciseTitle ?? text.freeSubmission)),
       ).sort((a, b) => a.localeCompare(b)),
     [submissions, text.freeSubmission],
   );
@@ -1662,8 +1596,7 @@ export function AdminSubmissionsPage({
           exerciseTitle,
           submission.organizationName ?? "",
         ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
-      const matchesStudent =
-        student === "all" || submission.studentUsername === student;
+      const matchesStudent = student === "all" || submission.studentUsername === student;
       const matchesExercise = exercise === "all" || exerciseTitle === exercise;
       const matchesOrganization =
         organization === "all" ||
@@ -1684,7 +1617,16 @@ export function AdminSubmissionsPage({
         matchesTest
       );
     });
-  }, [exercise, organization, query, status, student, submissions, testResult, text.freeSubmission]);
+  }, [
+    exercise,
+    organization,
+    query,
+    status,
+    student,
+    submissions,
+    testResult,
+    text.freeSubmission,
+  ]);
   const submissionGroups = useMemo(() => {
     if (groupBy === "none") {
       return [["", filteredSubmissions]] as const;
@@ -1712,69 +1654,106 @@ export function AdminSubmissionsPage({
 
   return (
     <AdminChrome user={user}>
-      <PageHeader
-        count={submissions.length}
-        help={text.submissionsHelp}
-        title={text.submissions}
-      />
+      <PageHeader count={submissions.length} help={text.submissionsHelp} title={text.submissions} />
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard label={text.awaitingReview} value={stats.submitted} tone="neutral" />
         <MetricCard label={text.needsWork} value={stats.needsWork} tone="danger" />
         <MetricCard label={text.passed} value={stats.approved} tone="success" />
       </div>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.4fr)_repeat(5,minmax(130px,0.7fr))]">
+      <section
+        aria-label={language === "es" ? "Filtros de entregas" : "Submission filters"}
+        className="workspace-panel p-4 sm:p-5"
+      >
+        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <AdminIcon name="search" />
+          {language === "es" ? "Buscar y filtrar" : "Search and filter"}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(240px,1.6fr)_repeat(5,minmax(0,1fr))]">
           <input
+            aria-label={text.search}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={text.search}
             className={inputClassName}
           />
-          <select value={student} onChange={(event) => setStudent(event.target.value)} className={inputClassName}>
+          <select
+            aria-label={text.allStudents}
+            value={student}
+            onChange={(event) => setStudent(event.target.value)}
+            className={inputClassName}
+          >
             <option value="all">{text.allStudents}</option>
             {students.map((option) => (
-              <option value={option.value} key={option.value}>{option.label}</option>
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
           <select
+            aria-label={text.allOrganizations}
             value={organization}
             onChange={(event) => setOrganization(event.target.value)}
             className={inputClassName}
           >
             <option value="all">{text.allOrganizations}</option>
             {organizations.map(([value, label]) => (
-              <option value={value} key={value}>{label}</option>
+              <option value={value} key={value}>
+                {label}
+              </option>
             ))}
           </select>
-          <select value={exercise} onChange={(event) => setExercise(event.target.value)} className={inputClassName}>
+          <select
+            aria-label={text.allExercises}
+            value={exercise}
+            onChange={(event) => setExercise(event.target.value)}
+            className={inputClassName}
+          >
             <option value="all">{text.allExercises}</option>
             {exercises.map((option) => (
-              <option value={option} key={option}>{option}</option>
+              <option value={option} key={option}>
+                {option}
+              </option>
             ))}
           </select>
-          <select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClassName}>
+          <select
+            aria-label={text.allStatuses}
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            className={inputClassName}
+          >
             <option value="all">{text.allStatuses}</option>
-            <option value="submitted">submitted</option>
-            <option value="approved">approved</option>
-            <option value="incomplete">incomplete</option>
-            <option value="rejected">rejected</option>
+            {Object.entries(statusLabels[language]).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
-          <select value={testResult} onChange={(event) => setTestResult(event.target.value)} className={inputClassName}>
+          <select
+            aria-label={text.allTestResults}
+            value={testResult}
+            onChange={(event) => setTestResult(event.target.value)}
+            className={inputClassName}
+          >
             <option value="all">{text.allTestResults}</option>
             <option value="passed">{text.testPassedFilter}</option>
             <option value="failed">{text.testFailedFilter}</option>
             <option value="none">{text.noTestFilter}</option>
           </select>
         </div>
-        <div className="mt-4 flex flex-col gap-3 border-t border-neutral-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-neutral-500">
-            {text.showing} <strong className="text-neutral-900">{filteredSubmissions.length}</strong> {text.of} {submissions.length}
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {text.showing} <strong className="text-slate-900">{filteredSubmissions.length}</strong>{" "}
+            {text.of} {submissions.length}
           </p>
-          <label className="flex items-center gap-2 text-sm font-medium text-neutral-700">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
             {text.groupBy}
-            <select value={groupBy} onChange={(event) => setGroupBy(event.target.value as typeof groupBy)} className={`${inputClassName} py-1.5`}>
+            <select
+              value={groupBy}
+              onChange={(event) => setGroupBy(event.target.value as typeof groupBy)}
+              className={`${inputClassName} w-auto py-1.5`}
+            >
               <option value="none">{text.noGrouping}</option>
               <option value="student">{text.groupStudent}</option>
               <option value="exercise">{text.groupExercise}</option>
@@ -1790,12 +1769,12 @@ export function AdminSubmissionsPage({
               {groupName ? (
                 <div className="mb-3 flex items-center gap-3">
                   <h2 className="text-lg font-semibold">{groupName}</h2>
-                  <span className="rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-semibold text-neutral-700">
+                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                     {groupSubmissions.length}
                   </span>
                 </div>
               ) : null}
-              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {groupSubmissions.map((submission) => (
                   <SubmissionPreviewCard
                     key={submission.id}
@@ -1845,36 +1824,24 @@ function ExerciseForm({
       key={exercise ? (exercise.sourceId ?? exercise.id) : "new"}
       onSubmit={onSubmit}
     >
-      {exercise?.id ? (
-        <input name="exerciseId" type="hidden" value={exercise.id} />
-      ) : null}
+      {exercise?.id ? <input name="exerciseId" type="hidden" value={exercise.id} /> : null}
       {exercise?.sourceId ? (
         <input name="sourceId" type="hidden" value={exercise.sourceId} />
       ) : null}
       {exercise?.scope === "organization" ? (
         <>
-          <input
-            name="organizationId"
-            type="hidden"
-            value={exercise.organizationId ?? ""}
-          />
+          <input name="organizationId" type="hidden" value={exercise.organizationId ?? ""} />
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            <span className="font-semibold">{text.organization}:</span>{" "}
-            {exercise.organizationName}
+            <span className="font-semibold">{text.organization}:</span> {exercise.organizationName}
           </p>
         </>
       ) : user.role === "admin" ? (
         <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
-          <span className="font-semibold">{text.globalCatalog}.</span>{" "}
-          {text.globalExerciseHelp}
+          <span className="font-semibold">{text.globalCatalog}.</span> {text.globalExerciseHelp}
         </p>
       ) : (
         <>
-          <input
-            name="organizationId"
-            type="hidden"
-            value={user.organizationId ?? ""}
-          />
+          <input name="organizationId" type="hidden" value={user.organizationId ?? ""} />
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
             <span className="font-semibold">{text.organization}:</span>{" "}
             {user.organizationName ?? "—"}. {text.organizationExerciseHelp}
@@ -1882,7 +1849,7 @@ function ExerciseForm({
         </>
       )}
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
-        <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+        <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
           {text.exerciseTitle}
           <input
             name="title"
@@ -1892,8 +1859,8 @@ function ExerciseForm({
             required
           />
         </label>
-        <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-          Difficulty
+        <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
+          {text.difficulty}
           <select
             name="difficulty"
             className={inputClassName}
@@ -1905,7 +1872,7 @@ function ExerciseForm({
           </select>
         </label>
       </div>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.description}
         <textarea
           name="description"
@@ -1915,7 +1882,7 @@ function ExerciseForm({
           required
         />
       </label>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.objective}
         <textarea
           name="objective"
@@ -1925,8 +1892,8 @@ function ExerciseForm({
           required
         />
       </label>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-        Starter code
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
+        {text.starterCodeLabel}
         <textarea
           name="starterCode"
           defaultValue={exercise?.starterCode}
@@ -1934,7 +1901,7 @@ function ExerciseForm({
           className={`${inputClassName} min-h-28 resize-y font-mono text-xs normal-case tracking-normal`}
         />
       </label>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.tests}
         <textarea
           name="testCases"
@@ -1944,7 +1911,7 @@ function ExerciseForm({
           required
         />
       </label>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.submissionDeadline}
         <input
           name="submissionDeadline"
@@ -1952,11 +1919,11 @@ function ExerciseForm({
           defaultValue={exercise?.submissionDeadline}
           className={`${inputClassName} normal-case tracking-normal`}
         />
-        <span className="text-[11px] font-normal normal-case tracking-normal text-neutral-500">
+        <span className="text-[11px] font-normal normal-case tracking-normal text-slate-500">
           {text.submissionDeadlineHelp}
         </span>
       </label>
-      <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+      <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.tags}
         <input
           name="tags"
@@ -1980,17 +1947,15 @@ function ExerciseCard({
   text: AdminCopy;
 }) {
   return (
-    <article className="group flex min-h-64 flex-col rounded-xl border border-neutral-200 bg-neutral-50/60 p-4 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-white hover:shadow-lg hover:shadow-emerald-950/5">
+    <article className="group flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-emerald-300">
       <div className="flex items-start justify-between gap-3">
         <DifficultyBadge difficulty={exercise.difficulty} />
-        <span className="text-xs font-medium text-neutral-400">
+        <span className="text-xs font-medium text-slate-400">
           {exercise.isBuiltIn ? "Built-in" : `#${exercise.id}`}
         </span>
       </div>
-      <h3 className="mt-3 text-lg font-semibold leading-snug text-neutral-950">
-        {exercise.title}
-      </h3>
-      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-neutral-600">
+      <h3 className="mt-3 text-lg font-semibold leading-snug text-slate-950">{exercise.title}</h3>
+      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
         {exercise.description}
       </p>
       <div className="mt-4 flex flex-wrap gap-1.5">
@@ -2000,12 +1965,15 @@ function ExerciseCard({
           .filter(Boolean)
           .slice(0, 4)
           .map((tag) => (
-            <span key={tag} className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200">
+            <span
+              key={tag}
+              className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200"
+            >
               {tag}
             </span>
           ))}
       </div>
-      <div className="mt-auto grid grid-cols-2 gap-2 border-t border-neutral-200 pt-4 text-xs text-neutral-500">
+      <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
         <span>{exercise.hasTests ? text.tests : text.noTests}</span>
         <span className="text-right">
           {exercise.submissionCount} {text.submissionsCount}
@@ -2037,9 +2005,7 @@ function ExerciseCard({
               }
             }}
           >
-            {exercise.id ? (
-              <input name="exerciseId" type="hidden" value={exercise.id} />
-            ) : null}
+            {exercise.id ? <input name="exerciseId" type="hidden" value={exercise.id} /> : null}
             {exercise.sourceId ? (
               <input name="sourceId" type="hidden" value={exercise.sourceId} />
             ) : null}
@@ -2047,7 +2013,7 @@ function ExerciseCard({
           </form>
         </div>
       ) : (
-        <p className="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-center text-xs font-medium text-neutral-600">
+        <p className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-medium text-slate-600">
           {text.globalCatalog}
         </p>
       )}
@@ -2064,52 +2030,56 @@ function SubmissionPreviewCard({
   submission: AdminSubmission;
   text: AdminCopy;
 }) {
-  const failedCases =
-    submission.testResult?.cases.filter((testCase) => !testCase.passed) ?? [];
+  const failedCases = submission.testResult?.cases.filter((testCase) => !testCase.passed) ?? [];
   const nodeCount = submission.diagramJson?.main.nodes.length ?? 0;
 
   return (
-    <article className="group rounded-xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-950/5">
-      <div className="p-4">
+    <article className="workspace-panel group min-w-0 p-0 transition-colors hover:border-emerald-300">
+      <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold uppercase tracking-wider text-emerald-700">
+            <p className="truncate workspace-eyebrow text-emerald-700">
               {submission.exerciseTitle ?? text.freeSubmission}
             </p>
-            <p className="mt-0.5 truncate text-[11px] font-medium text-neutral-500">
+            <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
               {text.organization}: {submission.organizationName ?? "—"}
             </p>
-            <h3 className="mt-1 truncate text-lg font-semibold">{submission.title}</h3>
           </div>
           <StatusBadge status={submission.status} />
         </div>
+        <h3 className="mt-2 break-words text-lg font-semibold leading-snug">{submission.title}</h3>
         <div className="mt-3 flex items-center justify-between gap-3 text-sm">
           <div className="min-w-0">
-            <p className="truncate font-medium text-neutral-800">{submission.studentName}</p>
-            <p className="truncate text-xs text-neutral-500">@{submission.studentUsername}</p>
+            <p className="truncate font-medium text-slate-800">{submission.studentName}</p>
+            <p className="truncate text-xs text-slate-500">@{submission.studentUsername}</p>
           </div>
-          <div className="shrink-0 text-right text-xs text-neutral-500">
+          <div className="shrink-0 text-right text-xs text-slate-500">
             <p>{submission.submittedAt}</p>
-            <p className="mt-0.5">{nodeCount} {text.blocks}</p>
+            <p className="mt-0.5">
+              {nodeCount} {text.blocks}
+            </p>
           </div>
         </div>
         <button
           type="button"
           onClick={onPreview}
           className="mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 py-3 text-left text-emerald-950 outline-none transition hover:border-emerald-400 hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-          aria-label={`Open diagram preview for ${submission.title}`}
+          aria-label={`${text.preview}: ${submission.title}`}
         >
           <span>
-            <span className="block text-sm font-semibold">Open diagram preview</span>
+            <span className="block text-sm font-semibold">{text.preview}</span>
             <span className="mt-0.5 block text-xs text-emerald-800/70">
-              Original layout · {nodeCount} {text.blocks}
+              {text.originalLayout} · {nodeCount} {text.blocks}
             </span>
           </span>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-lg text-white shadow-sm" aria-hidden="true">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-lg text-emerald-700 ring-1 ring-emerald-200"
+            aria-hidden="true"
+          >
             ↗
           </span>
         </button>
-        <div className="mt-4 flex min-h-12 items-start justify-between gap-3 border-t border-neutral-100 pt-3">
+        <div className="mt-4 flex min-h-12 items-start justify-between gap-3 border-t border-slate-100 pt-3">
           <div>
             <TestBadge
               failedLabel={text.testsFailed}
@@ -2122,9 +2092,7 @@ function SubmissionPreviewCard({
                 {failedCases.length} {text.failedCases}
               </p>
             ) : submission.feedback ? (
-              <p className="mt-1.5 text-xs font-medium text-blue-700">
-                {text.correctionsSaved}
-              </p>
+              <p className="mt-1.5 text-xs font-medium text-blue-700">{text.correctionsSaved}</p>
             ) : null}
           </div>
           <Link href={`/admin/submissions/${submission.id}`} className={primaryButtonClassName}>
@@ -2143,6 +2111,8 @@ function DiagramPreviewModal({
   onClose: () => void;
   submission: AdminSubmission;
 }) {
+  const { language } = useI18n();
+  const text = copy[language];
   const program = submission.diagramJson!;
   const [activeDiagramId, setActiveDiagramId] = useState("main");
   const activeFunction = program.functions.find(
@@ -2194,7 +2164,7 @@ function DiagramPreviewModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-neutral-950/70 p-3 backdrop-blur-sm sm:p-6"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="diagram-preview-title"
@@ -2205,17 +2175,15 @@ function DiagramPreviewModal({
       }}
     >
       <section className="flex h-[min(900px,94vh)] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border border-white/15 bg-white shadow-2xl">
-        <header className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <header className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-              Diagram preview · {submission.studentName}
+            <p className="workspace-eyebrow text-emerald-700">
+              {text.preview} · {submission.studentName}
             </p>
             <h2 id="diagram-preview-title" className="mt-1 truncate text-xl font-semibold">
               {submission.title}
             </h2>
-            <p className="mt-0.5 text-sm text-neutral-500">
-              Stored node positions and connections · Read only
-            </p>
+            <p className="mt-0.5 text-sm text-slate-500">{text.previewHelp}</p>
           </div>
           <div className="flex items-center gap-2">
             {program.functions.length > 0 ? (
@@ -2223,12 +2191,12 @@ function DiagramPreviewModal({
                 value={activeDiagramId}
                 onChange={(event) => setActiveDiagramId(event.target.value)}
                 className={inputClassName}
-                aria-label="Select diagram"
+                aria-label={text.selectDiagram}
               >
-                <option value="main">Main diagram</option>
+                <option value="main">{text.mainDiagram}</option>
                 {program.functions.map((flowFunction) => (
                   <option key={flowFunction.id} value={flowFunction.id}>
-                    Function: {flowFunction.name}
+                    {text.function}: {flowFunction.name}
                   </option>
                 ))}
               </select>
@@ -2237,15 +2205,15 @@ function DiagramPreviewModal({
               type="button"
               onClick={onClose}
               className={iconButtonClassName}
-              aria-label="Close diagram preview"
-              title="Close preview"
+              aria-label={text.close}
+              title={text.close}
             >
               ×
             </button>
           </div>
         </header>
 
-        <div className="relative min-h-0 flex-1 bg-neutral-100">
+        <div className="relative min-h-0 flex-1 bg-slate-100">
           <FlowNodeRenderProvider
             value={{
               availableFunctions,
@@ -2269,21 +2237,21 @@ function DiagramPreviewModal({
               zoomOnScroll
               zoomOnPinch
               zoomOnDoubleClick={false}
-              className="flow-editor-canvas bg-neutral-100 [&_.react-flow__node]:pointer-events-none"
+              className="flow-editor-canvas bg-slate-100 [&_.react-flow__node]:pointer-events-none"
               attributionPosition="bottom-right"
             >
-              <Background variant={BackgroundVariant.Lines} color="#d4d4d4" gap={24} />
+              <Background variant={BackgroundVariant.Lines} color="#e2e8f0" gap={24} />
               <Controls
                 position="bottom-left"
                 showInteractive={false}
-                className="!rounded-lg !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200"
+                className="!rounded-lg !border !border-slate-300 !bg-white !shadow-md [&_button]:!border-slate-200"
               />
               <MiniMap<FlowEditorNode>
                 position="bottom-right"
                 nodeColor={(node) => getPreviewNodeColor(node.type)}
                 pannable
                 zoomable
-                className="!rounded-lg !border !border-neutral-300 !bg-white !shadow-md"
+                className="!rounded-lg !border !border-slate-300 !bg-white !shadow-md"
               />
             </ReactFlow>
           </FlowNodeRenderProvider>
@@ -2302,6 +2270,7 @@ function getPreviewNodeColor(type: string) {
 }
 
 function DifficultyBadge({ difficulty }: { difficulty: string }) {
+  const { language } = useI18n();
   const className =
     difficulty === "dificil"
       ? "bg-red-50 text-red-700 ring-red-200"
@@ -2311,7 +2280,17 @@ function DifficultyBadge({ difficulty }: { difficulty: string }) {
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${className}`}>
-      {difficulty}
+      {difficulty === "dificil"
+        ? language === "es"
+          ? "Difícil"
+          : "Hard"
+        : difficulty === "media"
+          ? language === "es"
+            ? "Media"
+            : "Medium"
+          : language === "es"
+            ? "Fácil"
+            : "Easy"}
     </span>
   );
 }
@@ -2327,23 +2306,38 @@ function MetricCard({
 }) {
   const className =
     tone === "success"
-      ? "border-emerald-200 bg-emerald-50/70 text-emerald-950"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
       : tone === "danger"
-        ? "border-red-200 bg-red-50/70 text-red-950"
-        : "border-neutral-200 bg-white text-neutral-950";
+        ? "bg-amber-50 text-amber-700 ring-amber-100"
+        : "bg-slate-50 text-slate-500 ring-slate-200";
 
   return (
-    <article className={`rounded-xl border p-4 shadow-sm ${className}`}>
-      <p className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
+    <article className="workspace-panel flex items-center justify-between gap-4 p-5">
+      <div>
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-slate-950">
+          {value}
+        </p>
+      </div>
+      <span
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${className}`}
+      >
+        <AdminIcon
+          name={tone === "success" ? "check" : tone === "danger" ? "attention" : "clock"}
+          className="h-5 w-5"
+        />
+      </span>
     </article>
   );
 }
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="col-span-full rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-5 py-12 text-center text-sm text-neutral-500">
-      {label}
+    <div className="col-span-full flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-white/60 px-5 py-14 text-center">
+      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-400">
+        <AdminIcon name="search" className="h-5 w-5" />
+      </span>
+      <p className="text-sm text-slate-500">{label}</p>
     </div>
   );
 }
@@ -2357,44 +2351,60 @@ export function SubmissionReviewForm({
   status: string;
   submissionId: number;
 }) {
+  const { language } = useI18n();
+  const text =
+    language === "es"
+      ? {
+          eyebrow: "Revisión docente",
+          title: "Correcciones y comentarios",
+          help: "Explica qué debe corregir el estudiante y cómo puede mejorar su solución.",
+          status: "Estado de la revisión",
+          feedback: "Comentarios para el estudiante",
+          placeholder:
+            "Ejemplo: El ciclo termina una iteración antes. Revisa la condición y vuelve a ejecutar el caso que falló.",
+          save: "Guardar correcciones",
+        }
+      : {
+          eyebrow: "Teacher review",
+          title: "Corrections and feedback",
+          help: "Explain what the student should change and how they can improve their solution.",
+          status: "Review status",
+          feedback: "Feedback for the student",
+          placeholder:
+            "Example: The loop stops one iteration early. Review the condition and run the failed test again.",
+          save: "Save corrections",
+        };
+
   return (
     <form
       action={updateSubmissionReviewAction}
-      className="grid gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5"
+      className="workspace-panel grid min-w-0 self-start gap-4 p-4 sm:p-5"
     >
       <input name="submissionId" type="hidden" value={submissionId} />
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-          Teacher review
-        </p>
-        <h2 className="mt-1 text-lg font-semibold">Corrections and feedback</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Explain the error, the expected approach, and what the student should change.
-        </p>
+        <p className="workspace-eyebrow text-emerald-700">{text.eyebrow}</p>
+        <h2 className="mt-2 text-sm font-semibold text-slate-900">{text.title}</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{text.help}</p>
       </div>
-      <label className="text-sm font-semibold text-neutral-800">
-        Review status
-        <select
-          name="status"
-          className={`${inputClassName} mt-2 w-full`}
-          defaultValue={status}
-        >
-          <option value="submitted">submitted</option>
-          <option value="approved">approved</option>
-          <option value="incomplete">incomplete</option>
-          <option value="rejected">rejected</option>
+      <label className="text-sm font-semibold text-slate-800">
+        {text.status}
+        <select name="status" className={`${inputClassName} mt-2 w-full`} defaultValue={status}>
+          <option value="submitted">{statusLabels[language].submitted}</option>
+          <option value="approved">{statusLabels[language].approved}</option>
+          <option value="incomplete">{statusLabels[language].incomplete}</option>
+          <option value="rejected">{statusLabels[language].rejected}</option>
         </select>
       </label>
-      <label className="text-sm font-semibold text-neutral-800">
-        Corrections for the student
+      <label className="text-sm font-semibold text-slate-800">
+        {text.feedback}
         <textarea
           name="feedback"
           className={`${inputClassName} mt-2 min-h-36 w-full resize-y`}
           defaultValue={feedback ?? ""}
-          placeholder="Example: The loop stops one iteration early. Change the condition from i < n to i <= n and run the failed test again."
+          placeholder={text.placeholder}
         />
       </label>
-      <button className={primaryButtonClassName}>Save corrections</button>
+      <button className={primaryButtonClassName}>{text.save}</button>
     </form>
   );
 }
@@ -2404,55 +2414,100 @@ export function TestResultPanel({
 }: {
   result: import("@/lib/flow-test-runner").ExerciseTestRunResult | null;
 }) {
+  const { language } = useI18n();
+  const text =
+    language === "es"
+      ? {
+          title: "Resultados de las pruebas",
+          empty: "Esta entrega todavía no tiene resultados de pruebas automáticas.",
+          passed: "aprobadas",
+          allPassed: "Todas las pruebas aprobadas",
+          attention: "por corregir",
+          casePassed: "Aprobado",
+          caseFailed: "Fallido",
+          expected: "Salida esperada",
+          actual: "Salida obtenida",
+          error: "Error",
+        }
+      : {
+          title: "Test results",
+          empty: "This submission has no automatic test results yet.",
+          passed: "passed",
+          allPassed: "All tests passed",
+          attention: "need attention",
+          casePassed: "Passed",
+          caseFailed: "Failed",
+          expected: "Expected output",
+          actual: "Actual output",
+          error: "Error",
+        };
+
   if (!result) {
     return (
-      <section className={panelClassName}>
-        <PanelTitle>Errors and automatic tests</PanelTitle>
-        <p className="mt-3 text-sm text-neutral-600">
-          This exercise has no automatic test result for this submission.
+      <section className={`${panelClassName} min-w-0`}>
+        <PanelTitle>{text.title}</PanelTitle>
+        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm leading-6 text-slate-500">
+          {text.empty}
         </p>
       </section>
     );
   }
 
   return (
-    <section className={panelClassName}>
-      <PanelTitle>Errors and automatic tests</PanelTitle>
-      <div className="mt-4 flex items-center justify-between rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
-        <p className="text-sm font-semibold text-neutral-800">
-          {result.passedCount}/{result.total} passed
+    <section className={`${panelClassName} min-w-0`}>
+      <PanelTitle>{text.title}</PanelTitle>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <p className="text-sm font-semibold text-slate-800">
+          <span className="tabular-nums">
+            {result.passedCount}/{result.total}
+          </span>{" "}
+          {text.passed}
         </p>
-        <span className={result.passed ? "text-sm font-semibold text-emerald-700" : "text-sm font-semibold text-red-700"}>
-          {result.passed ? "All tests passed" : `${result.total - result.passedCount} need attention`}
+        <span
+          className={`text-xs font-semibold ${result.passed ? "text-emerald-700" : "text-rose-700"}`}
+        >
+          {result.passed
+            ? text.allPassed
+            : `${result.total - result.passedCount} ${text.attention}`}
         </span>
       </div>
-      <div className="mt-3 grid gap-2">
+      <div className="mt-3 grid min-w-0 gap-3">
         {result.cases.map((testCase) => (
           <article
             key={testCase.name}
-            className={testCase.passed ? "rounded-lg border border-emerald-200 bg-emerald-50/40 p-3" : "rounded-lg border border-red-200 bg-red-50/50 p-3"}
+            className={`min-w-0 rounded-xl border p-4 ${testCase.passed ? "border-emerald-100 bg-emerald-50/40" : "border-rose-100 bg-rose-50/40"}`}
           >
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold">{testCase.name}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-900">
+                {testCase.name}
+              </p>
               <span
                 className={
                   testCase.passed
-                    ? "rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800"
-                    : "rounded border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800"
+                    ? "workspace-pill shrink-0 border border-emerald-100 bg-white text-emerald-700"
+                    : "workspace-pill shrink-0 border border-rose-100 bg-white text-rose-700"
                 }
               >
-                {testCase.passed ? "passed" : "failed"}
+                {testCase.passed ? text.casePassed : text.caseFailed}
               </span>
             </div>
-            <p className="mt-2 text-xs text-neutral-600">
-              Expected: {testCase.expectedOutputs.join(", ") || "-"}
-            </p>
-            <p className="text-xs text-neutral-600">
-              Actual: {testCase.actualOutputs.join(", ") || "-"}
-            </p>
+            <dl className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="text-[11px] font-medium text-slate-500">{text.expected}</dt>
+                <dd className="mt-1 whitespace-pre-wrap font-mono text-xs leading-5 text-slate-700 [overflow-wrap:anywhere]">
+                  {testCase.expectedOutputs.join("\n") || "—"}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-[11px] font-medium text-slate-500">{text.actual}</dt>
+                <dd className="mt-1 whitespace-pre-wrap font-mono text-xs leading-5 text-slate-700 [overflow-wrap:anywhere]">
+                  {testCase.actualOutputs.join("\n") || "—"}
+                </dd>
+              </div>
+            </dl>
             {!testCase.passed && testCase.message ? (
-              <p className="mt-2 rounded-md bg-white/80 px-2.5 py-2 text-xs font-medium text-red-800 ring-1 ring-red-200">
-                Error: {testCase.message}
+              <p className="mt-3 rounded-lg border border-rose-100 bg-white/80 px-3 py-2 text-xs leading-5 text-rose-800 [overflow-wrap:anywhere]">
+                <span className="font-semibold">{text.error}:</span> {testCase.message}
               </p>
             ) : null}
           </article>
@@ -2467,100 +2522,112 @@ function AdminChrome({ children, user }: AdminChromeProps) {
   const text = copy[language];
   const pathname = usePathname();
   const navItems = [
-    { href: "/", label: text.openEditor, roles: ["teacher", "admin"] },
-    { href: "/admin/submissions", label: text.submissions, roles: ["teacher", "admin"] },
-    { href: "/admin/users", label: text.users, roles: ["teacher", "admin"] },
-    { href: "/admin/exercises", label: text.exercises, roles: ["teacher", "admin"] },
-    { href: "/admin/organizations", label: text.organizations, roles: ["admin"] },
-  ];
+    {
+      href: "/admin/submissions",
+      label: text.submissions,
+      icon: "submissions",
+      roles: ["teacher", "admin"],
+    },
+    {
+      href: "/admin/users",
+      label: text.users,
+      icon: "users",
+      roles: ["teacher", "admin"],
+    },
+    {
+      href: "/admin/exercises",
+      label: text.exercises,
+      icon: "exercises",
+      roles: ["teacher", "admin"],
+    },
+    {
+      href: "/admin/organizations",
+      label: text.organizations,
+      icon: "organizations",
+      roles: ["admin"],
+    },
+  ] as const;
 
   return (
-    <main className="min-h-screen bg-neutral-100 text-neutral-950">
+    <div className="app-shell min-h-screen">
       <AppHeader user={user} onLogout={logoutAction} />
-      <section className="min-w-0">
-        <div className="sticky top-16 z-10 border-b border-neutral-200/80 bg-white/95 shadow-sm shadow-neutral-200/60 backdrop-blur">
-          <div className="flex w-full flex-col gap-2 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-5 2xl:px-6">
-            <nav className="flex gap-2 overflow-x-auto">
-              {navItems
-                .filter((item) => item.roles.includes(user.role))
-                .map((item) => {
-                  const isActive =
-                    item.href === "/"
-                      ? pathname === item.href
-                      : pathname.startsWith(item.href);
+      <div className="sticky top-16 z-10 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl sm:top-[72px]">
+        <div className="app-header-inner flex min-h-16 items-center justify-between gap-4">
+          <nav
+            aria-label={language === "es" ? "Administración" : "Administration"}
+            className="flex min-w-0 items-center gap-0.5 overflow-x-auto py-3 sm:gap-1"
+          >
+            {navItems
+              .filter((item) => item.roles.some((role) => role === user.role))
+              .map((item) => {
+                const isActive = pathname.startsWith(item.href);
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      aria-current={isActive ? "page" : undefined}
-                      className={
-                        isActive
-                          ? "whitespace-nowrap rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 shadow-sm"
-                          : "whitespace-nowrap rounded-md border border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-950"
-                      }
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-            </nav>
-            <div className="hidden items-center gap-2 text-xs lg:flex">
-              <span className="font-semibold uppercase tracking-wider text-emerald-700">
-                {text.activeRole}: {user.role}
-              </span>
-              {user.organizationName ? (
-                <span className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 font-medium text-neutral-600">
-                  {user.organizationName}
-                </span>
-              ) : null}
-            </div>
-          </div>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-600 sm:px-3 sm:text-xs ${
+                      isActive
+                        ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-100"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <AdminIcon name={item.icon} className="hidden h-4 w-4 sm:block" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+          </nav>
+          <Link href="/" className={`${secondaryButtonClassName} hidden shrink-0 sm:inline-flex`}>
+            <AdminIcon name="editor" />
+            {text.openEditor}
+            <span aria-hidden="true">↗</span>
+          </Link>
         </div>
-        <div className="grid w-full gap-5 px-4 py-5 sm:px-5 lg:px-6 lg:py-6 2xl:px-8">{children}</div>
-      </section>
-    </main>
+      </div>
+      <main className="app-content grid min-w-0 gap-6">{children}</main>
+    </div>
   );
 }
 
 function PageHeader({
+  actions,
   count,
   help,
   title,
 }: {
+  actions?: ReactNode;
   count: number;
   help: string;
   title: string;
 }) {
   const { language } = useI18n();
-  const text = copy[language];
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold">{title}</h2>
-          <p className="mt-1 text-sm text-neutral-600">{help}</p>
-        </div>
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-emerald-900">
-          <span className="block text-xs font-semibold uppercase">
-            {text.total}
+    <header className="flex flex-col gap-5 py-1 xl:flex-row xl:items-center xl:justify-between">
+      <div className="min-w-0">
+        <p className="workspace-eyebrow text-emerald-700">
+          {language === "es" ? "Administración" : "Administration"}
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{title}</h1>
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold tabular-nums text-slate-500">
+            <span className="sr-only">{copy[language].total}: </span>
+            {count}
           </span>
-          <span className="text-2xl font-semibold">{count}</span>
         </div>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{help}</p>
       </div>
-    </section>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </header>
   );
 }
 
 function PanelTitle({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-      <h2 className="text-lg font-semibold">{children}</h2>
-      <span
-        className="h-2.5 w-2.5 rounded-full bg-emerald-500"
-        aria-hidden="true"
-      />
+    <div className="border-b border-slate-100 pb-3">
+      <h2 className="text-sm font-semibold text-slate-800">{children}</h2>
     </div>
   );
 }
@@ -2609,23 +2676,25 @@ function AdminTable({
   const hasRows = Array.isArray(children) ? children.length > 0 : Boolean(children);
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-md shadow-neutral-200/70">
-      <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50/80 px-4 py-3">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs font-semibold text-neutral-600">
+    <section className="workspace-panel min-w-0 overflow-hidden p-0">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-500">
           {count ?? (hasRows && Array.isArray(children) ? children.length : 0)}
         </span>
       </div>
-      {toolbar ? <div className="border-b border-neutral-200 p-3">{toolbar}</div> : null}
+      {toolbar ? <div className="border-b border-slate-100 p-4 sm:p-5">{toolbar}</div> : null}
       <div className="max-h-[calc(100vh-18rem)] overflow-auto">
-        <table className="w-full min-w-[1320px] table-fixed text-left text-sm">
+        <table className="w-full min-w-[1320px] table-fixed text-left text-[13px]">
           {head ? <thead className="sticky top-0 z-10">{head}</thead> : null}
           <tbody>
             {hasRows ? (
               children
             ) : (
               <tr>
-                <td className="px-3 py-4 text-neutral-500">{emptyLabel}</td>
+                <td colSpan={7} className="px-5 py-10 text-slate-500">
+                  {emptyLabel}
+                </td>
               </tr>
             )}
           </tbody>
@@ -2660,6 +2729,7 @@ function groupTypeLabel(
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { language } = useI18n();
   const className =
     status === "approved"
       ? "border-emerald-300 bg-emerald-50 text-emerald-800"
@@ -2667,11 +2737,14 @@ function StatusBadge({ status }: { status: string }) {
         ? "border-yellow-300 bg-yellow-50 text-yellow-900"
         : status === "rejected"
           ? "border-red-300 bg-red-50 text-red-800"
-          : "border-neutral-300 bg-neutral-50 text-neutral-700";
+          : "border-slate-300 bg-slate-50 text-slate-700";
 
   return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-semibold ${className}`}>
-      {status}
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold ${className}`}
+    >
+      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {statusLabels[language][status as keyof typeof statusLabels.es] ?? status}
     </span>
   );
 }
@@ -2687,17 +2760,18 @@ function TestBadge({
   passed: boolean | null;
   passedLabel: string;
 }) {
-  const label =
-    passed === null ? noTestsLabel : passed ? passedLabel : failedLabel;
+  const label = passed === null ? noTestsLabel : passed ? passedLabel : failedLabel;
   const className =
     passed === null
-      ? "border-neutral-300 bg-neutral-50 text-neutral-600"
+      ? "border-slate-300 bg-slate-50 text-slate-600"
       : passed
         ? "border-emerald-300 bg-emerald-50 text-emerald-800"
         : "border-red-300 bg-red-50 text-red-800";
 
   return (
-    <span className={`mt-1 inline-flex rounded border px-2 py-0.5 text-xs font-semibold ${className}`}>
+    <span
+      className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${className}`}
+    >
       {label}
     </span>
   );
@@ -2707,25 +2781,34 @@ function formatDeadline(value: string) {
   return value.replace("T", " ");
 }
 
-const inputClassName =
-  "rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20";
+const statusLabels = {
+  es: {
+    submitted: "Por revisar",
+    approved: "Aprobada",
+    incomplete: "Incompleta",
+    rejected: "Rechazada",
+  },
+  en: {
+    submitted: "Awaiting review",
+    approved: "Approved",
+    incomplete: "Incomplete",
+    rejected: "Rejected",
+  },
+} as const;
 
-const primaryButtonClassName =
-  "rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0";
+const inputClassName = "fc-field min-w-0 font-normal normal-case tracking-normal";
 
-const secondaryButtonClassName =
-  "rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0";
+const primaryButtonClassName = "fc-button fc-button--primary";
 
-const panelClassName =
-  "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:border-neutral-300 hover:shadow-md sm:p-5";
+const secondaryButtonClassName = "fc-button fc-button--secondary";
 
-const tableRowClassName =
-  "border-t border-neutral-200 transition hover:bg-emerald-50/40";
+const panelClassName = "workspace-panel min-w-0 p-4 sm:p-5";
 
-const tableCellClassName = "break-words px-3 py-2 align-top";
+const tableRowClassName = "border-t border-slate-100 transition-colors hover:bg-slate-50/80";
 
-const dangerButtonClassName =
-  "rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2";
+const tableCellClassName = "break-words px-4 py-4 align-top";
+
+const dangerButtonClassName = "fc-button fc-button--danger";
 
 const iconButtonClassName =
-  "inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-xl leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600";
+  "inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xl leading-none text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600";

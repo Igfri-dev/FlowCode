@@ -263,6 +263,7 @@ function getEdgeTopologyKey(edges: FlowEditorEdge[]) {
 }
 
 type FlowEditorProps = {
+  diagramId: string;
   nodes: FlowEditorNode[];
   edges: FlowEditorEdge[];
   nodeTypes: NodeTypes;
@@ -306,6 +307,7 @@ function getFullscreenPreviewStrength(
 }
 
 export function FlowEditor({
+  diagramId,
   nodes,
   edges,
   nodeTypes,
@@ -668,6 +670,7 @@ export function FlowEditor({
     >
       <EdgeBridgeRenderContext.Provider value={edgeBridgeRenderState}>
         <ReactFlow<FlowEditorNode, FlowEditorEdge>
+          key={diagramId}
           className={`flow-editor-canvas h-full min-h-[360px] bg-slate-50 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors ${
             isFullscreen ? "min-h-screen" : ""
           }`}

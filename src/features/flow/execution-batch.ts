@@ -10,12 +10,14 @@ export function runFlowExecutionBatch({
   program,
   activeDiagramId,
   state,
+  stopAtDiagramChange = false,
   timeBudgetMs = 8,
   now = () => performance.now(),
 }: {
   program: FlowProgram;
   activeDiagramId: string;
   state: FlowExecutionState;
+  stopAtDiagramChange?: boolean;
   timeBudgetMs?: number;
   now?: () => number;
 }): FlowExecutionState {
@@ -24,7 +26,12 @@ export function runFlowExecutionBatch({
   for (let step = 0; step < 4096 && canContinueFlowExecution(next); step++) {
     const previous = next;
     next = stepFlowExecution({ program, activeDiagramId, state: next });
-    if (next === previous || now() - started >= timeBudgetMs) break;
+    if (
+      next === previous ||
+      (stopAtDiagramChange &&
+        next.currentDiagramId !== previous.currentDiagramId) ||
+      now() - started >= timeBudgetMs
+    ) break;
   }
   return next;
 }

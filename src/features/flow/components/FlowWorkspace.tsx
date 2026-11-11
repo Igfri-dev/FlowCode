@@ -128,6 +128,7 @@ export function FlowWorkspace({
     setFunctions,
     setMainDiagram,
     setNodes,
+    showDiagram,
     validationIssues,
   } = useFlowProgramState({ t });
   const {
@@ -163,6 +164,7 @@ export function FlowWorkspace({
     availableFunctions,
     currentProgram,
     edges,
+    onExecutionDiagramChange: showDiagram,
     t,
   });
   const requestReplaceConfirmation = useCallback(
@@ -556,22 +558,7 @@ export function FlowWorkspace({
 
   const handleSelectDiagram = useCallback(
     (diagramId: string) => {
-      const nextDiagram =
-        diagramId === "main"
-          ? currentProgram.main
-          : currentProgram.functions.find(
-              (flowFunction) => flowFunction.id === diagramId,
-            );
-
-      if (!nextDiagram) {
-        return;
-      }
-
-      setMainDiagram(currentProgram.main);
-      setFunctions(currentProgram.functions);
-      setActiveDiagramId(diagramId);
-      setNodes(nextDiagram.nodes);
-      setEdges(nextDiagram.edges);
+      if (!showDiagram(diagramId)) return;
       setIsAutoRunning(false);
       resetExecutionForDiagram(
         diagramId,
@@ -587,12 +574,8 @@ export function FlowWorkspace({
     [
       currentProgram,
       resetExecutionForDiagram,
-      setActiveDiagramId,
-      setEdges,
-      setFunctions,
       setIsAutoRunning,
-      setMainDiagram,
-      setNodes,
+      showDiagram,
       t,
     ],
   );
@@ -921,6 +904,7 @@ export function FlowWorkspace({
             <div className="canvas-body min-h-0 flex-1 bg-neutral-100">
               <FlowNodeRenderProvider value={flowNodeRenderContextValue}>
                 <FlowEditor
+                  diagramId={activeDiagramId}
                   editorShellRef={editorShellRef}
                   nodes={nodes}
                   edges={renderedEdges}

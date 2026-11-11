@@ -204,7 +204,7 @@ FlowCode can execute a diagram one block at a time or automatically:
   runtime on your computer. It yields between batches so **Pause** and **Reset**
   remain available, and resumes after input or function-parameter dialogs.
 - **Pause** stops automatic execution.
-- **Reset** restarts execution for the active diagram.
+- **Reset** returns to the diagram where execution started and restarts it.
 
 Editor execution has no step limit. Its panels retain the latest 200 history
 entries and 1,000 outputs, displaying totals when older entries are omitted.
@@ -215,6 +215,11 @@ During execution, the current node and active edge are highlighted. If an input
 block is reached, FlowCode opens a modal to collect the value. If a function
 call requires parameters, FlowCode opens a parameter modal. Outputs, variables,
 and history update as execution progresses.
+
+The canvas follows function calls automatically, showing each function's flow
+until a Return or End block brings execution back to its caller. Nested and
+recursive calls follow the same call stack, including when running a function
+on its own. Switching diagrams during execution preserves the program's edits.
 
 ### Supported Diagram Blocks
 
@@ -541,7 +546,7 @@ FlowCode puede ejecutar un diagrama bloque por bloque o automáticamente:
   en tu equipo. Puedes pausarlo o reiniciarlo; si solicita entradas o parámetros,
   continúa en el mismo modo después de confirmarlos.
 - **Pause/Pausar** detiene la ejecución automática.
-- **Reset/Reiniciar** reinicia la ejecución del diagrama activo.
+- **Reset/Reiniciar** vuelve al diagrama donde comenzó la ejecución y la reinicia.
 
 El editor no tiene límite de pasos. Los paneles conservan los últimos 200 pasos
 y 1.000 salidas, indicando los totales cuando se omiten registros anteriores.
@@ -553,6 +558,12 @@ llega a un bloque de entrada, FlowCode abre un modal para pedir el valor. Si una
 llamada a función requiere parámetros, FlowCode abre un modal de parámetros.
 Las salidas, variables e historial se actualizan a medida que avanza la
 ejecución.
+
+El lienzo sigue automáticamente las llamadas a funciones y muestra su flujo
+hasta que un bloque Retorno o Fin devuelve la ejecución al diagrama que hizo
+la llamada. También sigue las llamadas anidadas y recursivas, incluso al
+ejecutar una función por separado. Los cambios de vista conservan las
+ediciones del programa.
 
 ### Bloques Soportados
 
