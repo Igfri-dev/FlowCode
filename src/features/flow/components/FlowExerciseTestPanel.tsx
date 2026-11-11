@@ -108,26 +108,23 @@ export function FlowExerciseTestPanel({
   }
 
   return (
-    <section
-      className="rounded-lg border border-blue-200 bg-white p-4 shadow-md shadow-neutral-200/70"
-      aria-busy={running}
-    >
+    <section className="workspace-panel" aria-busy={running}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-neutral-950">
+          <h2 className="text-sm font-semibold text-slate-900">
             {es ? "Prueba tu solución" : "Test your solution"}
           </h2>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 max-w-md text-xs leading-relaxed text-slate-500">
             {es
-              ? "Comprueba los casos del ejercicio antes de entregar. Las pruebas no envían tu trabajo al profesor."
-              : "Check the exercise cases before submitting. Running tests does not submit your work."}
+              ? "Comprueba los casos del ejercicio. Tu trabajo se entrega solo cuando eliges Entregar."
+              : "Check the exercise cases. Your work is submitted only when you choose Submit."}
           </p>
         </div>
         <button
           type="button"
           onClick={handleRunTests}
           disabled={running}
-          className="rounded-md bg-blue-800 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+          className="fc-button fc-button--primary shrink-0"
         >
           {running
             ? es
@@ -138,7 +135,7 @@ export function FlowExerciseTestPanel({
               : "Test solution"}
         </button>
       </div>
-      <div aria-live="polite" className="mt-3 text-sm text-neutral-700">
+      <div aria-live="polite" className="mt-3 text-xs text-slate-500">
         {visibleProgress ? (
           <p>
             {running

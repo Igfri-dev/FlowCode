@@ -14,10 +14,10 @@ export default async function Home() {
 
   return (
     <I18nProvider>
-      <div className="flex min-h-screen flex-col bg-neutral-100 text-neutral-950">
+      <div className="app-shell flex min-h-screen flex-col">
         <AppHeader user={user} onLogout={logoutAction} />
 
-        <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
+        <main className="app-content flex flex-1">
           <FlowWorkspace
             key={`workspace-${user.id}`}
             draftStorageKey={`flowcode:user-${user.id}:workspace`}

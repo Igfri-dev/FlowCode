@@ -12,51 +12,52 @@ export function FlowValidationPanel({
   hasLoops,
   blockedConnectionMessage,
 }: FlowValidationPanelProps) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const errorIssues = issues.filter((issue) => issue.severity === "error");
   const warningIssues = issues.filter((issue) => issue.severity === "warning");
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
+    <section className="workspace-panel rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/[0.025]">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-neutral-950">
+        <h2 className="text-sm font-semibold tracking-tight text-slate-900">
           {t("flow.validation")}
         </h2>
         {issues.length > 0 ? (
-          <p className="text-xs font-semibold text-neutral-500">
-            {errorIssues.length} errores · {warningIssues.length} advertencias
+          <p className="text-[10px] font-medium text-slate-500">
+            {errorIssues.length} {language === "es" ? "errores" : "errors"} ·{" "}
+            {warningIssues.length} {language === "es" ? "avisos" : "warnings"}
           </p>
         ) : null}
       </div>
 
       {issues.length === 0 ? (
-        <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+        <p className="mt-3 rounded-xl border border-teal-100 bg-teal-50/70 px-3 py-2.5 text-xs leading-5 text-teal-900">
           {t("flow.validationOk")}
         </p>
       ) : (
         <div className="mt-3 space-y-3">
           <ValidationIssueList
             issues={errorIssues}
-            label="Errores"
+            label={language === "es" ? "Errores" : "Errors"}
             t={t}
           />
           <ValidationIssueList
             issues={warningIssues}
-            label="Advertencias"
+            label={language === "es" ? "Advertencias" : "Warnings"}
             t={t}
           />
         </div>
       )}
 
       {blockedConnectionMessage ? (
-        <p className="mt-3 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm font-medium text-yellow-900 shadow-sm">
+        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-xs leading-5 text-amber-900">
           {t("flow.connectionBlocked")}{" "}
           {getLocalizedValidationMessage(blockedConnectionMessage, t)}
         </p>
       ) : null}
 
       {hasLoops ? (
-        <p className="mt-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-900 shadow-sm">
+        <p className="mt-3 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-2.5 text-xs leading-5 text-sky-900">
           {t("flow.loopDetected")}
         </p>
       ) : null}
@@ -81,17 +82,17 @@ function ValidationIssueList({
 
   return (
     <div>
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
         {label}
       </p>
-      <ul className="space-y-2 text-sm text-neutral-700">
+      <ul className="space-y-2 text-xs leading-5 text-slate-700">
         {issues.map((issue) => (
           <li
             key={issue.id}
             className={
               isWarning
-                ? "rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-yellow-950 shadow-sm"
-                : "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900 shadow-sm"
+                ? "rounded-xl border border-amber-100 bg-amber-50/70 px-3 py-2.5 text-amber-950"
+                : "rounded-xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-rose-900"
             }
           >
             {getLocalizedValidationMessage(issue.message, t)}

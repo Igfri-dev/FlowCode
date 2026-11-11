@@ -23,14 +23,17 @@ export function FlowSubmissionPanel({
   onSaved,
 }: FlowSubmissionPanelProps) {
   const { language } = useI18n();
+  const es = language === "es";
   const router = useRouter();
   const [title, setTitle] = useState(editingSubmission?.title ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const defaultTitle = useMemo(
-    () => selectedExercise?.title ?? "FlowCode submission",
-    [selectedExercise],
+    () =>
+      selectedExercise?.title ??
+      (es ? "Entrega de FlowCode" : "FlowCode submission"),
+    [es, selectedExercise],
   );
 
   async function handleSubmit() {
@@ -70,14 +73,29 @@ export function FlowSubmissionPanel({
         const result = (await response.json().catch(() => null)) as {
           message?: string;
         } | null;
-        throw new Error(result?.message ?? "Submission failed.");
+        throw new Error(
+          result?.message ??
+            (es ? "No se pudo entregar el trabajo." : "Submission failed."),
+        );
       }
 
       setStatus("success");
-      setMessage(editingSubmission ? "Submission updated." : "Work submitted.");
+      setMessage(
+        es
+          ? editingSubmission
+            ? "Entrega actualizada."
+            : "Trabajo entregado."
+          : editingSubmission
+            ? "Submission updated."
+            : "Work submitted.",
+      );
       const allChangesSaved = onSaved?.() ?? true;
       if (!allChangesSaved) {
-        setMessage("Work submitted. New changes still need saving.");
+        setMessage(
+          es
+            ? "Trabajo entregado. Hay cambios nuevos pendientes de guardar."
+            : "Work submitted. New changes still need saving.",
+        );
       }
 
       if (editingSubmission && allChangesSaved) {
@@ -95,20 +113,30 @@ export function FlowSubmissionPanel({
   }
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
+    <section className="workspace-panel">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-neutral-950">
-            {editingSubmission ? "Update submission" : "Submit work"}
+            {es
+              ? editingSubmission
+                ? "Actualizar entrega"
+                : "Entregar trabajo"
+              : editingSubmission
+                ? "Update submission"
+                : "Submit work"}
           </h2>
           <p className="mt-1 text-sm text-neutral-600">
-            {editingSubmission
-              ? "Save the corrected diagram. Its tests will run again and it will return to review."
-              : "Send the current diagram and generated JavaScript to your teacher."}
+            {es
+              ? editingSubmission
+                ? "Guarda las correcciones y vuelve a enviar tu solución a revisión."
+                : "Envía tu diagrama y código JavaScript al profesor."
+              : editingSubmission
+                ? "Save the corrected diagram. Its tests will run again and it will return to review."
+                : "Send the current diagram and generated JavaScript to your teacher."}
           </p>
           {editingSubmission?.submissionDeadline ? (
             <p className="mt-1 text-xs font-semibold text-amber-800">
-              Editable until{" "}
+              {es ? "Editable hasta" : "Editable until"}{" "}
               {editingSubmission.submissionDeadline.replace("T", " ")}
             </p>
           ) : null}
@@ -116,22 +144,31 @@ export function FlowSubmissionPanel({
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={defaultTitle}
-            className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20"
+            aria-label={es ? "Título de la entrega" : "Submission title"}
+            className="fc-field mt-3"
           />
         </div>
         <button
           type="button"
           onClick={() => void handleSubmit()}
           disabled={isSubmitting}
-          className="rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          className="fc-button fc-button--primary"
         >
           {isSubmitting
             ? editingSubmission
-              ? "Saving..."
-              : "Submitting..."
+              ? es
+                ? "Guardando…"
+                : "Saving..."
+              : es
+                ? "Entregando…"
+                : "Submitting..."
             : editingSubmission
-              ? "Save correction"
-              : "Submit"}
+              ? es
+                ? "Guardar corrección"
+                : "Save correction"
+              : es
+                ? "Entregar"
+                : "Submit"}
         </button>
       </div>
 

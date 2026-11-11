@@ -15,13 +15,13 @@ export function FlowCodePanel({
   const codeToShow = code || t("flow.codePlaceholder");
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
+    <section className="workspace-panel rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/[0.025]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-neutral-950">
+          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
             {t("flow.codeTitle")}
           </h2>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-xs leading-5 text-slate-500">
             {t("flow.codeHelp")}
           </p>
         </div>
@@ -29,18 +29,18 @@ export function FlowCodePanel({
         <button
           type="button"
           onClick={onGenerateCode}
-          className="rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-sm font-medium text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+          className="fc-button fc-button--primary shrink-0"
         >
           {t("flow.generateCode")}
         </button>
       </div>
 
       {warnings.length > 0 ? (
-        <div className="mt-3 rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2">
-          <p className="text-sm font-semibold text-yellow-950">
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5">
+          <p className="text-xs font-semibold text-amber-950">
             {t("flow.warnings")}
           </p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-yellow-900">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-amber-900">
             {warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
@@ -48,7 +48,7 @@ export function FlowCodePanel({
         </div>
       ) : null}
 
-      <pre className="mt-3 max-h-80 overflow-auto rounded-md border border-neutral-800 bg-neutral-950 p-4 text-sm leading-6 text-neutral-50 shadow-inner ring-1 ring-neutral-900">
+      <pre className="mt-4 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-emerald-200">
         <code>{codeToShow}</code>
       </pre>
     </section>

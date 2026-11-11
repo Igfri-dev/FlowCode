@@ -14,83 +14,150 @@ type AppHeaderProps = {
 export function AppHeader({ user, onLogout }: AppHeaderProps) {
   const { language, setLanguage, t } = useI18n();
   const nextLanguage = language === "es" ? "en" : "es";
+  const es = language === "es";
+  const roleLabel = {
+    admin: es ? "Administrador" : "Administrator",
+    teacher: es ? "Profesor" : "Teacher",
+    student: es ? "Estudiante" : "Student",
+    independent: es ? "Cuenta personal" : "Personal account",
+  }[user.role];
+  const destination =
+    user.role === "admin" || user.role === "teacher"
+      ? { href: "/admin", label: es ? "Panel" : "Dashboard" }
+      : user.role === "student"
+        ? {
+            href: "/student/submissions",
+            label: es ? "Mis entregas" : "My submissions",
+          }
+        : { href: "/projects", label: es ? "Mis proyectos" : "My projects" };
+  const signOutLabel = es ? "Cerrar sesión" : "Sign out";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-neutral-200/80 bg-white/95 shadow-sm shadow-neutral-200/70 backdrop-blur">
-      <div className="flex h-16 w-full items-center justify-between gap-4 py-0 pl-0 pr-3 sm:pl-2 sm:pr-4 lg:pl-2 lg:pr-5 2xl:pl-3 2xl:pr-6">
-        <div className="flex min-w-0 items-center">
+    <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
+      <div className="app-header-inner flex h-16 w-full items-center justify-between gap-3 px-3 sm:h-[72px] sm:px-5 lg:px-6">
+        <Link
+          href="/"
+          aria-label={es ? "FlowCode, abrir editor" : "FlowCode, open editor"}
+          className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4"
+        >
           <Image
             src={logoImage}
             alt=""
             aria-hidden="true"
-            className="h-25 w-auto shrink-0 translate-y-2 object-contain"
-            priority
+            className="h-9 w-12 shrink-0 rounded-lg object-contain sm:h-10 sm:w-14"
+            preload
           />
           <div className="min-w-0">
-            <span className="block text-xl font-semibold leading-tight text-neutral-950">
+            <span className="block text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
               FlowCode
             </span>
-            <span className="block truncate text-xs font-medium text-neutral-500">
+            <span className="hidden truncate text-[11px] font-medium text-slate-500 sm:block">
               {t("app.subtitle")}
             </span>
           </div>
-        </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="hidden max-w-40 truncate text-xs font-semibold text-neutral-600 sm:block">
-            {user.fullName} - {user.role}
-            {user.organizationName ? ` · ${user.organizationName}` : ""}
-          </span>
+        </Link>
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+          <div className="mr-2 hidden min-w-0 items-center gap-2.5 border-r border-slate-200 pr-4 lg:flex">
+            <span
+              aria-hidden="true"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-bold text-emerald-800 ring-1 ring-emerald-100"
+            >
+              {(user.fullName.trim() || user.username)
+                .slice(0, 1)
+                .toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="max-w-40 truncate text-xs font-semibold text-slate-800">
+                {user.fullName}
+              </p>
+              <p className="max-w-40 truncate text-[11px] text-slate-500">
+                {user.organizationName ?? roleLabel}
+              </p>
+            </div>
+          </div>
           {user.email && !user.emailVerified ? (
             <Link
               href={`/resend-verification?email=${encodeURIComponent(user.email)}`}
-              title="Verifica tu correo para habilitar una recuperación de contraseña segura"
-              className="hidden rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 transition hover:bg-amber-100 lg:inline-flex"
+              title={
+                es
+                  ? "Verifica tu correo para recuperar tu contraseña"
+                  : "Verify your email to recover your password"
+              }
+              className="hidden rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 xl:inline-flex"
             >
-              Verificar correo
+              {es ? "Verificar correo" : "Verify email"}
             </Link>
           ) : null}
-          {user.role === "admin" || user.role === "teacher" ? (
-            <Link
-              href="/admin"
-              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
-            >
-              Panel
-            </Link>
-          ) : null}
-          {user.role === "student" ? (
-            <Link
-              href="/student/submissions"
-              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
-            >
-              My submissions
-            </Link>
-          ) : null}
-          {user.role === "independent" ? (
-            <Link
-              href="/projects"
-              className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
-            >
-              Mis proyectos
-            </Link>
-          ) : null}
+          <Link
+            href={destination.href}
+            title={destination.label}
+            aria-label={destination.label}
+            className={`${headerButtonClassName} bg-slate-50 hover:bg-slate-100`}
+          >
+            <WorkspaceIcon />
+            <span className="hidden sm:inline">{destination.label}</span>
+          </Link>
           <button
             type="button"
             aria-label={t("language.toggle")}
             title={t("language.toggle")}
             onClick={() => setLanguage(nextLanguage)}
-            className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+            className={`${headerButtonClassName} hover:bg-slate-50`}
           >
             <GlobeIcon />
             <span>{t(`language.${language}`)}</span>
           </button>
           <form action={onLogout}>
-            <button className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm">
-              Sign out
+            <button
+              aria-label={signOutLabel}
+              title={signOutLabel}
+              className={`${headerButtonClassName} hover:bg-slate-50`}
+            >
+              <SignOutIcon />
+              <span className="hidden md:inline">{signOutLabel}</span>
             </button>
           </form>
         </div>
       </div>
     </header>
+  );
+}
+
+const headerButtonClassName =
+  "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-2.5 text-xs font-semibold text-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 sm:px-3";
+
+function WorkspaceIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M3 9h18M9 9v11" />
+    </svg>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M14 8l4 4-4 4M8 12h13" />
+    </svg>
   );
 }
 

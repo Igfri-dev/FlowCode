@@ -20,7 +20,8 @@ import type {
   FlowNodeType,
   FlowProgram,
 } from "@/types/flow";
-import { FlowCodePanel } from "./FlowCodePanel";
+import { FlowCodeTools } from "./FlowCodeTools";
+import { FlowActionIcon } from "./FlowActionIcon";
 import { FlowDialogModal, type FlowDialogRequest } from "./FlowDialogModal";
 import { FlowExecutionHistoryPanel } from "./FlowExecutionHistoryPanel";
 import { FlowExecutionPanel } from "./FlowExecutionPanel";
@@ -28,7 +29,6 @@ import { FlowExerciseTestPanel } from "./FlowExerciseTestPanel";
 import { FlowExportModal } from "./FlowExportModal";
 import { FlowFunctionPanel } from "./FlowFunctionPanel";
 import { FlowFunctionParameterModal } from "./FlowFunctionParameterModal";
-import { FlowImportPanel } from "./FlowImportPanel";
 import { FlowInputModal } from "./FlowInputModal";
 import { FlowOutputPanel } from "./FlowOutputPanel";
 import { FlowProjectPanel } from "./FlowProjectPanel";
@@ -57,6 +57,7 @@ import {
 } from "./workspace/useFlowNodeEditing";
 import { useFlowProgramState } from "./workspace/useFlowProgramState";
 import { useFlowWorkspaceRecovery } from "./workspace/useFlowWorkspaceRecovery";
+import { useBlockDisplayPreference } from "./workspace/useBlockDisplayPreference";
 
 type PendingFlowDialog = FlowDialogRequest & {
   onConfirm: () => void;
@@ -93,6 +94,8 @@ export function FlowWorkspace({
   project,
 }: FlowWorkspaceProps) {
   const { language, t } = useI18n();
+  const { displayMode: blockDisplayMode, setDisplayMode: setBlockDisplayMode } =
+    useBlockDisplayPreference();
   const isEditingSubmission = editingSubmission !== undefined;
   const nextNodeId = useRef(initialFlowNodes.length);
   const nextFunctionId = useRef(0);
@@ -712,7 +715,43 @@ export function FlowWorkspace({
   );
 
   return (
-    <>
+    <div className="flow-workspace flex w-full min-w-0 flex-col gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="workspace-eyebrow text-emerald-700">
+            {isReviewMode
+              ? language === "es"
+                ? "REVISIÓN"
+                : "REVIEW"
+              : "WORKSPACE"}
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
+            {project?.title ??
+              editingSubmission?.title ??
+              (language === "es" ? "Editor de algoritmos" : "Algorithm editor")}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {language === "es"
+              ? "Construye, conecta y comprende cada paso."
+              : "Build, connect, and understand every step."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="workspace-pill border border-slate-200 bg-white text-slate-600">
+            <span
+              aria-hidden="true"
+              className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+            />
+            JavaScript
+          </span>
+          <a
+            href="#workspace-blocks"
+            className="fc-button fc-button--secondary lg:hidden"
+          >
+            {language === "es" ? "Agregar bloques" : "Add blocks"}
+          </a>
+        </div>
+      </header>
       <input
         ref={importJsonInputRef}
         type="file"
@@ -723,8 +762,22 @@ export function FlowWorkspace({
           void handleImportJsonFileChange(event);
         }}
       />
-      <section className="grid min-h-[calc(100vh-6rem)] w-full grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_320px] 2xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <section className="workspace-grid grid w-full min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[224px_minmax(0,1fr)_256px] 2xl:grid-cols-[240px_minmax(0,1fr)_280px]">
+        <div
+          id="workspace-blocks"
+          className="workspace-library order-2 flex min-w-0 scroll-mt-24 flex-col gap-4 lg:order-1"
+        >
+          <a
+            href="#workspace-canvas"
+            className="fc-button fc-button--secondary lg:hidden"
+          >
+            {language === "es" ? "Volver al diagrama" : "Back to diagram"}
+          </a>
+          <FlowSidebar
+            onAddNode={handleAddNode}
+            displayMode={blockDisplayMode}
+            onDisplayModeChange={setBlockDisplayMode}
+          />
           <FlowValidationPanel
             issues={validationIssues}
             hasLoops={hasLoops}
@@ -738,10 +791,9 @@ export function FlowWorkspace({
             onUpdateFunction={handleUpdateFunction}
             onDeleteFunction={handleDeleteFunction}
           />
-          <FlowSidebar onAddNode={handleAddNode} />
         </div>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="order-1 flex min-w-0 flex-col gap-4 lg:order-2">
           {!isReviewMode ? <FlowRecoveryPanel recovery={recovery} /> : null}
           <ExerciseModePanel
             exercises={exerciseCatalog}
@@ -749,25 +801,43 @@ export function FlowWorkspace({
             onSelectExercise={handleSelectExercise}
             showExerciseSelector={!isEditingSubmission}
           />
-          {!isReviewMode ? (
-            <FlowExerciseTestPanel
-              currentProgram={currentProgram}
-              selectedExercise={selectedExercise}
-            />
-          ) : null}
-          <div className="flex min-h-[620px] min-w-0 flex-col overflow-hidden rounded-lg border border-neutral-300/80 bg-white shadow-lg shadow-neutral-300/50">
-            <div className="flex min-h-12 flex-col gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-neutral-950">
-                  {t("flow.diagram")} {activeDiagramName}
-                </p>
-                <p className="text-xs text-neutral-500">
-                  {t("flow.diagramHelp")}
-                </p>
+          <div
+            id="workspace-canvas"
+            className="workspace-canvas flex h-[min(76vh,840px)] min-h-[600px] min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40"
+          >
+            <div className="canvas-header border-b border-slate-200 bg-slate-50/80 p-4">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-emerald-700 shadow-sm"
+                  >
+                    <FlowActionIcon action="diagram" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {t("flow.diagram")} {activeDiagramName}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {t("flow.diagramHelp")}
+                    </p>
+                  </div>
+                </div>
+                <span className="workspace-pill shrink-0 border border-slate-200 bg-white text-slate-600">
+                  {t("flow.blockCount", { count: nodes.length })}
+                </span>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+              <div className="canvas-toolbar mt-3 flex min-w-0 flex-wrap items-center gap-2">
                 {!isReviewMode ? (
-                  <>
+                  <div
+                    role="group"
+                    aria-label={
+                      language === "es"
+                        ? "Historial de edición"
+                        : "Edit history"
+                    }
+                    className="canvas-toolbar-group"
+                  >
                     <button
                       type="button"
                       onClick={recovery.undo}
@@ -777,8 +847,9 @@ export function FlowWorkspace({
                           ? "Deshacer (Ctrl/Cmd+Z)"
                           : "Undo (Ctrl/Cmd+Z)"
                       }
-                      className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                      className="fc-button fc-button--secondary !px-2.5 !text-xs"
                     >
+                      <FlowActionIcon action="undo" />
                       {language === "es" ? "Deshacer" : "Undo"}
                     </button>
                     <button
@@ -790,32 +861,46 @@ export function FlowWorkspace({
                           ? "Rehacer (Ctrl/Cmd+Shift+Z)"
                           : "Redo (Ctrl/Cmd+Shift+Z)"
                       }
-                      className="rounded-md border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                      className="fc-button fc-button--secondary !px-2.5 !text-xs"
                     >
+                      <FlowActionIcon action="redo" />
                       {language === "es" ? "Rehacer" : "Redo"}
                     </button>
-                  </>
+                  </div>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={handleImportJsonButtonClick}
-                  className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
+                <div
+                  role="group"
+                  aria-label={
+                    language === "es"
+                      ? "Archivos del diagrama"
+                      : "Diagram files"
+                  }
+                  className="canvas-toolbar-group"
                 >
-                  {t("flow.importJson")}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenExportModal}
-                  className="rounded-md border border-neutral-950 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm"
-                >
-                  {t("flow.export")}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleImportJsonButtonClick}
+                    className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                  >
+                    <FlowActionIcon action="import" />
+                    {t("flow.importJson")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenExportModal}
+                    className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                  >
+                    <FlowActionIcon action="export" />
+                    {t("flow.export")}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={handleClearActiveDiagram}
                   disabled={!hasActiveDiagramContent}
-                  className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+                  className="fc-button fc-button--danger !px-2.5 !text-xs"
                 >
+                  <FlowActionIcon action="clear" />
                   {t("flow.clear")}
                 </button>
                 <FlowExecutionPanel
@@ -826,9 +911,6 @@ export function FlowWorkspace({
                   onPause={handlePauseExecution}
                   onReset={handleResetExecution}
                 />
-                <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 shadow-sm">
-                  {t("flow.blockCount", { count: nodes.length })}
-                </span>
               </div>
             </div>
 
@@ -848,6 +930,69 @@ export function FlowWorkspace({
                   isValidConnection={isValidConnection}
                   editorOverlays={
                     <>
+                      {nodes.length === 0 ? (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
+                          <div className="max-w-xs text-center">
+                            <div
+                              aria-hidden="true"
+                              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-600 shadow-sm"
+                            >
+                              <svg
+                                width="34"
+                                height="34"
+                                viewBox="0 0 34 34"
+                                fill="none"
+                              >
+                                <rect
+                                  x="8"
+                                  y="2"
+                                  width="18"
+                                  height="10"
+                                  rx="5"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                />
+                                <path
+                                  d="M17 12v8m-3-3 3 3 3-3"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <rect
+                                  x="5"
+                                  y="22"
+                                  width="24"
+                                  height="10"
+                                  rx="2"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                />
+                              </svg>
+                            </div>
+                            <h2 className="text-base font-semibold text-slate-800">
+                              {language === "es"
+                                ? "Todo comienza con una idea"
+                                : "Every flow starts with an idea"}
+                            </h2>
+                            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                              {language === "es"
+                                ? "Agrega tu primer bloque y conecta los pasos de tu algoritmo."
+                                : "Add your first block and connect the steps of your algorithm."}
+                            </p>
+                            <button
+                              type="button"
+                              className="fc-button fc-button--primary pointer-events-auto mt-5"
+                              onClick={() => handleAddNode("start")}
+                            >
+                              {language === "es"
+                                ? "Crear primer bloque"
+                                : "Create first block"}
+                              <span aria-hidden="true">＋</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       <FlowInputModal
                         pendingInput={executionState.pendingInput}
                         onConfirm={handleInputConfirm}
@@ -948,6 +1093,8 @@ export function FlowWorkspace({
                       <FlowSidebar
                         layout="horizontal"
                         onAddNode={handleAddNode}
+                        displayMode={blockDisplayMode}
+                        onDisplayModeChange={setBlockDisplayMode}
                       />
                     ),
                   }}
@@ -956,17 +1103,21 @@ export function FlowWorkspace({
             </div>
           </div>
 
-          <FlowCodePanel
-            code={codeGenerationResult.code}
-            warnings={codeGenerationResult.warnings}
+          {!isReviewMode ? (
+            <FlowExerciseTestPanel
+              currentProgram={currentProgram}
+              selectedExercise={selectedExercise}
+            />
+          ) : null}
+          <FlowCodeTools
+            generatedCode={codeGenerationResult.code}
+            generatedWarnings={codeGenerationResult.warnings}
             onGenerateCode={handleGenerateCode}
-          />
-          <FlowImportPanel
-            code={importCode}
-            message={importMessage}
-            status={importStatus}
-            warnings={importWarnings}
-            onCodeChange={setImportCode}
+            importCode={importCode}
+            importMessage={importMessage}
+            importStatus={importStatus}
+            importWarnings={importWarnings}
+            onImportCodeChange={setImportCode}
             onImportCode={handleImportCode}
           />
           {!isReviewMode && enableProjectSaving ? (
@@ -986,7 +1137,7 @@ export function FlowWorkspace({
           ) : null}
         </div>
 
-        <aside className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
+        <aside className="order-3 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
           <FlowVariablesPanel variables={executionState.variables} />
           <FlowOutputPanel outputs={executionState.outputs} />
           <FlowExecutionHistoryPanel history={executionState.history} />
@@ -1001,6 +1152,6 @@ export function FlowWorkspace({
           void handleExportDiagram(options);
         }}
       />
-    </>
+    </div>
   );
 }

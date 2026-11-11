@@ -79,19 +79,28 @@ export function FlowFunctionPanel({
   }
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
-      <div>
-        <h2 className="text-base font-semibold text-neutral-950">
-          {t("flow.functions")}
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          {t("flow.functionsHelp")}
-        </p>
+    <section className="workspace-panel rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/[0.025]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+            {t("flow.functions")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {t("flow.functionsHelp")}
+          </p>
+        </div>
+        <span
+          aria-hidden="true"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-50 font-mono text-xs font-medium text-teal-700"
+        >
+          ƒ
+        </span>
       </div>
 
       <div className="mt-3 flex flex-col gap-2">
         <button
           type="button"
+          aria-pressed={activeDiagramId === "main"}
           onClick={() => {
             setEditingNameId(null);
             onSelectDiagram("main");
@@ -113,7 +122,7 @@ export function FlowFunctionPanel({
               key={flowFunction.id}
               className={
                 isActive
-                  ? "rounded-md border border-violet-300 bg-violet-50/70 p-2 shadow-sm ring-1 ring-violet-100"
+                  ? "rounded-xl border border-teal-200 bg-teal-50/60 p-2"
                   : "flex items-stretch gap-1"
               }
             >
@@ -123,7 +132,10 @@ export function FlowFunctionPanel({
                     {isEditingName ? (
                       <input
                         autoFocus
-                        className="w-full min-w-0 rounded-md border border-violet-200 bg-white px-2 py-1 text-sm font-semibold text-violet-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
+                        className="h-9 w-full min-w-0 rounded-lg border border-teal-200 bg-white px-2 text-xs font-semibold text-teal-950 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15"
+                        aria-label={t("flow.editFunctionNameAria", {
+                          name: flowFunction.name,
+                        })}
                         value={flowFunction.name}
                         onChange={(event) =>
                           handleNameChange(flowFunction, event.target.value)
@@ -139,7 +151,8 @@ export function FlowFunctionPanel({
                       <button
                         type="button"
                         onClick={() => handleSelectFunction(flowFunction)}
-                        className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-violet-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-50"
+                        aria-pressed="true"
+                        className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-teal-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-50"
                       >
                         {flowFunction.name}
                       </button>
@@ -148,6 +161,7 @@ export function FlowFunctionPanel({
                 ) : (
                   <button
                     type="button"
+                    aria-pressed="false"
                     onClick={() => handleSelectFunction(flowFunction)}
                     className={`${getDiagramButtonClassName(false)} min-w-0 flex-1 truncate`}
                   >
@@ -167,7 +181,7 @@ export function FlowFunctionPanel({
                       onSelectDiagram(flowFunction.id);
                       setEditingNameId(flowFunction.id);
                     }}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-neutral-900 shadow-sm transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-violet-50 active:translate-y-px"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/80 text-slate-600 transition-colors hover:bg-white hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-teal-50"
                   >
                     <PencilIcon />
                   </button>
@@ -180,17 +194,17 @@ export function FlowFunctionPanel({
                   })}
                   title={t("flow.deleteFunction")}
                   onClick={() => handleDeleteFunction(flowFunction.id)}
-                  className="flex w-9 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-semibold text-red-700 transition-all hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
                 >
-                  x
+                  ×
                 </button>
               </div>
 
               {isActive ? (
-                <label className="mt-2 block px-2 pb-1 text-xs font-semibold text-violet-950">
+                <label className="mt-2 block px-2 pb-1 text-[10px] font-medium text-teal-800">
                   {t("flow.parameters")}
                   <input
-                    className="mt-1 w-full rounded-md border border-violet-200 bg-white px-2 py-1 text-sm font-mono text-violet-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
+                    className="mt-1 h-9 w-full rounded-lg border border-teal-200/80 bg-white px-2 font-mono text-xs text-teal-950 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15"
                     value={parameterValue}
                     onChange={(event) =>
                       handleParameterChange(flowFunction, event.target.value)
@@ -206,7 +220,7 @@ export function FlowFunctionPanel({
         <button
           type="button"
           onClick={handleCreateFunction}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none"
+          className="min-h-9 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-3 py-2 text-left text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
         >
           {t("flow.newFunction")}
         </button>
@@ -217,8 +231,8 @@ export function FlowFunctionPanel({
 
 function getDiagramButtonClassName(isActive: boolean) {
   return isActive
-    ? "rounded-md border border-violet-500 bg-violet-50 px-3 py-2 text-left text-sm font-semibold text-violet-950 shadow-sm ring-1 ring-violet-200 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-    : "rounded-md border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 transition-all hover:-translate-y-px hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-none";
+    ? "min-h-9 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-left text-xs font-semibold text-teal-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+    : "min-h-9 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2";
 }
 
 function splitParameters(value: string) {

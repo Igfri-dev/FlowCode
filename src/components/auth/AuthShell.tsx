@@ -15,21 +15,30 @@ export function AuthShell({
   description: string;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-100 px-4 py-8 text-neutral-950">
-      <section className="w-full max-w-lg rounded-xl border border-neutral-300 bg-white p-6 shadow-xl shadow-neutral-300/60 sm:p-8">
-        <Link href="/login" className="inline-flex items-center gap-2">
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8 text-slate-950 sm:py-12">
+      <section className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_16px_64px_-24px_rgba(15,23,42,0.18)] sm:p-10">
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4"
+        >
           <Image
             src={logoImage}
             alt=""
             aria-hidden="true"
-            className="h-16 w-auto object-contain"
-            priority
+            className="h-10 w-14 rounded-lg object-contain"
+            preload
           />
-          <span className="text-xl font-semibold">FlowCode</span>
+          <span className="text-xl font-bold tracking-tight">FlowCode</span>
         </Link>
-        <p className="mt-6 text-sm font-semibold text-emerald-700">{eyebrow}</p>
-        <h1 className="mt-1 text-2xl font-semibold">{title}</h1>
-        <p className="mt-2 text-sm leading-6 text-neutral-600">{description}</p>
+        <div className="mt-8 border-t border-slate-100 pt-7">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+            {eyebrow}
+          </p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+        </div>
         {children}
       </section>
     </main>
@@ -37,8 +46,7 @@ export function AuthShell({
 }
 
 export const authInputClassName =
-  "mt-2 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-950 outline-none transition hover:border-neutral-400 focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-600/20";
+  "mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-950 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10";
 
 export const authButtonClassName =
-  "rounded-md border border-neutral-950 bg-neutral-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
-
+  "min-h-11 rounded-xl border border-emerald-700 bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:border-emerald-800 hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-600/20 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";

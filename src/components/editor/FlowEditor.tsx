@@ -662,13 +662,13 @@ export function FlowEditor({
   return (
     <div
       ref={setEditorShellRef}
-      className={`flow-editor-shell relative h-full min-h-[580px] bg-neutral-100 ${
+      className={`flow-editor-shell relative h-full min-h-[360px] bg-slate-50 ${
         isFullscreen ? "h-screen min-h-screen" : ""
       }`}
     >
       <EdgeBridgeRenderContext.Provider value={edgeBridgeRenderState}>
         <ReactFlow<FlowEditorNode, FlowEditorEdge>
-          className={`flow-editor-canvas h-full min-h-[580px] bg-neutral-100 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors ${
+          className={`flow-editor-canvas h-full min-h-[360px] bg-slate-50 [&_.react-flow__pane]:cursor-grab [&_.react-flow__pane.dragging]:cursor-grabbing [&_.react-flow__renderer]:transition-colors ${
             isFullscreen ? "min-h-screen" : ""
           }`}
           nodes={nodes}
@@ -712,8 +712,9 @@ export function FlowEditor({
           attributionPosition="top-right"
         >
           <Background
-            variant={BackgroundVariant.Lines}
-            color="#d4d4d4"
+            variant={BackgroundVariant.Dots}
+            color="#cbd5e1"
+            size={1.25}
             gap={24}
           />
           <Panel position="top-right" className="!m-4">
@@ -738,7 +739,7 @@ export function FlowEditor({
             position="bottom-left"
             showFitView
             fitViewOptions={fitViewOptions}
-            className="!rounded-md !border !border-neutral-300 !bg-white !shadow-md [&_button]:!border-neutral-200 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
+            className="!rounded-xl !border !border-slate-200 !bg-white !shadow-sm [&_button]:!border-slate-100 [&_button]:!transition-colors [&_button:hover]:!bg-emerald-50 [&_button:hover]:!text-emerald-800"
             aria-label={t("flow.diagramControls")}
           />
           {isMiniMapCollapsed ? (
@@ -765,13 +766,13 @@ export function FlowEditor({
                 nodeStrokeWidth={3}
                 nodeBorderRadius={4}
                 bgColor="#ffffff"
-                maskColor="rgba(245, 245, 245, 0.68)"
-                maskStrokeColor="#525252"
+                maskColor="rgba(248, 250, 252, 0.78)"
+                maskStrokeColor="#94a3b8"
                 maskStrokeWidth={1}
                 offsetScale={8}
                 zoomStep={12}
                 ariaLabel={t("flow.miniMap")}
-                className="!m-4 !rounded-md !border !border-neutral-300 !bg-white !shadow-lg"
+                className="!m-4 !rounded-xl !border !border-slate-200 !bg-white !shadow-sm"
                 style={miniMapSize}
               />
               <Panel
@@ -882,6 +883,9 @@ function FullscreenFloatingPanel({
   const { t } = useI18n();
   const top = `${getFullscreenPanelTopOffset(side, index)}px`;
   const contentMaxHeight = getFullscreenPanelContentMaxHeight(side, index);
+  const openPanelTop = `min(${top}, max(24px, calc(100dvh - 184px)))`;
+  const openPanelMaxHeight = `calc(100dvh - ${openPanelTop} - 24px)`;
+  const openContentMaxHeight = `min(${contentMaxHeight}, calc(${openPanelMaxHeight} - 34px))`;
   const edgeStyle: CSSProperties = {
     top,
     height: getFullscreenEdgeZoneHeight(side, index),
@@ -908,8 +912,8 @@ function FullscreenFloatingPanel({
       : `${fullscreenDrawerButtonClassName} absolute right-4 top-1/2 translate-x-12 -translate-y-1/2 opacity-0 duration-200 ease-out group-hover/fullscreen-edge:translate-x-0 group-hover/fullscreen-edge:opacity-100`;
   const panelClassName =
     side === "left"
-      ? "fullscreen-overlay-content pointer-events-auto absolute left-4 z-30 flex w-80 flex-col overflow-hidden rounded-[24px] border border-neutral-300 bg-white/95 p-4 shadow-xl backdrop-blur"
-      : "fullscreen-overlay-content pointer-events-auto absolute right-4 z-30 flex w-80 flex-col overflow-hidden rounded-[24px] border border-neutral-300 bg-white/95 p-4 shadow-xl backdrop-blur";
+      ? "fullscreen-overlay-content pointer-events-auto absolute left-6 z-30 flex w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur"
+      : "fullscreen-overlay-content pointer-events-auto absolute right-6 z-30 flex w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur";
   const openButtonClassName =
     side === "left"
       ? "nodrag nopan nowheel absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center bg-transparent text-neutral-600 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
@@ -918,10 +922,10 @@ function FullscreenFloatingPanel({
 
   if (isOpen) {
     return (
-      <aside className={panelClassName} style={{ top }}>
+      <aside className={panelClassName} style={{ top: openPanelTop, maxHeight: openPanelMaxHeight }}>
         <ScrollableFullscreenPanelContent
           className={contentPadding}
-          style={{ maxHeight: contentMaxHeight }}
+          style={{ maxHeight: openContentMaxHeight }}
         >
           {item.children}
         </ScrollableFullscreenPanelContent>
@@ -1103,7 +1107,7 @@ function FullscreenBottomFloatingPanel({
 
   if (isOpen) {
     return (
-      <aside className="fullscreen-overlay-content pointer-events-auto absolute bottom-4 left-1/2 z-30 w-[min(68rem,calc(100vw-18rem))] -translate-x-1/2 rounded-[28px] border border-neutral-300 bg-white/95 p-4 pr-10 shadow-xl backdrop-blur">
+      <aside className="fullscreen-overlay-content pointer-events-auto absolute bottom-6 left-1/2 z-30 flex max-h-[calc(100dvh-3rem)] w-[min(68rem,calc(100vw-3rem))] -translate-x-1/2 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 p-4 pr-10 shadow-xl backdrop-blur">
         <button
           type="button"
           className="nodrag nopan nowheel absolute right-3 top-3 flex h-6 w-6 items-center justify-center bg-transparent text-neutral-600 transition-colors hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
@@ -1114,7 +1118,7 @@ function FullscreenBottomFloatingPanel({
         >
           <MiniMapCollapseIcon />
         </button>
-        <ScrollableFullscreenPanelContent>
+        <ScrollableFullscreenPanelContent style={{ maxHeight: "calc(100dvh - 82px)" }}>
           {item.children}
         </ScrollableFullscreenPanelContent>
       </aside>

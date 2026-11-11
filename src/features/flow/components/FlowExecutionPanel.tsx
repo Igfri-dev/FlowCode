@@ -33,27 +33,21 @@ export function FlowExecutionPanel({
     executionState.status === "waitingInput" ||
     executionState.status === "waitingFunctionParameters";
   const rootClassName = isVertical
-    ? "flex min-w-0 flex-col items-stretch gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-2 shadow-sm"
-    : "flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 shadow-sm";
+    ? "workspace-panel flow-execution-controls flex min-w-0 flex-col items-stretch gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5"
+    : "flow-execution-controls flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1.5";
   const messageClassName = isVertical
-    ? "max-w-full truncate rounded-md bg-white px-2 py-1 text-xs font-medium text-neutral-600 shadow-sm"
-    : "hidden max-w-44 truncate rounded-md bg-white px-2 py-1 text-xs font-medium text-neutral-600 shadow-sm md:inline";
+    ? "max-w-full truncate px-1 py-1 text-[11px] font-medium text-slate-500"
+    : "hidden max-w-32 truncate px-1 py-1 text-[11px] font-medium text-slate-500 2xl:inline";
   const buttonGroupClassName = isVertical
     ? "grid grid-cols-3 gap-1.5"
     : "flex items-center gap-1";
 
   return (
-    <div
-      aria-label={t("flow.executionControls")}
-      className={rootClassName}
-    >
-      <span
-        className={messageClassName}
-        title={localizedMessage}
-      >
+    <div aria-label={t("flow.executionControls")} className={rootClassName}>
+      <span className={messageClassName} title={localizedMessage}>
         {localizedMessage}
       </span>
-      <span className="whitespace-nowrap rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-500">
+      <span className="whitespace-nowrap px-1 font-mono text-[10px] text-slate-400">
         {t("flow.stepOf", {
           max: executionState.maxSteps,
           step: executionState.stepCount,
@@ -65,7 +59,7 @@ export function FlowExecutionPanel({
           label={t("flow.stepAction")}
           onClick={onStep}
           disabled={cannotContinue || isAutoRunning}
-          variant="primary"
+          variant="secondary"
           wide={isVertical}
         >
           <StepIcon />
@@ -74,7 +68,7 @@ export function FlowExecutionPanel({
           label={isAutoRunning ? t("flow.pause") : t("flow.run")}
           onClick={isAutoRunning ? onPause : onRun}
           disabled={cannotContinue && !isAutoRunning}
-          variant="secondary"
+          variant="primary"
           wide={isVertical}
         >
           {isAutoRunning ? <PauseIcon /> : <PlayIcon />}
@@ -134,9 +128,9 @@ function IconButton({
 }: IconButtonProps) {
   const variantClassName =
     variant === "primary"
-      ? "border-neutral-950 bg-neutral-950 text-white hover:-translate-y-0.5 hover:border-neutral-800 hover:bg-neutral-800 hover:shadow-sm focus-visible:ring-neutral-500 disabled:border-neutral-300 disabled:bg-neutral-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-      : "border-neutral-300 bg-white text-neutral-800 hover:-translate-y-0.5 hover:border-neutral-500 hover:bg-neutral-100 hover:text-neutral-950 hover:shadow-sm focus-visible:ring-neutral-500 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:hover:translate-y-0 disabled:hover:border-neutral-300 disabled:hover:shadow-none";
-  const sizeClassName = wide ? "h-9 w-full" : "h-8 w-8";
+      ? "border-teal-700 bg-teal-700 text-white hover:border-teal-800 hover:bg-teal-800 focus-visible:ring-teal-500 disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"
+      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-teal-500 disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-300";
+  const sizeClassName = wide ? "h-9 w-full" : "h-9 w-9";
 
   return (
     <button
@@ -145,7 +139,7 @@ function IconButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center rounded-md border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed ${sizeClassName} ${variantClassName}`}
+      className={`flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${sizeClassName} ${variantClassName}`}
     >
       {children}
     </button>
@@ -154,12 +148,7 @@ function IconButton({
 
 function StepIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
       <path
         d="M6 5l9 7-9 7V5zM18 5v14"
         stroke="currentColor"
@@ -173,12 +162,7 @@ function StepIcon() {
 
 function PlayIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
       <path d="M8 5l11 7-11 7V5z" fill="currentColor" />
     </svg>
   );
@@ -186,12 +170,7 @@ function PlayIcon() {
 
 function PauseIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
       <path
         d="M8 5v14M16 5v14"
         stroke="currentColor"
@@ -204,12 +183,7 @@ function PauseIcon() {
 
 function ResetIcon() {
   return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
       <path
         d="M4 7v5h5"
         stroke="currentColor"

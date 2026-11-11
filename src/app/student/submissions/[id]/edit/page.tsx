@@ -72,7 +72,7 @@ export default async function EditSubmissionPage({
 
   return (
     <I18nProvider>
-      <div className="flex min-h-screen flex-col bg-neutral-100 text-neutral-950">
+      <div className="app-shell flex min-h-screen flex-col">
         <AppHeader user={user} onLogout={logoutAction} />
         <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
           <div className="mx-auto flex w-full items-center justify-between gap-3">
@@ -87,7 +87,7 @@ export default async function EditSubmissionPage({
             </Link>
           </div>
         </div>
-        <main className="flex flex-1 px-3 py-4 sm:px-4 lg:px-5 2xl:px-6">
+        <main className="app-content flex flex-1">
           <FlowWorkspace
             key={`submission-${user.id}-${submission.id}`}
             draftStorageKey={`flowcode:user-${user.id}:submission-${submission.id}`}

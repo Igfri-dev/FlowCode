@@ -10,26 +10,34 @@ export function FlowVariablesPanel({ variables }: FlowVariablesPanelProps) {
   const variableEntries = Object.entries(variables);
 
   return (
-    <section className="rounded-lg border border-neutral-300/80 bg-white p-4 shadow-md shadow-neutral-200/70 transition hover:border-neutral-400/80 hover:shadow-lg hover:shadow-neutral-300/50">
-      <h2 className="text-base font-semibold text-neutral-950">
-        {t("flow.variables")}
-      </h2>
+    <section className="workspace-panel rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/[0.025]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold tracking-tight text-slate-900">
+          {t("flow.variables")}
+        </h2>
+        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-medium text-slate-500">
+          {variableEntries.length}
+        </span>
+      </div>
 
       {variableEntries.length === 0 ? (
-        <p className="mt-3 text-sm text-neutral-500">
+        <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-4 text-xs leading-5 text-slate-500">
           {t("flow.variablesEmpty")}
         </p>
       ) : (
-        <dl className="mt-3 space-y-2 text-sm">
+        <dl className="mt-3 divide-y divide-slate-100 text-xs">
           {variableEntries.map(([name, value]) => (
             <div
               key={name}
-              className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 transition-colors hover:border-neutral-300 hover:bg-white"
+              className="flex items-start justify-between gap-3 px-1 py-2.5"
             >
-              <dt className="min-w-0 truncate font-medium text-neutral-900">
+              <dt
+                className="min-w-0 truncate font-mono font-medium text-teal-800"
+                title={name}
+              >
                 {name}
               </dt>
-              <dd className="max-w-[60%] truncate font-mono text-neutral-700">
+              <dd className="max-w-[60%] break-all text-right font-mono text-slate-700">
                 {String(value)}
               </dd>
             </div>

@@ -77,43 +77,73 @@ export function FlowProjectPanel({
   }
 
   return (
-    <section className="rounded-lg border border-emerald-300 bg-white p-4 shadow-md shadow-emerald-950/5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+    <section
+      data-panel="project-save"
+      className="workspace-panel !p-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.04]"
+    >
+      <header className="flex items-center gap-3 border-b border-slate-200/80 bg-slate-50/80 px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-700"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" />
+            <path d="M7 3v6h9V3M7 21v-8h10v8" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="workspace-eyebrow text-emerald-700">
             Proyecto personal
           </p>
-          <h2 className="mt-1 text-base font-semibold">
+          <h2 className="mt-0.5 text-sm font-semibold text-slate-900">
             {project ? "Guardar cambios" : "Guardar este diagrama"}
           </h2>
+        </div>
+      </header>
+      <div className="p-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <label
+            htmlFor="flow-project-title"
+            className="block text-xs font-semibold text-slate-700"
+          >
+            Nombre del proyecto
+          </label>
           <input
+            id="flow-project-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Nombre del proyecto"
+            aria-label="Nombre del proyecto"
             maxLength={180}
-            className="mt-3 w-full rounded-md border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+            className="mt-2 min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
           />
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/projects"
-            className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
-          >
-            Mis proyectos
-          </Link>
-          <button
-            type="button"
-            onClick={() => void saveProject()}
-            disabled={saving}
-            className="rounded-md bg-neutral-950 px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-        </div>
       </div>
+      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/80 bg-slate-50/60 px-4 py-3">
+        <Link href="/projects" className="fc-button fc-button--secondary">
+          Mis proyectos
+        </Link>
+        <button
+          type="button"
+          onClick={() => void saveProject()}
+          disabled={saving}
+          className="fc-button fc-button--primary"
+        >
+          {saving ? "Guardando..." : "Guardar"}
+        </button>
+      </footer>
       {message ? (
         <p
-          className={`mt-3 rounded-md border px-3 py-2 text-sm ${status === "error" ? "border-red-300 bg-red-50 text-red-900" : "border-emerald-300 bg-emerald-50 text-emerald-900"}`}
+          className={`mx-4 my-3 rounded-lg border px-3 py-2 text-sm ${status === "error" ? "border-red-200 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}
         >
           {message}
         </p>
