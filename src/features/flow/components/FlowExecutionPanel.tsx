@@ -5,9 +5,11 @@ import { useI18n } from "@/features/i18n/I18nProvider";
 type FlowExecutionPanelProps = {
   executionState: FlowExecutionState;
   isAutoRunning: boolean;
+  isInstantRunning: boolean;
   layout?: "inline" | "vertical";
   onStep: () => void;
   onRun: () => void;
+  onInstant: () => void;
   onPause: () => void;
   onReset: () => void;
 };
@@ -15,9 +17,11 @@ type FlowExecutionPanelProps = {
 export function FlowExecutionPanel({
   executionState,
   isAutoRunning,
+  isInstantRunning,
   layout = "inline",
   onStep,
   onRun,
+  onInstant,
   onPause,
   onReset,
 }: FlowExecutionPanelProps) {
@@ -34,24 +38,26 @@ export function FlowExecutionPanel({
     executionState.status === "waitingFunctionParameters";
   const rootClassName = isVertical
     ? "workspace-panel flow-execution-controls flex min-w-0 flex-col items-stretch gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-2.5"
-    : "flow-execution-controls flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1.5";
+    : "flow-execution-controls flex shrink-0 flex-nowrap items-center justify-end gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1.5";
   const messageClassName = isVertical
     ? "max-w-full truncate px-1 py-1 text-[11px] font-medium text-slate-500"
-    : "hidden max-w-32 truncate px-1 py-1 text-[11px] font-medium text-slate-500 2xl:inline";
+    : "hidden";
   const buttonGroupClassName = isVertical
-    ? "grid grid-cols-3 gap-1.5"
-    : "flex items-center gap-1";
+    ? "grid grid-cols-2 gap-1.5"
+    : "flex shrink-0 flex-nowrap items-center gap-1";
 
   return (
     <div aria-label={t("flow.executionControls")} className={rootClassName}>
       <span className={messageClassName} title={localizedMessage}>
         {localizedMessage}
       </span>
-      <span className="whitespace-nowrap px-1 font-mono text-[10px] text-slate-400">
-        {t("flow.stepOf", {
-          max: executionState.maxSteps,
-          step: executionState.stepCount,
-        })}
+      <span title={localizedMessage} className="whitespace-nowrap font-mono text-[10px] text-slate-400">
+        {executionState.maxSteps === null
+          ? t("flow.unlimitedSteps", { step: executionState.stepCount })
+          : t("flow.stepOf", {
+              max: executionState.maxSteps,
+              step: executionState.stepCount,
+            })}
       </span>
 
       <div className={buttonGroupClassName}>
@@ -72,6 +78,16 @@ export function FlowExecutionPanel({
           wide={isVertical}
         >
           {isAutoRunning ? <PauseIcon /> : <PlayIcon />}
+        </IconButton>
+        <IconButton
+          label={t("flow.instant")}
+          onClick={isInstantRunning ? onPause : onInstant}
+          disabled={cannotContinue}
+          variant={isInstantRunning ? "primary" : "secondary"}
+          wide={isVertical}
+          pressed={isInstantRunning}
+        >
+          <InstantIcon />
         </IconButton>
         <IconButton
           label={t("flow.reset")}
@@ -116,6 +132,7 @@ type IconButtonProps = {
   onClick: () => void;
   variant: "primary" | "secondary";
   wide?: boolean;
+  pressed?: boolean;
 };
 
 function IconButton({
@@ -125,17 +142,19 @@ function IconButton({
   onClick,
   variant,
   wide = false,
+  pressed,
 }: IconButtonProps) {
   const variantClassName =
     variant === "primary"
       ? "border-teal-700 bg-teal-700 text-white hover:border-teal-800 hover:bg-teal-800 focus-visible:ring-teal-500 disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400"
       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-teal-500 disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-300";
-  const sizeClassName = wide ? "h-9 w-full" : "h-9 w-9";
+  const sizeClassName = wide ? "h-9 w-full" : "h-8 w-8 shrink-0";
 
   return (
     <button
       type="button"
       aria-label={label}
+      aria-pressed={pressed}
       title={label}
       onClick={onClick}
       disabled={disabled}
@@ -143,6 +162,22 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function InstantIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    >
+      <path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z" />
+    </svg>
   );
 }
 

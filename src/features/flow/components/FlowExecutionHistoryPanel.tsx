@@ -3,10 +3,12 @@ import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowExecutionHistoryPanelProps = {
   history: FlowExecutionHistoryItem[];
+  totalSteps?: number;
 };
 
 export function FlowExecutionHistoryPanel({
   history,
+  totalSteps = history.length,
 }: FlowExecutionHistoryPanelProps) {
   const { t } = useI18n();
   const latestFirstHistory = [...history].reverse();
@@ -33,6 +35,14 @@ export function FlowExecutionHistoryPanel({
           </span>
         ) : null}
       </div>
+      {totalSteps > history.length ? (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {t("flow.recentHistory", {
+            shown: history.length,
+            total: totalSteps,
+          })}
+        </p>
+      ) : null}
 
       {history.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-4 text-xs leading-5 text-slate-500">

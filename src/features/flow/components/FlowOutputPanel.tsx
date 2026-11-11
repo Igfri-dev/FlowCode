@@ -3,9 +3,13 @@ import { useI18n } from "@/features/i18n/I18nProvider";
 
 type FlowOutputPanelProps = {
   outputs: FlowExecutionOutputItem[];
+  totalCount?: number;
 };
 
-export function FlowOutputPanel({ outputs }: FlowOutputPanelProps) {
+export function FlowOutputPanel({
+  outputs,
+  totalCount = outputs.length,
+}: FlowOutputPanelProps) {
   const { t } = useI18n();
 
   return (
@@ -18,6 +22,14 @@ export function FlowOutputPanel({ outputs }: FlowOutputPanelProps) {
           &gt;_
         </span>
       </div>
+      {totalCount > outputs.length ? (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {t("flow.recentOutputs", {
+            shown: outputs.length,
+            total: totalCount,
+          })}
+        </p>
+      ) : null}
 
       {outputs.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-4 text-xs leading-5 text-slate-500">

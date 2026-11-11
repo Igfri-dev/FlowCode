@@ -200,8 +200,16 @@ FlowCode can execute a diagram one block at a time or automatically:
 
 - **Step** runs the next executable block.
 - **Run** starts automatic execution.
+- **Instant** runs without the animation delay, at the speed of the controlled
+  runtime on your computer. It yields between batches so **Pause** and **Reset**
+  remain available, and resumes after input or function-parameter dialogs.
 - **Pause** stops automatic execution.
 - **Reset** restarts execution for the active diagram.
+
+Editor execution has no step limit. Its panels retain the latest 200 history
+entries and 1,000 outputs, displaying totals when older entries are omitted.
+Automatic exercise evaluation keeps its separate finite step limit so an
+unending submission cannot block the server.
 
 During execution, the current node and active edge are highlighted. If an input
 block is reached, FlowCode opens a modal to collect the value. If a function
@@ -529,8 +537,16 @@ FlowCode puede ejecutar un diagrama bloque por bloque o automáticamente:
 
 - **Step/Paso** ejecuta el siguiente bloque.
 - **Run/Ejecutar** inicia la ejecución automática.
+- **Instantáneo** ejecuta sin la pausa de animación, a la velocidad del runtime
+  en tu equipo. Puedes pausarlo o reiniciarlo; si solicita entradas o parámetros,
+  continúa en el mismo modo después de confirmarlos.
 - **Pause/Pausar** detiene la ejecución automática.
 - **Reset/Reiniciar** reinicia la ejecución del diagrama activo.
+
+El editor no tiene límite de pasos. Los paneles conservan los últimos 200 pasos
+y 1.000 salidas, indicando los totales cuando se omiten registros anteriores.
+La evaluación automática de ejercicios conserva un límite independiente para
+detectar programas que no terminan.
 
 Durante la ejecución se resaltan el nodo actual y la conexión activa. Si se
 llega a un bloque de entrada, FlowCode abre un modal para pedir el valor. Si una

@@ -1,25 +1,40 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  initialFlowExecutionState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
+import {
   resetFlowExecution,
   resumeFlowExecutionWithFunctionParameters,
   resumeFlowExecutionWithInput,
   stepFlowExecution,
   type FlowExecutionState,
 } from "@/features/flow/execution";
+import {
+  canContinueFlowExecution,
+  runFlowExecutionBatch,
+} from "@/features/flow/execution-batch";
 import type { useI18n } from "@/features/i18n/I18nProvider";
-import type {
-  FlowEditorEdge,
-  FlowEditorNode,
-  FlowProgram,
-} from "@/types/flow";
+import type { FlowEditorEdge, FlowEditorNode, FlowProgram } from "@/types/flow";
 
 type AvailableFlowFunctions = NonNullable<
   FlowEditorNode["data"]["availableFunctions"]
 >;
-type RenderedNodeExecution = NonNullable<
-  FlowEditorNode["data"]["execution"]
->;
+type RenderedNodeExecution = NonNullable<FlowEditorNode["data"]["execution"]>;
+
+function createEditorExecution(
+  diagramId = "main",
+  name = "Principal",
+): FlowExecutionState {
+  return {
+    ...resetFlowExecution(diagramId, name),
+    historyLimit: 200,
+    outputLimit: 1000,
+  };
+}
 
 export function useFlowExecution({
   activeDiagramId,
@@ -36,15 +51,29 @@ export function useFlowExecution({
   edges: FlowEditorEdge[];
   t: ReturnType<typeof useI18n>["t"];
 }) {
-  const [executionState, setExecutionState] = useState(
-    initialFlowExecutionState,
+  const [executionState, commitExecutionState] = useState(
+    createEditorExecution,
   );
-  const [isAutoRunning, setIsAutoRunning] = useState(false);
-  const canContinueExecution =
-    executionState.status !== "finished" &&
-    executionState.status !== "error" &&
-    executionState.status !== "waitingInput" &&
-    executionState.status !== "waitingFunctionParameters";
+  const executionRef = useRef(executionState);
+  const setExecutionState = useCallback(
+    (update: SetStateAction<FlowExecutionState>) => {
+      const next =
+        typeof update === "function" ? update(executionRef.current) : update;
+      executionRef.current = next;
+      commitExecutionState(next);
+    },
+    [],
+  );
+  const [isAutoRunning, commitAutoRunning] = useState(false);
+  const runningRef = useRef(false);
+  const setIsAutoRunning = useCallback((running: boolean) => {
+    runningRef.current = running;
+    commitAutoRunning(running);
+  }, []);
+  const [executionMode, setExecutionMode] = useState<"animated" | "instant">(
+    "animated",
+  );
+  const canContinueExecution = canContinueFlowExecution(executionState);
   const isAutoExecutionActive = isAutoRunning && canContinueExecution;
   const nodeExecutionById = useMemo(
     () =>
@@ -53,14 +82,14 @@ export function useFlowExecution({
         activeDiagramId,
         currentDiagramId: executionState.currentDiagramId,
         currentNodeId: executionState.currentNodeId,
-        history: executionState.history,
+        visitedNodeIds: executionState.visitedNodeIds[activeDiagramId] ?? [],
       }),
     [
       activeDiagramId,
       executionState.activeDecision,
       executionState.currentDiagramId,
       executionState.currentNodeId,
-      executionState.history,
+      executionState.visitedNodeIds,
     ],
   );
   const getNodeExecution = useCallback(
@@ -76,9 +105,7 @@ export function useFlowExecution({
   );
   const renderedEdges = useMemo(() => {
     const visitedEdgeIds = new Set(
-      executionState.history.flatMap((item) =>
-        item.edgeId ? [item.edgeId] : [],
-      ),
+      executionState.visitedEdgeIds[activeDiagramId] ?? [],
     );
     const isCurrentExecutionDiagram =
       executionState.currentDiagramId === activeDiagramId;
@@ -86,7 +113,7 @@ export function useFlowExecution({
     return edges.map((edge) => {
       const isActive =
         isCurrentExecutionDiagram && edge.id === executionState.activeEdgeId;
-      const isVisited = isCurrentExecutionDiagram && visitedEdgeIds.has(edge.id);
+      const isVisited = visitedEdgeIds.has(edge.id);
 
       const stroke = isActive ? "#ca8a04" : "#059669";
       const localizedLabel = getLocalizedEdgeLabel(edge.sourceHandle, t);
@@ -126,7 +153,7 @@ export function useFlowExecution({
     edges,
     executionState.activeEdgeId,
     executionState.currentDiagramId,
-    executionState.history,
+    executionState.visitedEdgeIds,
     t,
   ]);
 
@@ -135,27 +162,47 @@ export function useFlowExecution({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setExecutionState((currentExecutionState) =>
-        stepFlowExecution({
-          program: currentProgram,
-          activeDiagramId,
-          state: currentExecutionState,
-        }),
-      );
-    }, 500);
-
-    return () => window.clearTimeout(timeoutId);
+    let cancelled = false;
+    let timeoutId: number;
+    const tick = () => {
+      if (cancelled || !runningRef.current) return;
+      const input = {
+        program: currentProgram,
+        activeDiagramId,
+        state: executionRef.current,
+      };
+      const next =
+        executionMode === "instant"
+          ? runFlowExecutionBatch(input)
+          : stepFlowExecution(input);
+      setExecutionState(next);
+      if (!cancelled && runningRef.current && canContinueFlowExecution(next)) {
+        timeoutId = window.setTimeout(
+          tick,
+          executionMode === "instant" ? 0 : 500,
+        );
+      }
+    };
+    timeoutId = window.setTimeout(tick, executionMode === "instant" ? 0 : 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [
     activeDiagramId,
     currentProgram,
-    executionState.stepCount,
+    executionMode,
     isAutoExecutionActive,
+    setExecutionState,
   ]);
 
-  const resetExecutionForDiagram = useCallback((diagramId: string, name: string) => {
-    setExecutionState(resetFlowExecution(diagramId, name));
-  }, []);
+  const resetExecutionForDiagram = useCallback(
+    (diagramId: string, name: string) => {
+      setIsAutoRunning(false);
+      setExecutionState(createEditorExecution(diagramId, name));
+    },
+    [setExecutionState, setIsAutoRunning],
+  );
 
   const handleStepExecution = useCallback(() => {
     setIsAutoRunning(false);
@@ -166,20 +213,28 @@ export function useFlowExecution({
         state: currentExecutionState,
       }),
     );
-  }, [activeDiagramId, currentProgram]);
+  }, [activeDiagramId, currentProgram, setExecutionState, setIsAutoRunning]);
 
   const handleRunExecution = useCallback(() => {
+    setExecutionMode("animated");
     setIsAutoRunning(true);
-  }, []);
+  }, [setIsAutoRunning]);
+
+  const handleInstantExecution = useCallback(() => {
+    setExecutionMode("instant");
+    setIsAutoRunning(true);
+  }, [setIsAutoRunning]);
 
   const handlePauseExecution = useCallback(() => {
     setIsAutoRunning(false);
-  }, []);
+  }, [setIsAutoRunning]);
 
   const handleResetExecution = useCallback(() => {
     setIsAutoRunning(false);
-    setExecutionState(resetFlowExecution(activeDiagramId, activeDiagramName));
-  }, [activeDiagramId, activeDiagramName]);
+    setExecutionState(
+      createEditorExecution(activeDiagramId, activeDiagramName),
+    );
+  }, [activeDiagramId, activeDiagramName, setExecutionState, setIsAutoRunning]);
 
   const handleInputConfirm = useCallback(
     (value: Parameters<typeof resumeFlowExecutionWithInput>[0]["value"]) => {
@@ -190,7 +245,7 @@ export function useFlowExecution({
         }),
       );
     },
-    [],
+    [setExecutionState],
   );
 
   const handleFunctionParameterConfirm = useCallback(
@@ -206,7 +261,7 @@ export function useFlowExecution({
         }),
       );
     },
-    [],
+    [setExecutionState],
   );
 
   return {
@@ -217,8 +272,11 @@ export function useFlowExecution({
     handlePauseExecution,
     handleResetExecution,
     handleRunExecution,
+    handleInstantExecution,
     handleStepExecution,
     isAutoExecutionActive,
+    isInstantExecutionActive:
+      isAutoExecutionActive && executionMode === "instant",
     isAutoRunning,
     renderedEdges,
     resetExecutionForDiagram,
@@ -232,27 +290,25 @@ function getRenderedNodeExecutions({
   activeDiagramId,
   currentNodeId,
   currentDiagramId,
-  history,
+  visitedNodeIds,
 }: {
   activeDecision: FlowExecutionState["activeDecision"];
   activeDiagramId: string;
   currentNodeId: FlowExecutionState["currentNodeId"];
   currentDiagramId: string;
-  history: FlowExecutionState["history"];
+  visitedNodeIds: string[];
 }) {
   const executionsByNodeId = new Map<string, RenderedNodeExecution>();
 
-  if (currentDiagramId !== activeDiagramId) {
-    return executionsByNodeId;
-  }
-
-  for (const item of history) {
-    executionsByNodeId.set(item.nodeId, {
+  for (const nodeId of visitedNodeIds) {
+    executionsByNodeId.set(nodeId, {
       isCurrent: false,
       isVisited: true,
       activeBranch: null,
     });
   }
+
+  if (currentDiagramId !== activeDiagramId) return executionsByNodeId;
 
   if (currentNodeId) {
     const currentExecution = executionsByNodeId.get(currentNodeId);

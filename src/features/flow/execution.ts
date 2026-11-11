@@ -121,7 +121,12 @@ export type FlowExecutionState = {
     | "error";
   message: string;
   stepCount: number;
-  maxSteps: number;
+  maxSteps: number | null;
+  historyLimit?: number;
+  outputLimit?: number;
+  outputCount: number;
+  visitedNodeIds: Record<string, string[]>;
+  visitedEdgeIds: Record<string, string[]>;
   activeEdgeId: string | null;
   activeDecision: {
     nodeId: string;
@@ -144,7 +149,10 @@ export const initialFlowExecutionState: FlowExecutionState = {
   status: "idle",
   message: "Listo para ejecutar.",
   stepCount: 0,
-  maxSteps: 100,
+  maxSteps: null,
+  outputCount: 0,
+  visitedNodeIds: {},
+  visitedEdgeIds: {},
   activeEdgeId: null,
   activeDecision: null,
 };
@@ -180,7 +188,7 @@ export function stepFlowExecution({
     return state;
   }
 
-  if (state.stepCount >= state.maxSteps) {
+  if (state.maxSteps !== null && state.stepCount >= state.maxSteps) {
     return {
       ...state,
       status: "error",
@@ -274,10 +282,7 @@ export function stepFlowExecution({
       "instruction" in currentNode.data.config
         ? currentNode.data.config.instruction
         : "";
-    const instructionResult = executeInstruction(
-      instruction,
-      state.variables,
-    );
+    const instructionResult = executeInstruction(instruction, state.variables);
 
     if (!instructionResult.ok) {
       return {
@@ -572,17 +577,11 @@ function executeOutputNode({
 
   return advanceToNextNode({
     graphEdges,
-    state: {
-      ...state,
-      outputs: [
-        ...state.outputs,
-        {
-          id: `${nextStep}-${node.id}-output`,
-          step: nextStep,
-          content,
-        },
-      ],
-    },
+    state: appendOutput(state, {
+      id: `${nextStep}-${node.id}-output`,
+      step: nextStep,
+      content,
+    }),
     node,
     variables: outputResult.variables,
     message: `Salida: ${content}`,
@@ -761,17 +760,11 @@ function returnToCaller({
     const isStandaloneFunctionReturn = state.currentDiagramId !== "main";
     const nextStep = state.stepCount + 1;
     const stateWithReturnOutput = isStandaloneFunctionReturn
-      ? {
-          ...state,
-          outputs: [
-            ...state.outputs,
-            {
-              id: `${nextStep}-${node.id}-return`,
-              step: nextStep,
-              content: `return ${formatExecutionValue(value)}`,
-            },
-          ],
-        }
+      ? appendOutput(state, {
+          id: `${nextStep}-${node.id}-return`,
+          step: nextStep,
+          content: `return ${formatExecutionValue(value)}`,
+        })
       : state;
 
     return recordStep({
@@ -1102,7 +1095,15 @@ function recordStep({
     currentDiagramId,
     currentDiagramName,
     variables,
-    history: [...state.history, historyItem],
+    history: appendRecent(state.history, historyItem, state.historyLimit),
+    visitedNodeIds: rememberVisited(
+      state.visitedNodeIds,
+      state.currentDiagramId,
+      node.id,
+    ),
+    visitedEdgeIds: edgeId
+      ? rememberVisited(state.visitedEdgeIds, currentDiagramId, edgeId)
+      : state.visitedEdgeIds,
     status,
     message,
     stepCount: nextStep,
@@ -1112,6 +1113,33 @@ function recordStep({
     pendingInput,
     pendingFunctionParameters,
   };
+}
+
+function appendRecent<T>(items: T[], item: T, limit?: number): T[] {
+  if (limit !== undefined && limit <= 0) return [];
+  return limit === undefined || items.length < limit
+    ? [...items, item]
+    : [...items.slice(items.length - limit + 1), item];
+}
+
+function appendOutput(
+  state: FlowExecutionState,
+  output: FlowExecutionOutputItem,
+): FlowExecutionState {
+  return {
+    ...state,
+    outputs: appendRecent(state.outputs, output, state.outputLimit),
+    outputCount: state.outputCount + 1,
+  };
+}
+
+function rememberVisited(
+  visited: Record<string, string[]>,
+  diagramId: string,
+  id: string,
+) {
+  const ids = visited[diagramId] ?? [];
+  return ids.includes(id) ? visited : { ...visited, [diagramId]: [...ids, id] };
 }
 
 function getDiagramById(
@@ -1734,7 +1762,10 @@ function evaluateUpdateExpression(
   }
 
   const nextVariables = cloneExecutionVariables(variables);
-  const targetResult = resolveAssignmentTarget(expression.argument, nextVariables);
+  const targetResult = resolveAssignmentTarget(
+    expression.argument,
+    nextVariables,
+  );
 
   if (!targetResult.ok) {
     return targetResult;
@@ -1986,7 +2017,9 @@ type SafeStringMethod = (
 type SafeArrayMethod = (
   value: ExecutionArray,
   args: ExecutionValue[],
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) => ExpressionEvaluationResult;
 
@@ -2012,9 +2045,10 @@ const safeGlobalCalls: Record<string, SafeCallable> = {
   Number: (args) => createSafeCallValue(Number(args[0])),
   String: (args) => createSafeCallValue(String(args[0])),
   Boolean: (args) => createSafeCallValue(Boolean(args[0])),
-  charAt: (args) => callStringIndexFunction("charAt", args, (value, index) =>
-    value.charAt(index),
-  ),
+  charAt: (args) =>
+    callStringIndexFunction("charAt", args, (value, index) =>
+      value.charAt(index),
+    ),
   charToCode: (args) => callCharToCode(args),
   codeToChar: (args) => callCodePointToString("codeToChar", args),
   charCodeAt: (args) =>
@@ -2027,8 +2061,7 @@ const safeGlobalCalls: Record<string, SafeCallable> = {
     ),
   fromCharCode: (args) =>
     callCharacterCodeFunction("fromCharCode", args, String.fromCharCode),
-  fromCodePoint: (args) =>
-    callCodePointToString("fromCodePoint", args),
+  fromCodePoint: (args) => callCodePointToString("fromCodePoint", args),
 };
 
 const safeMathCalls: Record<string, SafeCallable> = {
@@ -2063,8 +2096,7 @@ const safeStringMethods: Record<string, SafeStringMethod> = {
     callNoArgumentMethod("toUpperCase", args, () => value.toUpperCase()),
   toLowerCase: (value, args) =>
     callNoArgumentMethod("toLowerCase", args, () => value.toLowerCase()),
-  trim: (value, args) =>
-    callNoArgumentMethod("trim", args, () => value.trim()),
+  trim: (value, args) => callNoArgumentMethod("trim", args, () => value.trim()),
   includes: (value, args) =>
     callStringSearchMethod("includes", value, args, (search, position) =>
       value.includes(search, position),
@@ -2107,8 +2139,7 @@ const safeArrayMethods: Record<string, SafeArrayMethod> = {
     callNoArgumentArrayMethod("pop", args, () => value.pop()),
   shift: (value, args) =>
     callNoArgumentArrayMethod("shift", args, () => value.shift()),
-  unshift: (value, args) =>
-    createExpressionValue(value.unshift(...args), {}),
+  unshift: (value, args) => createExpressionValue(value.unshift(...args), {}),
   includes: (value, args) => callArrayIncludesMethod(value, args),
   indexOf: (value, args) => callArrayIndexOfMethod(value, args),
   slice: (value, args) => callArraySliceMethod(value, args),
@@ -2810,7 +2841,10 @@ function resolveSafeCall(
     };
   }
 
-  if (callee.type === "MemberExpression" || callee.type === "OptionalMemberExpression") {
+  if (
+    callee.type === "MemberExpression" ||
+    callee.type === "OptionalMemberExpression"
+  ) {
     const staticMember = getStaticMemberName(callee);
 
     if (staticMember?.objectName === "Math") {
@@ -2904,7 +2938,10 @@ function evaluateSafeMethodCallExpression(
   }
 
   if (objectResult.value === null || objectResult.value === undefined) {
-    if (isOptionalMemberAccess(callee) || expression.type === "OptionalCallExpression") {
+    if (
+      isOptionalMemberAccess(callee) ||
+      expression.type === "OptionalCallExpression"
+    ) {
       return createExpressionValue(undefined, objectResult.variables);
     }
 
@@ -2914,7 +2951,10 @@ function evaluateSafeMethodCallExpression(
     };
   }
 
-  if (typeof objectResult.value === "string" && methodName in safeStringMethods) {
+  if (
+    typeof objectResult.value === "string" &&
+    methodName in safeStringMethods
+  ) {
     const argumentResult = evaluateCallArguments(
       expression.arguments,
       objectResult.variables,
@@ -2975,7 +3015,12 @@ function evaluateSafeArrayMethodCall({
   const method = safeArrayMethods[methodName];
 
   if (isCallbackArrayMethod(methodName)) {
-    const methodResult = method(arrayValue, [], expression.arguments, variables);
+    const methodResult = method(
+      arrayValue,
+      [],
+      expression.arguments,
+      variables,
+    );
 
     if (!methodResult.ok) {
       return methodResult;
@@ -3121,9 +3166,7 @@ function isSupportedAssignmentTarget(
 function resolveAssignmentTarget(
   target: AssignmentTargetNode,
   variables: ExecutionVariables,
-):
-  | { ok: true; target: AssignmentTarget }
-  | { ok: false; message: string } {
+): { ok: true; target: AssignmentTarget } | { ok: false; message: string } {
   if (target.type === "Identifier") {
     return {
       ok: true,
@@ -3136,7 +3179,10 @@ function resolveAssignmentTarget(
     };
   }
 
-  if (target.type !== "MemberExpression" && target.type !== "OptionalMemberExpression") {
+  if (
+    target.type !== "MemberExpression" &&
+    target.type !== "OptionalMemberExpression"
+  ) {
     return {
       ok: false,
       message: "El destino de asignacion no esta soportado.",
@@ -3163,10 +3209,14 @@ function resolveAssignmentTarget(
     };
   }
 
-  if (!Array.isArray(objectResult.value) && !isPlainExecutionObject(objectResult.value)) {
+  if (
+    !Array.isArray(objectResult.value) &&
+    !isPlainExecutionObject(objectResult.value)
+  ) {
     return {
       ok: false,
-      message: "Solo se pueden asignar propiedades de arreglos u objetos planos.",
+      message:
+        "Solo se pueden asignar propiedades de arreglos u objetos planos.",
     };
   }
 
@@ -3243,7 +3293,10 @@ function cloneExecutionValue(value: ExecutionValue): ExecutionValue {
 
   if (isPlainExecutionObject(value)) {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, cloneExecutionValue(item)]),
+      Object.entries(value).map(([key, item]) => [
+        key,
+        cloneExecutionValue(item),
+      ]),
     );
   }
 
@@ -3302,11 +3355,7 @@ function toPropertyKey(
     };
   }
 
-  if (
-    typeof value === "boolean" ||
-    value === null ||
-    value === undefined
-  ) {
+  if (typeof value === "boolean" || value === null || value === undefined) {
     return {
       ok: true,
       key: String(value),
@@ -3315,13 +3364,16 @@ function toPropertyKey(
 
   return {
     ok: false,
-    message: "La propiedad calculada debe ser numero, texto, booleano, null o undefined.",
+    message:
+      "La propiedad calculada debe ser numero, texto, booleano, null o undefined.",
   };
 }
 
 function toArrayIndex(propertyKey: string | number) {
   if (typeof propertyKey === "number") {
-    return Number.isInteger(propertyKey) && propertyKey >= 0 ? propertyKey : null;
+    return Number.isInteger(propertyKey) && propertyKey >= 0
+      ? propertyKey
+      : null;
   }
 
   if (!/^(0|[1-9]\d*)$/.test(propertyKey)) {
@@ -3380,7 +3432,9 @@ function callNoArgumentArrayMethod(
   fn: () => ExecutionValue,
 ) {
   if (args.length !== 0) {
-    return createExpressionError(`La llamada ".${name}()" no recibe argumentos.`);
+    return createExpressionError(
+      `La llamada ".${name}()" no recibe argumentos.`,
+    );
   }
 
   return createExpressionValue(fn(), {});
@@ -3464,7 +3518,8 @@ function callStringReplaceMethod(value: string, args: ExecutionValue[]) {
   if (typeof args[0] !== "string" || typeof args[1] !== "string") {
     return {
       ok: false,
-      message: 'La llamada ".replace()" espera textos como busqueda y reemplazo.',
+      message:
+        'La llamada ".replace()" espera textos como busqueda y reemplazo.',
     } as const;
   }
 
@@ -3695,7 +3750,10 @@ function callVariadicNumberMathFunction(
   return createSafeCallValue(fn(...(args as number[])));
 }
 
-function callArrayIncludesMethod(value: ExecutionArray, args: ExecutionValue[]) {
+function callArrayIncludesMethod(
+  value: ExecutionArray,
+  args: ExecutionValue[],
+) {
   if (args.length < 1 || args.length > 2) {
     return createExpressionError(
       'La llamada ".includes()" espera 1 o 2 argumento(s).',
@@ -3750,12 +3808,7 @@ function callArraySliceMethod(value: ExecutionArray, args: ExecutionValue[]) {
     );
   }
 
-  const startResult = getOptionalNumberArgument(
-    ".slice()",
-    args,
-    0,
-    "inicio",
-  );
+  const startResult = getOptionalNumberArgument(".slice()", args, 0, "inicio");
 
   if (!startResult.ok) {
     return createExpressionError(startResult.message);
@@ -3767,7 +3820,10 @@ function callArraySliceMethod(value: ExecutionArray, args: ExecutionValue[]) {
     return createExpressionError(endResult.message);
   }
 
-  return createExpressionValue(value.slice(startResult.value, endResult.value), {});
+  return createExpressionValue(
+    value.slice(startResult.value, endResult.value),
+    {},
+  );
 }
 
 function callArrayJoinMethod(value: ExecutionArray, args: ExecutionValue[]) {
@@ -3790,10 +3846,16 @@ function callArrayJoinMethod(value: ExecutionArray, args: ExecutionValue[]) {
 
 function callArrayMapMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
-  const callbackResult = createSafeArrayCallback(".map()", callbackArgs, variables);
+  const callbackResult = createSafeArrayCallback(
+    ".map()",
+    callbackArgs,
+    variables,
+  );
 
   if (!callbackResult.ok) {
     return callbackResult;
@@ -3816,7 +3878,9 @@ function callArrayMapMethod(
 
 function callArrayFilterMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
   const callbackResult = createSafeArrayCallback(
@@ -3848,10 +3912,16 @@ function callArrayFilterMethod(
 
 function callArrayFindMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
-  const callbackResult = createSafeArrayCallback(".find()", callbackArgs, variables);
+  const callbackResult = createSafeArrayCallback(
+    ".find()",
+    callbackArgs,
+    variables,
+  );
 
   if (!callbackResult.ok) {
     return callbackResult;
@@ -3874,10 +3944,16 @@ function callArrayFindMethod(
 
 function callArraySomeMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
-  const callbackResult = createSafeArrayCallback(".some()", callbackArgs, variables);
+  const callbackResult = createSafeArrayCallback(
+    ".some()",
+    callbackArgs,
+    variables,
+  );
 
   if (!callbackResult.ok) {
     return callbackResult;
@@ -3900,7 +3976,9 @@ function callArraySomeMethod(
 
 function callArrayEveryMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
   const callbackResult = createSafeArrayCallback(
@@ -3931,7 +4009,9 @@ function callArrayEveryMethod(
 function callArrayReduceMethod(
   value: ExecutionArray,
   _args: ExecutionValue[],
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
   if (callbackArgs.length < 1 || callbackArgs.length > 2) {
@@ -4004,7 +4084,9 @@ function callArrayReduceMethod(
 
 function callArraySortMethod(
   value: ExecutionArray,
-  callbackArgs: CallExpression["arguments"] | OptionalCallExpression["arguments"],
+  callbackArgs:
+    | CallExpression["arguments"]
+    | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
 ) {
   if (callbackArgs.length > 1) {
@@ -4019,7 +4101,11 @@ function callArraySortMethod(
     return createExpressionValue(value, {});
   }
 
-  const callbackResult = createSafeArrayCallback(".sort()", callbackArgs, variables);
+  const callbackResult = createSafeArrayCallback(
+    ".sort()",
+    callbackArgs,
+    variables,
+  );
 
   if (!callbackResult.ok) {
     return callbackResult;
@@ -4056,9 +4142,7 @@ function createSafeArrayCallback(
   methodName: string,
   args: CallExpression["arguments"] | OptionalCallExpression["arguments"],
   variables: ExecutionVariables,
-):
-  | { ok: true; callback: SafeArrayCallback }
-  | { ok: false; message: string } {
+): { ok: true; callback: SafeArrayCallback } | { ok: false; message: string } {
   if (args.length !== 1) {
     return {
       ok: false,

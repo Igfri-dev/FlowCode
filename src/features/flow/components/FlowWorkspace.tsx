@@ -150,8 +150,10 @@ export function FlowWorkspace({
     handlePauseExecution,
     handleResetExecution,
     handleRunExecution,
+    handleInstantExecution,
     handleStepExecution,
     isAutoExecutionActive,
+    isInstantExecutionActive,
     renderedEdges,
     resetExecutionForDiagram,
     setIsAutoRunning,
@@ -805,8 +807,8 @@ export function FlowWorkspace({
             id="workspace-canvas"
             className="workspace-canvas flex h-[min(76vh,840px)] min-h-[600px] min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40"
           >
-            <div className="canvas-header border-b border-slate-200 bg-slate-50/80 p-4">
-              <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="canvas-header flex min-w-0 flex-nowrap items-center gap-3 overflow-x-auto border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+              <div className="canvas-heading flex shrink-0 items-center gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span
                     aria-hidden="true"
@@ -814,7 +816,7 @@ export function FlowWorkspace({
                   >
                     <FlowActionIcon action="diagram" />
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 max-w-52">
                     <p className="truncate text-sm font-semibold text-slate-900">
                       {t("flow.diagram")} {activeDiagramName}
                     </p>
@@ -823,11 +825,8 @@ export function FlowWorkspace({
                     </p>
                   </div>
                 </div>
-                <span className="workspace-pill shrink-0 border border-slate-200 bg-white text-slate-600">
-                  {t("flow.blockCount", { count: nodes.length })}
-                </span>
               </div>
-              <div className="canvas-toolbar mt-3 flex min-w-0 flex-wrap items-center gap-2">
+              <div className="canvas-toolbar ml-auto flex shrink-0 flex-nowrap items-center gap-1.5">
                 {!isReviewMode ? (
                   <div
                     role="group"
@@ -847,7 +846,7 @@ export function FlowWorkspace({
                           ? "Deshacer (Ctrl/Cmd+Z)"
                           : "Undo (Ctrl/Cmd+Z)"
                       }
-                      className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                      className="fc-button fc-button--secondary !px-2 !text-xs"
                     >
                       <FlowActionIcon action="undo" />
                       {language === "es" ? "Deshacer" : "Undo"}
@@ -861,7 +860,7 @@ export function FlowWorkspace({
                           ? "Rehacer (Ctrl/Cmd+Shift+Z)"
                           : "Redo (Ctrl/Cmd+Shift+Z)"
                       }
-                      className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                      className="fc-button fc-button--secondary !px-2 !text-xs"
                     >
                       <FlowActionIcon action="redo" />
                       {language === "es" ? "Rehacer" : "Redo"}
@@ -880,7 +879,7 @@ export function FlowWorkspace({
                   <button
                     type="button"
                     onClick={handleImportJsonButtonClick}
-                    className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                    className="fc-button fc-button--secondary !px-2 !text-xs"
                   >
                     <FlowActionIcon action="import" />
                     {t("flow.importJson")}
@@ -888,7 +887,7 @@ export function FlowWorkspace({
                   <button
                     type="button"
                     onClick={handleOpenExportModal}
-                    className="fc-button fc-button--secondary !px-2.5 !text-xs"
+                    className="fc-button fc-button--secondary !px-2 !text-xs"
                   >
                     <FlowActionIcon action="export" />
                     {t("flow.export")}
@@ -898,7 +897,7 @@ export function FlowWorkspace({
                   type="button"
                   onClick={handleClearActiveDiagram}
                   disabled={!hasActiveDiagramContent}
-                  className="fc-button fc-button--danger !px-2.5 !text-xs"
+                  className="fc-button fc-button--danger !px-2 !text-xs"
                 >
                   <FlowActionIcon action="clear" />
                   {t("flow.clear")}
@@ -906,15 +905,20 @@ export function FlowWorkspace({
                 <FlowExecutionPanel
                   executionState={executionState}
                   isAutoRunning={isAutoExecutionActive}
+                  isInstantRunning={isInstantExecutionActive}
                   onStep={handleStepExecution}
                   onRun={handleRunExecution}
+                  onInstant={handleInstantExecution}
                   onPause={handlePauseExecution}
                   onReset={handleResetExecution}
                 />
               </div>
+              <span className="workspace-pill shrink-0 border border-slate-200 bg-white text-slate-600">
+                {t("flow.blockCount", { count: nodes.length })}
+              </span>
             </div>
 
-            <div className="min-h-0 flex-1 bg-neutral-100">
+            <div className="canvas-body min-h-0 flex-1 bg-neutral-100">
               <FlowNodeRenderProvider value={flowNodeRenderContextValue}>
                 <FlowEditor
                   editorShellRef={editorShellRef}
@@ -1019,9 +1023,11 @@ export function FlowWorkspace({
                         <FlowExecutionPanel
                           executionState={executionState}
                           isAutoRunning={isAutoExecutionActive}
+                          isInstantRunning={isInstantExecutionActive}
                           layout="vertical"
                           onStep={handleStepExecution}
                           onRun={handleRunExecution}
+                          onInstant={handleInstantExecution}
                           onPause={handlePauseExecution}
                           onReset={handleResetExecution}
                         />
@@ -1071,7 +1077,10 @@ export function FlowWorkspace({
                       label: t("flow.outputsPanel"),
                       buttonLabel: "s",
                       children: (
-                        <FlowOutputPanel outputs={executionState.outputs} />
+                        <FlowOutputPanel
+                          outputs={executionState.outputs}
+                          totalCount={executionState.outputCount}
+                        />
                       ),
                     },
                     {
@@ -1081,6 +1090,7 @@ export function FlowWorkspace({
                       children: (
                         <FlowExecutionHistoryPanel
                           history={executionState.history}
+                          totalSteps={executionState.stepCount}
                         />
                       ),
                     },
@@ -1139,8 +1149,14 @@ export function FlowWorkspace({
 
         <aside className="order-3 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
           <FlowVariablesPanel variables={executionState.variables} />
-          <FlowOutputPanel outputs={executionState.outputs} />
-          <FlowExecutionHistoryPanel history={executionState.history} />
+          <FlowOutputPanel
+            outputs={executionState.outputs}
+            totalCount={executionState.outputCount}
+          />
+          <FlowExecutionHistoryPanel
+            history={executionState.history}
+            totalSteps={executionState.stepCount}
+          />
         </aside>
       </section>
       <FlowExportModal

@@ -165,7 +165,8 @@ body {
 
 .canvas-toolbar-group {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -175,6 +176,15 @@ body {
   background: #ffffff;
   padding: 4px;
   box-shadow: 0 1px 3px rgb(15 23 42 / 0.04);
+}
+
+.canvas-toolbar > .fc-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.canvas-toolbar-group .fc-button {
+  white-space: nowrap;
 }
 
 .canvas-toolbar .flow-execution-controls {
@@ -207,7 +217,8 @@ body {
 
 @media (max-width: 639px) {
   .app-content { padding: 24px var(--workspace-gutter) 32px; }
-  .workspace-canvas { min-height: 620px; }
+  .workspace-canvas { height: auto; min-height: 620px; }
+  .workspace-canvas > .canvas-body { min-height: 360px; flex: 1 0 360px; }
 }
 
 @media (max-width: 359px) {
