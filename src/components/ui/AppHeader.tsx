@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { SessionUser } from "@/lib/auth";
-import logoImage from "../../app/logo.png";
+import logoImage from "../../../public/brand/flowcode-logo-v4-long-arrow.png";
 
 type AppHeaderProps = {
   user: SessionUser;
@@ -40,14 +40,19 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
           aria-label={es ? "FlowCode, abrir editor" : "FlowCode, open editor"}
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-4"
         >
-          <Image
-            src={logoImage}
-            alt=""
-            aria-hidden="true"
-            className="h-9 w-12 shrink-0 rounded-lg object-contain sm:h-10 sm:w-14"
-            preload
-          />
-          <div className="min-w-0">
+          <span className="relative block h-12 w-24 shrink-0 overflow-hidden sm:h-14 sm:w-28">
+            <Image
+              src={logoImage}
+              alt=""
+              aria-hidden="true"
+              fill
+              sizes="(min-width: 640px) 112px, 96px"
+              className="object-contain"
+              unoptimized
+              preload
+            />
+          </span>
+          <div className="hidden min-w-0 sm:block">
             <span className="block text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
               FlowCode
             </span>

@@ -701,42 +701,12 @@ export function FlowWorkspace({
 
   return (
     <div className="flow-workspace flex w-full min-w-0 flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="workspace-eyebrow text-emerald-700">
-            {isReviewMode
-              ? language === "es"
-                ? "REVISIÓN"
-                : "REVIEW"
-              : "WORKSPACE"}
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
-            {project?.title ??
-              editingSubmission?.title ??
-              (language === "es" ? "Editor de algoritmos" : "Algorithm editor")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {language === "es"
-              ? "Construye, conecta y comprende cada paso."
-              : "Build, connect, and understand every step."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="workspace-pill border border-slate-200 bg-white text-slate-600">
-            <span
-              aria-hidden="true"
-              className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
-            />
-            JavaScript
-          </span>
-          <a
-            href="#workspace-blocks"
-            className="fc-button fc-button--secondary lg:hidden"
-          >
-            {language === "es" ? "Agregar bloques" : "Add blocks"}
-          </a>
-        </div>
-      </header>
+      <h1 className={project?.title || editingSubmission?.title
+        ? "text-xl font-semibold tracking-tight text-slate-900"
+        : "sr-only"}>
+        {project?.title ?? editingSubmission?.title ??
+          (language === "es" ? "Editor de algoritmos" : "Algorithm editor")}
+      </h1>
       <input
         ref={importJsonInputRef}
         type="file"
@@ -792,6 +762,12 @@ export function FlowWorkspace({
             className="workspace-canvas flex h-[var(--workspace-canvas-height)] min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40"
           >
             <div className="canvas-header flex min-w-0 flex-nowrap items-center gap-3 overflow-x-auto border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+              <a
+                href="#workspace-blocks"
+                className="fc-button fc-button--secondary shrink-0 lg:hidden"
+              >
+                {language === "es" ? "Agregar bloques" : "Add blocks"}
+              </a>
               <div className="canvas-heading flex shrink-0 items-center gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span

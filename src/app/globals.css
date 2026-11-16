@@ -235,12 +235,6 @@ body {
   }
 }
 
-@media (max-width: 359px) {
-  .app-header-inner > a img {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .flow-workspace *,
   .app-shell button,
