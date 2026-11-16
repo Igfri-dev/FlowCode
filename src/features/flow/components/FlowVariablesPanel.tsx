@@ -25,7 +25,7 @@ export function FlowVariablesPanel({ variables }: FlowVariablesPanelProps) {
           {t("flow.variablesEmpty")}
         </p>
       ) : (
-        <dl className="mt-3 divide-y divide-slate-100 text-xs">
+        <dl className="fullscreen-panel-content mt-3 max-h-80 divide-y divide-slate-100 overflow-y-auto text-xs">
           {variableEntries.map(([name, value]) => (
             <div
               key={name}

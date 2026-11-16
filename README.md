@@ -409,7 +409,7 @@ headers: `nombre, usuario, contraseña, correo, tipo_de_usuario, organizacion`.
 The password may be empty. Every managed account must replace its initial or
 server-generated password on first sign-in. Teachers can only create students
 inside their own organization, and each organization has a maximum of 60
-students. Contact `contacto@igfri.dev` to request a larger capacity.
+students.
 
 Exercises created by a platform administrator belong to one global catalog and
 are available to every organization without duplicated rows. Exercises created
@@ -750,8 +750,7 @@ Administradores y profesores pueden importar un CSV UTF-8 con las columnas
 `nombre, usuario, contraseña, correo, tipo_de_usuario, organizacion`. Todos los
 usuarios gestionados deben cambiar su contraseña inicial en el primer acceso.
 Los profesores solo crean estudiantes de su organización y cada organización
-admite hasta 60 estudiantes; para ampliar el límite se debe escribir a
-`contacto@igfri.dev`.
+admite hasta 60 estudiantes.
 
 Los ejercicios creados por un administrador de la plataforma pertenecen a un
 único catálogo global y están disponibles para todas las organizaciones sin
