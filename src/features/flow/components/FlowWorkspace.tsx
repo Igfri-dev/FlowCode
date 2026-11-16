@@ -747,6 +747,14 @@ export function FlowWorkspace({
           void handleImportJsonFileChange(event);
         }}
       />
+      {!isReviewMode ? <FlowRecoveryPanel recovery={recovery} /> : null}
+      <ExerciseModePanel
+        key={selectedExercise?.id ?? "unselected"}
+        exercises={exerciseCatalog}
+        selectedExercise={selectedExercise}
+        onSelectExercise={handleSelectExercise}
+        showExerciseSelector={!isEditingSubmission}
+      />
       <section className="workspace-grid grid w-full min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[224px_minmax(0,1fr)] xl:grid-cols-[224px_minmax(0,1fr)_256px] 2xl:grid-cols-[240px_minmax(0,1fr)_280px]">
         <div
           id="workspace-blocks"
@@ -779,16 +787,9 @@ export function FlowWorkspace({
         </div>
 
         <div className="order-1 flex min-w-0 flex-col gap-4 lg:order-2">
-          {!isReviewMode ? <FlowRecoveryPanel recovery={recovery} /> : null}
-          <ExerciseModePanel
-            exercises={exerciseCatalog}
-            selectedExercise={selectedExercise}
-            onSelectExercise={handleSelectExercise}
-            showExerciseSelector={!isEditingSubmission}
-          />
           <div
             id="workspace-canvas"
-            className="workspace-canvas flex h-[min(76vh,840px)] min-h-[600px] min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40"
+            className="workspace-canvas flex h-[var(--workspace-canvas-height)] min-w-0 scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/40"
           >
             <div className="canvas-header flex min-w-0 flex-nowrap items-center gap-3 overflow-x-auto border-b border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="canvas-heading flex shrink-0 items-center gap-3">
@@ -1131,7 +1132,7 @@ export function FlowWorkspace({
           ) : null}
         </div>
 
-        <aside className="order-3 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
+        <aside className="workspace-results order-3 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-1 xl:flex xl:flex-col">
           <FlowVariablesPanel variables={executionState.variables} />
           <FlowOutputPanel
             outputs={executionState.outputs}

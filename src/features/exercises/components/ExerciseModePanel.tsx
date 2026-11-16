@@ -24,7 +24,7 @@ export function ExerciseModePanel({
   return (
     <section
       data-panel="exercise-selector"
-      className="workspace-panel !p-0 min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.04]"
+      className="workspace-panel !p-0 min-w-0 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.04]"
     >
       <header className="flex items-center gap-3 border-b border-slate-200/80 bg-slate-50/80 px-4 py-3">
         <span
@@ -134,66 +134,70 @@ export function ExerciseModePanel({
                 />
               </svg>
             </summary>
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              {selectedExercise.description}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-900">
-              <span className="font-semibold">{t("exercise.objective")} </span>
-              {selectedExercise.objective}
-            </p>
-            <p className="mt-3 text-xs text-slate-500">
-              <span className="font-medium text-slate-700">
-                {t("exercise.deadline")}{" "}
-              </span>
-              {selectedExercise.submissionDeadline
-                ? selectedExercise.submissionDeadline.replace("T", " ")
-                : t("exercise.noDeadline")}
-            </p>
-            {selectedExercise.testCases &&
-            selectedExercise.testCases.length > 0 ? (
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {t("exercise.expectedOutput")}
-                </p>
-                <div className="mt-2 grid gap-2">
-                  {selectedExercise.testCases.map((testCase, index) => (
-                    <div
-                      key={`${testCase.name ?? "case"}-${index}`}
-                      className="rounded-lg border border-slate-100 bg-white px-3 py-2.5 text-xs text-slate-600"
-                    >
-                      <p className="font-semibold text-slate-800">
-                        {testCase.name ?? `#${index + 1}`}
-                      </p>
-                      <p className="mt-1">
-                        <span className="font-medium">
-                          {t("exercise.testInput")}:
-                        </span>{" "}
-                        {testCase.inputs && testCase.inputs.length > 0
-                          ? testCase.inputs.map(formatTestValue).join(", ")
-                          : t("exercise.noInput")}
-                      </p>
-                      <div className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-slate-950 px-3 py-2 font-mono text-[11px] leading-5 text-emerald-300">
-                        {testCase.expectedOutputs.length > 0
-                          ? testCase.expectedOutputs.join("\n")
-                          : "—"}
+            <div>
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                {selectedExercise.description}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-900">
+                <span className="font-semibold">
+                  {t("exercise.objective")}{" "}
+                </span>
+                {selectedExercise.objective}
+              </p>
+              <p className="mt-3 text-xs text-slate-500">
+                <span className="font-medium text-slate-700">
+                  {t("exercise.deadline")}{" "}
+                </span>
+                {selectedExercise.submissionDeadline
+                  ? selectedExercise.submissionDeadline.replace("T", " ")
+                  : t("exercise.noDeadline")}
+              </p>
+              {selectedExercise.testCases &&
+              selectedExercise.testCases.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {t("exercise.expectedOutput")}
+                  </p>
+                  <div className="mt-2 grid gap-2">
+                    {selectedExercise.testCases.map((testCase, index) => (
+                      <div
+                        key={`${testCase.name ?? "case"}-${index}`}
+                        className="rounded-lg border border-slate-100 bg-white px-3 py-2.5 text-xs text-slate-600"
+                      >
+                        <p className="font-semibold text-slate-800">
+                          {testCase.name ?? `#${index + 1}`}
+                        </p>
+                        <p className="mt-1">
+                          <span className="font-medium">
+                            {t("exercise.testInput")}:
+                          </span>{" "}
+                          {testCase.inputs && testCase.inputs.length > 0
+                            ? testCase.inputs.map(formatTestValue).join(", ")
+                            : t("exercise.noInput")}
+                        </p>
+                        <div className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-slate-950 px-3 py-2 font-mono text-[11px] leading-5 text-emerald-300">
+                          {testCase.expectedOutputs.length > 0
+                            ? testCase.expectedOutputs.join("\n")
+                            : "—"}
+                        </div>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {selectedExercise.tags && selectedExercise.tags.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {selectedExercise.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500"
+                    >
+                      {tag}
+                    </span>
                   ))}
                 </div>
-              </div>
-            ) : null}
-            {selectedExercise.tags && selectedExercise.tags.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {selectedExercise.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </details>
         ) : (
           <p className="mt-2 text-xs leading-5 text-slate-400">

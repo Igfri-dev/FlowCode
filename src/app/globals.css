@@ -50,7 +50,32 @@ body {
 }
 
 .workspace-grid {
+  --workspace-canvas-height: clamp(600px, 76vh, 840px);
   column-gap: var(--workspace-gutter);
+}
+
+@media (min-width: 1024px) {
+  .workspace-library {
+    max-height: var(--workspace-canvas-height);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  .workspace-library > * {
+    flex-shrink: 0;
+  }
+}
+
+@media (min-width: 1280px) {
+  .workspace-results {
+    max-height: var(--workspace-canvas-height);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  .workspace-results > * {
+    flex-shrink: 0;
+  }
 }
 
 @layer components {
