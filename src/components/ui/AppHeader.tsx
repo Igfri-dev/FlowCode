@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useI18n } from "@/features/i18n/I18nProvider";
 import type { SessionUser } from "@/lib/auth";
 import logoImage from "../../../public/brand/flowcode-logo-v4-long-arrow.png";
+import { AppHelp } from "./AppHelp";
 
 type AppHeaderProps = {
   user: SessionUser;
@@ -34,7 +35,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl">
-      <div className="app-header-inner flex h-16 w-full items-center justify-between gap-3 px-3 sm:h-[72px] sm:px-5 lg:px-6">
+      <div className="app-header-inner flex h-16 w-full items-center justify-between gap-2 !px-3 sm:h-[72px] sm:gap-3 sm:!px-5 lg:!px-6">
         <Link
           href="/"
           aria-label={es ? "FlowCode, abrir editor" : "FlowCode, open editor"}
@@ -61,7 +62,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
             </span>
           </div>
         </Link>
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <div className="mr-2 hidden min-w-0 items-center gap-2.5 border-r border-slate-200 pr-4 lg:flex">
             <span
               aria-hidden="true"
@@ -93,6 +94,7 @@ export function AppHeader({ user, onLogout }: AppHeaderProps) {
               {es ? "Verificar correo" : "Verify email"}
             </Link>
           ) : null}
+          <AppHelp />
           <Link
             href={destination.href}
             title={destination.label}
