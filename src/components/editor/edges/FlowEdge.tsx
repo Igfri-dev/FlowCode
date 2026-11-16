@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useId, useState } from "react";
 import {
   BaseEdge,
   EdgeText,
@@ -13,6 +13,10 @@ import {
   getEdgeBridgeRenderData,
   type EdgeBridgeRenderData,
 } from "./edge-bridges";
+import {
+  useFlowEdgeRouting,
+  useSharedTrunkAppearance,
+} from "./useFlowEdgeRouting";
 
 const defaultEdgeStroke = "#525252";
 const defaultEdgeStrokeWidth = 3;
@@ -25,11 +29,10 @@ export type EdgeBridgeRenderState = {
   revision: string;
 };
 
-export const EdgeBridgeRenderContext =
-  createContext<EdgeBridgeRenderState>({
-    disabled: false,
-    revision: "0",
-  });
+export const EdgeBridgeRenderContext = createContext<EdgeBridgeRenderState>({
+  disabled: false,
+  revision: "0",
+});
 
 export function FlowEdge({
   id,
@@ -53,7 +56,12 @@ export function FlowEdge({
   labelBgBorderRadius,
 }: EdgeProps<FlowEditorEdge>) {
   const bridgeRenderState = useContext(EdgeBridgeRenderContext);
-  const [edgePath, labelX, labelY] = getFlowEdgePath({
+  const route = useFlowEdgeRouting(id);
+  const trunkAppearance = useSharedTrunkAppearance(
+    route?.trunk ? route.sharedEdgeIds : undefined,
+  );
+  const trunkMarkerId = `flow-join-${useId().replace(/:/g, "")}`;
+  const [fallbackPath, fallbackLabelX, fallbackLabelY] = getFlowEdgePath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -61,10 +69,14 @@ export function FlowEdge({
     targetY,
     targetPosition,
   });
+  const edgePath = route?.path ?? fallbackPath;
+  const visiblePath = route?.branch?.path ?? edgePath;
+  const labelX = route?.branch?.labelX ?? route?.labelX ?? fallbackLabelX;
+  const labelY = route?.branch?.labelY ?? route?.labelY ?? fallbackLabelY;
   const [bridgeRenderData, setBridgeRenderData] =
     useState<EdgeBridgeRenderData>({
       bridgePoints: [],
-      displayPath: edgePath,
+      displayPath: visiblePath,
     });
   const stroke =
     typeof style?.stroke === "string"
@@ -79,8 +91,18 @@ export function FlowEdge({
   const displayPath =
     !bridgeRenderState.disabled && bridgeRenderData.bridgePoints.length > 0
       ? bridgeRenderData.displayPath
-      : edgePath;
+      : visiblePath;
   const displayStrokeWidth = selected ? strokeWidth + 1.5 : strokeWidth;
+  const trunkStroke = trunkAppearance?.selected
+    ? selectedEdgeStroke
+    : typeof trunkAppearance?.style?.stroke === "string"
+      ? trunkAppearance.style.stroke
+      : stroke;
+  const trunkStrokeWidth =
+    typeof trunkAppearance?.style?.strokeWidth === "number"
+      ? trunkAppearance.style.strokeWidth
+      : strokeWidth;
+  const mergeGroup = route?.sharedEdgeIds?.join("|");
 
   useEffect(() => {
     if (bridgeRenderState.disabled) {
@@ -90,27 +112,24 @@ export function FlowEdge({
     const animationFrameId = window.requestAnimationFrame(() => {
       const nextBridgeRenderData = getEdgeBridgeRenderData({
         currentEdgeId: id,
-        fallbackPath: edgePath,
+        fallbackPath: visiblePath,
       });
 
       setBridgeRenderData((previousBridgeRenderData) =>
-        areBridgeRenderDataEqual(
-          previousBridgeRenderData,
-          nextBridgeRenderData,
-        )
+        areBridgeRenderDataEqual(previousBridgeRenderData, nextBridgeRenderData)
           ? previousBridgeRenderData
           : nextBridgeRenderData,
       );
     });
 
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [bridgeRenderState.disabled, bridgeRenderState.revision, edgePath, id]);
+  }, [bridgeRenderState.disabled, bridgeRenderState.revision, visiblePath, id]);
 
   return (
     <>
       {selected ? (
         <path
-          d={displayPath}
+          d={route?.branch ? edgePath : displayPath}
           fill="none"
           stroke={selectedEdgeHalo}
           strokeLinecap="round"
@@ -122,9 +141,6 @@ export function FlowEdge({
       <BaseEdge
         id={id}
         path={edgePath}
-        data-flow-edge-path={id}
-        data-flow-edge-source={source}
-        data-flow-edge-target={target}
         interactionWidth={34}
         style={{
           ...style,
@@ -135,11 +151,22 @@ export function FlowEdge({
         }}
       />
       <path
+        d={visiblePath}
+        data-flow-edge-path={id}
+        data-flow-edge-source={source}
+        data-flow-edge-target={target}
+        data-flow-edge-merge-group={mergeGroup}
+        fill="none"
+        stroke="transparent"
+        pointerEvents="none"
+        aria-hidden="true"
+      />
+      <path
         className="react-flow__edge-path"
         d={displayPath}
         fill="none"
         markerStart={markerStart}
-        markerEnd={markerEnd}
+        markerEnd={route?.branch ? undefined : markerEnd}
         stroke={stroke}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -150,6 +177,52 @@ export function FlowEdge({
         }}
         pointerEvents="none"
       />
+      {route?.trunk ? (
+        <>
+          <defs>
+            <marker
+              id={trunkMarkerId}
+              markerWidth="12.5"
+              markerHeight="12.5"
+              viewBox="-10 -10 20 20"
+              markerUnits="strokeWidth"
+              orient="auto-start-reverse"
+              refX="0"
+              refY="0"
+            >
+              <polyline
+                points="-5,-4 0,0 -5,4 -5,-4"
+                stroke={trunkStroke}
+                fill={trunkStroke}
+                strokeWidth="1"
+                strokeLinejoin="round"
+              />
+            </marker>
+          </defs>
+          <path
+            d={route.trunk.path}
+            data-flow-edge-path={`${id}:trunk`}
+            data-flow-edge-merge-group={mergeGroup}
+            fill="none"
+            stroke={trunkStroke}
+            strokeWidth={trunkStrokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            markerEnd={markerEnd ? `url(#${trunkMarkerId})` : undefined}
+            pointerEvents="none"
+          />
+          {route.junctions?.map((point) => (
+            <circle
+              key={`${point.x}:${point.y}`}
+              cx={point.x}
+              cy={point.y}
+              r={trunkStrokeWidth + 0.5}
+              fill={trunkStroke}
+              pointerEvents="none"
+            />
+          ))}
+        </>
+      ) : null}
       <EdgeText
         x={labelX}
         y={labelY}

@@ -82,6 +82,13 @@ export function getEdgeBridgeRenderData({
       continue;
     }
 
+    // Members of a convergence share a physical junction and trunk. Crossing
+    // bridges here would incorrectly depict their intended union as a jump.
+    const mergeGroup = currentPath.dataset.flowEdgeMergeGroup;
+    if (mergeGroup && mergeGroup === otherPath.dataset.flowEdgeMergeGroup) {
+      continue;
+    }
+
     // Draw only on the edge that is already above the other edge in the SVG.
     if (currentPathIndex < otherPathIndex) {
       continue;

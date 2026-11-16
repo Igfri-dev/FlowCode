@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -17,6 +18,7 @@ import {
   type FlowCodeGenerationResult,
 } from "@/features/flow/codegen";
 import { importJavaScriptToFlow } from "@/features/flow/parser";
+import { applySmartFlowLayout } from "@/features/flow/auto-layout";
 import type { useI18n } from "@/features/i18n/I18nProvider";
 import type {
   ImportedFlowFunctionDefinition,
@@ -107,6 +109,41 @@ export function useFlowImportExport({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const pendingMeasuredLayouts = useRef(new Map<string, FlowEditorNode[]>());
+
+  useEffect(() => {
+    const importedNodes = pendingMeasuredLayouts.current.get(activeDiagramId);
+    if (!importedNodes) return;
+
+    // Refine only freshly imported JavaScript, once React Flow knows the real
+    // form sizes. Never rearrange imported JSON or a diagram the user has edited.
+    if (
+      nodes.length !== importedNodes.length ||
+      nodes.some((node, index) => {
+        const original = importedNodes[index];
+        return node.id !== original.id ||
+          node.data.config !== original.data.config ||
+          node.position.x !== original.position.x ||
+          node.position.y !== original.position.y;
+      })
+    ) {
+      pendingMeasuredLayouts.current.delete(activeDiagramId);
+      return;
+    }
+    if (nodes.some((node) => !node.measured?.width || !node.measured.height)) return;
+
+    pendingMeasuredLayouts.current.delete(activeDiagramId);
+    const diagram = getDiagramById(currentProgram, activeDiagramId);
+    const layout = applySmartFlowLayout({ nodes, edges: diagram.edges });
+    setNodes(layout.nodes);
+    if (activeDiagramId === "main") {
+      setMainDiagram(layout);
+    } else {
+      setFunctions((current) => current.map((flowFunction) =>
+        flowFunction.id === activeDiagramId ? { ...flowFunction, ...layout } : flowFunction,
+      ));
+    }
+  }, [activeDiagramId, currentProgram, nodes, setFunctions, setMainDiagram, setNodes]);
 
   const resetCodeGeneration = useCallback(() => {
     setCodeGenerationResult(initialCodeGenerationResult);
@@ -140,6 +177,12 @@ export function useFlowImportExport({
       nodes: importedNodes,
       edges: importResult.edges,
     };
+    pendingMeasuredLayouts.current = new Map([
+      ["main", importedNodes],
+      ...importedFunctions.map((flowFunction): [string, FlowEditorNode[]] =>
+        [flowFunction.id, flowFunction.nodes],
+      ),
+    ]);
     const importedNodeCount =
       importResult.nodes.length +
       importResult.functions.reduce(
@@ -285,6 +328,7 @@ export function useFlowImportExport({
         }
 
         const applyImport = () => {
+          pendingMeasuredLayouts.current.clear();
           const nextProgram = importedDiagram.program;
           const nextActiveDiagramId = getImportActiveDiagramId(
             importedDiagram.activeDiagramId,

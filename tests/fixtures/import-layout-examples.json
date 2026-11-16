@@ -1,0 +1,752 @@
+[
+  {
+    "name": "Cajero con validaciones",
+    "code": "// Codigo generado desde FlowCode\n\nasync function validarRetiro(saldo, monto) {\n  if (monto <= 0) {\n    return \"monto invalido\";\n  } else {\n    if (monto > saldo) {\n      return \"saldo insuficiente\";\n    } else {\n      if (monto % 1000 !== 0) {\n        return \"multiplo invalido\";\n      } else {\n        return \"aprobado\";\n      }\n    }\n  }\n}\n\nasync function main() {\n  let saldo = 50000;\n  let monto = 18000;\n  let estado;\n  estado = await validarRetiro(saldo, monto);\n  switch (estado) {\n    case \"aprobado\":\n      saldo -= monto;\n      console.log(\"Retiro aprobado. Saldo: \" + saldo);\n      break;\n    case \"saldo insuficiente\":\n      console.log(\"No alcanza el saldo disponible\");\n      break;\n    case \"multiplo invalido\":\n      console.log(\"El monto debe ser multiplo de 1000\");\n      break;\n    default:\n      console.log(\"Monto invalido\");\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 61
+        },
+        "import-functionCall-5": {
+          "width": 192,
+          "height": 123
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-8": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-9": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-10": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-11": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-12": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-13": {
+          "width": 313,
+          "height": 135
+        },
+        "import-decision-14": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-15": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-16": {
+          "width": 208,
+          "height": 144
+        },
+        "import-end-17": {
+          "width": 160,
+          "height": 48
+        }
+      },
+      "validarRetiro": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-decision-2": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-3": {
+          "width": 203,
+          "height": 78
+        },
+        "import-decision-4": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-5": {
+          "width": 203,
+          "height": 78
+        },
+        "import-decision-6": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-7": {
+          "width": 203,
+          "height": 78
+        },
+        "import-return-8": {
+          "width": 203,
+          "height": 78
+        }
+      }
+    }
+  },
+  {
+    "name": "Contar del 1 al 5",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  for (let i = 1; i <= 5; i++) {\n    console.log(i);\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-3": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-4": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-5": {
+          "width": 188,
+          "height": 61
+        },
+        "import-end-6": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Cotizacion de envio",
+    "code": "// Codigo generado desde FlowCode\n\nasync function calcularEnvio(kilos, zona) {\n  let base = Math.ceil(kilos) * 1200;\n  switch (zona) {\n    case \"norte\":\n      return base + 3500;\n    case \"sur\":\n      return base + 2500;\n    case \"centro\":\n      return base + 1500;\n    default:\n      return base + 5000;\n  }\n}\n\nasync function main() {\n  let pedido = { subtotal: 42000, kilos: 3.4, zona: \"sur\", cupon: 0.15 };\n  let envio;\n  envio = await calcularEnvio(pedido.kilos, pedido.zona);\n  let descuento = pedido.subtotal * pedido.cupon;\n  let total = pedido.subtotal + envio - descuento;\n  console.log(\"Total: \" + Math.round(total));\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 121
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-functionCall-4": {
+          "width": 192,
+          "height": 123
+        },
+        "import-process-5": {
+          "width": 188,
+          "height": 101
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 101
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-8": {
+          "width": 160,
+          "height": 48
+        }
+      },
+      "calcularEnvio": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 101
+        },
+        "import-return-3": {
+          "width": 203,
+          "height": 78
+        },
+        "import-return-4": {
+          "width": 203,
+          "height": 78
+        },
+        "import-return-5": {
+          "width": 203,
+          "height": 78
+        },
+        "import-return-6": {
+          "width": 203,
+          "height": 78
+        },
+        "import-decision-7": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-8": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-9": {
+          "width": 208,
+          "height": 144
+        }
+      }
+    }
+  },
+  {
+    "name": "Intentos de acceso",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let intento = 1;\n  let clave = \"1234\";\n  let claveIngresada = \"0000\";\n  let acceso = false;\n  while (claveIngresada === clave) {\n    acceso = true;\n    console.log(\"Acceso permitido\");\n    intento++;\n    do {\n      // Se detectó un retorno hacia \"claveIngresada === clave\".\n    } while (!acceso && intento <= 3);\n    if (!acceso) {\n      console.log(\"Cuenta bloqueada\");\n    } else {\n    }\n    // Fin del programa.\n  }\n  console.log(\"Intento \" + intento + \" fallido\");\n  claveIngresada = intento === 2 ? \"1234\" : \"1111\";\n  // \"intento++\" ya fue generado antes.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 81
+        },
+        "import-process-5": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-6": {
+          "width": 208,
+          "height": 144
+        },
+        "import-process-7": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-8": {
+          "width": 313,
+          "height": 135
+        },
+        "import-output-9": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-10": {
+          "width": 188,
+          "height": 101
+        },
+        "import-process-11": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-12": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-13": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-14": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-15": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Menu de operaciones",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let operacion = \"multiplicar\";\n  let a = 12;\n  let b = 4;\n  switch (operacion) {\n    case \"sumar\":\n      console.log(a + b);\n      break;\n    case \"restar\":\n      console.log(a - b);\n      break;\n    case \"multiplicar\":\n      console.log(a * b);\n      break;\n    case \"dividir\":\n      console.log(a / b);\n      break;\n    default:\n      console.log(\"Operacion no valida\");\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 81
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-5": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-8": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-9": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-10": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-11": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-12": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-13": {
+          "width": 313,
+          "height": 135
+        },
+        "import-decision-14": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-15": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-16": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-17": {
+          "width": 208,
+          "height": 144
+        },
+        "import-end-18": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Normalizar perfil de usuario",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let usuario = { nombre: \"  Ana \", perfil: { nivel: \"admin\" } };\n  let nombreLimpio = usuario.nombre.trim();\n  let nivel = usuario.perfil?.nivel ?? \"invitado\";\n  console.log(\"Usuario \" + nombreLimpio + \" - \" + nivel.toUpperCase());\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 121
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 101
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 101
+        },
+        "import-output-5": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-6": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Numero primo con funcion",
+    "code": "// Codigo generado desde FlowCode\n\nasync function esPrimo(numero) {\n  if (numero < 2) {\n    return false;\n  } else {\n    for (let divisor = 2; divisor * divisor <= numero; divisor++) {\n      while (!(numero % divisor === 0)) {\n        // \"divisor++\" ya fue generado antes.\n      }\n      return false;\n    }\n    return true;\n  }\n}\n\nasync function main() {\n  let numero = 29;\n  let primo;\n  primo = await esPrimo(numero);\n  if (primo) {\n    console.log(numero + \" es primo\");\n  } else {\n    console.log(numero + \" no es primo\");\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-functionCall-4": {
+          "width": 192,
+          "height": 123
+        },
+        "import-decision-5": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-6": {
+          "width": 313,
+          "height": 135
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-8": {
+          "width": 160,
+          "height": 48
+        }
+      },
+      "esPrimo": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-decision-2": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-3": {
+          "width": 203,
+          "height": 78
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-5": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-6": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-7": {
+          "width": 203,
+          "height": 78
+        },
+        "import-process-8": {
+          "width": 188,
+          "height": 61
+        },
+        "import-return-9": {
+          "width": 203,
+          "height": 78
+        }
+      }
+    }
+  },
+  {
+    "name": "Positivo, negativo o cero",
+    "code": "// Codigo generado desde FlowCode\n\nasync function leerEntrada(mensaje, tipo = \"text\") {\n  const valor = prompt(mensaje);\n  if (tipo === \"number\") return Number(valor);\n  if (tipo === \"boolean\") return valor === \"true\" || valor === \"si\";\n  return valor ?? \"\";\n}\n\nasync function main() {\n  let numero = await leerEntrada(\"Ingresa un numero\", \"number\");\n  if (numero > 0) {\n    console.log(\"Positivo\");\n  } else {\n    if (numero < 0) {\n      console.log(\"Negativo\");\n    } else {\n      console.log(\"Cero\");\n    }\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-input-2": {
+          "width": 176,
+          "height": 127
+        },
+        "import-decision-3": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-4": {
+          "width": 313,
+          "height": 135
+        },
+        "import-decision-5": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-6": {
+          "width": 313,
+          "height": 135
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-8": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Reporte de notas",
+    "code": "// Codigo generado desde FlowCode\n\nasync function calcularPromedio(notas) {\n  let suma = 0;\n  for (let i = 0; i < notas.length; i++) {\n    suma += notas[i];\n  }\n  return suma / notas.length;\n}\n\nasync function clasificarPromedio(promedio) {\n  if (promedio >= 6) {\n    return \"excelente\";\n  } else {\n    if (promedio >= 4) {\n      return \"aprueba\";\n    } else {\n      return \"riesgo\";\n    }\n  }\n}\n\nasync function main() {\n  let notas = [5, 6, 4, 7];\n  let promedio;\n  promedio = await calcularPromedio(notas);\n  let categoria;\n  categoria = await clasificarPromedio(promedio);\n  switch (categoria) {\n    case \"excelente\":\n      console.log(\"Promedio \" + promedio + \": felicitar\");\n      break;\n    case \"aprueba\":\n      console.log(\"Promedio \" + promedio + \": reforzar\");\n      break;\n    default:\n      console.log(\"Promedio \" + promedio + \": plan de apoyo\");\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 81
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-functionCall-4": {
+          "width": 192,
+          "height": 123
+        },
+        "import-process-5": {
+          "width": 188,
+          "height": 61
+        },
+        "import-functionCall-6": {
+          "width": 192,
+          "height": 123
+        },
+        "import-output-7": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-8": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-9": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-10": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-11": {
+          "width": 313,
+          "height": 135
+        },
+        "import-decision-12": {
+          "width": 208,
+          "height": 144
+        },
+        "import-decision-13": {
+          "width": 208,
+          "height": 144
+        },
+        "import-end-14": {
+          "width": 160,
+          "height": 48
+        }
+      },
+      "calcularPromedio": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-4": {
+          "width": 208,
+          "height": 144
+        },
+        "import-process-5": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 61
+        },
+        "import-return-7": {
+          "width": 203,
+          "height": 78
+        }
+      },
+      "clasificarPromedio": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-decision-2": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-3": {
+          "width": 203,
+          "height": 78
+        },
+        "import-decision-4": {
+          "width": 208,
+          "height": 144
+        },
+        "import-return-5": {
+          "width": 203,
+          "height": 78
+        },
+        "import-return-6": {
+          "width": 203,
+          "height": 78
+        }
+      }
+    }
+  },
+  {
+    "name": "Sumar numeros de 1 a N",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let n = 5;\n  let suma = 0;\n  for (let i = 1; i <= n; i++) {\n    suma = suma + i;\n  }\n  console.log(\"La suma es \" + suma);\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-4": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-5": {
+          "width": 208,
+          "height": 144
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-7": {
+          "width": 188,
+          "height": 61
+        },
+        "import-output-8": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-9": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Tabla de multiplicar",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let numero = 7;\n  for (let i = 1; i <= 10; i++) {\n    console.log(`${numero} x ${i} = ${numero * i}`);\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-process-3": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-4": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-5": {
+          "width": 313,
+          "height": 135
+        },
+        "import-process-6": {
+          "width": 188,
+          "height": 61
+        },
+        "import-end-7": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  },
+  {
+    "name": "Verificar si un numero es par",
+    "code": "// Codigo generado desde FlowCode\n\nasync function main() {\n  let numero = 8;\n  if (numero % 2 === 0) {\n    console.log(\"El numero es par\");\n  } else {\n    console.log(\"El numero es impar\");\n  }\n  // Fin del programa.\n}\n\nmain();",
+    "measuredByDiagram": {
+      "main": {
+        "import-start-1": {
+          "width": 160,
+          "height": 48
+        },
+        "import-process-2": {
+          "width": 188,
+          "height": 61
+        },
+        "import-decision-3": {
+          "width": 208,
+          "height": 144
+        },
+        "import-output-4": {
+          "width": 313,
+          "height": 135
+        },
+        "import-output-5": {
+          "width": 313,
+          "height": 135
+        },
+        "import-end-6": {
+          "width": 160,
+          "height": 48
+        }
+      }
+    }
+  }
+]

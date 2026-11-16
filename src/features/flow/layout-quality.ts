@@ -1,19 +1,14 @@
-import type {
-  AutoLayoutEdge,
-  AutoLayoutNode,
+import {
+  getAutoLayoutNodeSize,
+  type AutoLayoutEdge,
+  type AutoLayoutNode,
 } from "@/features/flow/auto-layout";
-import type { FlowNodeType } from "@/types/flow";
 
 type NodeBounds = {
   bottom: number;
   left: number;
   right: number;
   top: number;
-};
-
-type NodeSize = {
-  width: number;
-  height: number;
 };
 
 export type FlowLayoutOverlap = {
@@ -34,17 +29,6 @@ export type FlowLayoutQualityReport = {
   overlaps: FlowLayoutOverlap[];
 };
 
-const fallbackNodeSizes: Record<FlowNodeType, NodeSize> = {
-  decision: { width: 210, height: 146 },
-  end: { width: 160, height: 48 },
-  functionCall: { width: 230, height: 92 },
-  input: { width: 250, height: 118 },
-  output: { width: 313, height: 135 },
-  process: { width: 210, height: 66 },
-  return: { width: 210, height: 58 },
-  start: { width: 160, height: 48 },
-};
-
 export function analyzeFlowLayout({
   edges,
   nodes,
@@ -61,9 +45,7 @@ export function analyzeFlowLayout({
   };
 }
 
-export function findNodeOverlaps(
-  nodes: AutoLayoutNode[],
-): FlowLayoutOverlap[] {
+export function findNodeOverlaps(nodes: AutoLayoutNode[]): FlowLayoutOverlap[] {
   const overlaps: FlowLayoutOverlap[] = [];
 
   for (let leftIndex = 0; leftIndex < nodes.length; leftIndex += 1) {
@@ -75,7 +57,9 @@ export function findNodeOverlaps(
       const leftNode = nodes[leftIndex];
       const rightNode = nodes[rightIndex];
 
-      if (nodeBoundsOverlap(getNodeBounds(leftNode), getNodeBounds(rightNode))) {
+      if (
+        nodeBoundsOverlap(getNodeBounds(leftNode), getNodeBounds(rightNode))
+      ) {
         overlaps.push({
           firstNodeId: leftNode.id,
           secondNodeId: rightNode.id,
@@ -121,21 +105,13 @@ export function findDecisionHandleConflicts(
 }
 
 export function getNodeBounds(node: AutoLayoutNode): NodeBounds {
-  const size = getNodeSize(node);
+  const size = getAutoLayoutNodeSize(node);
 
   return {
     bottom: node.position.y + size.height,
     left: node.position.x,
     right: node.position.x + size.width,
     top: node.position.y,
-  };
-}
-
-function getNodeSize(node: AutoLayoutNode): NodeSize {
-  return {
-    width: node.measured?.width ?? node.width ?? fallbackNodeSizes[node.type].width,
-    height:
-      node.measured?.height ?? node.height ?? fallbackNodeSizes[node.type].height,
   };
 }
 

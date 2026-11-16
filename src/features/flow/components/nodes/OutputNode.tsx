@@ -37,15 +37,20 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
 
   return (
     <div
-      className={`relative min-w-48 cursor-grab select-none rounded-md border-2 border-amber-600 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950 shadow-sm [transform:skew(-8deg)] active:cursor-grabbing ${selectionClassName} ${executionClassName}`}
+      className="relative min-w-48 cursor-grab select-none rounded-md border-2 border-transparent px-4 py-3 text-sm font-medium text-amber-950 active:cursor-grabbing"
     >
+      {/* Keep handles outside the skew so their visible and measured centers agree. */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -inset-0.5 rounded-md border-2 border-amber-600 bg-amber-50 shadow-sm [transform:skew(-8deg)] ${selectionClassName} ${executionClassName}`}
+      />
       <Handle
         id="in"
         type="target"
         position={toReactFlowPosition(inputPosition)}
-        className="!h-3 !w-3 !border-2 !border-white !bg-amber-700"
+        className="!z-10 !h-3 !w-3 !border-2 !border-white !bg-amber-700"
       />
-      <div className="[transform:skew(8deg)]">
+      <div className="relative">
         <p className="mb-2 text-center text-xs font-semibold uppercase text-amber-700">
           {t("flow.output")}
         </p>
@@ -82,7 +87,7 @@ export function OutputNode({ data, id, selected }: NodeProps<FlowEditorNode>) {
         id="out"
         type="source"
         position={toReactFlowPosition(outputPosition)}
-        className="!h-3 !w-3 !border-2 !border-white !bg-amber-700"
+        className="!z-10 !h-3 !w-3 !border-2 !border-white !bg-amber-700"
       />
       <NodePortControls
         nodeId={id}

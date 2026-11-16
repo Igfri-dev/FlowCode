@@ -73,7 +73,10 @@ type StructureLayoutResult = {
   nextY: number;
 };
 
-type LayoutContext<TNode extends AutoLayoutNode, TEdge extends AutoLayoutEdge> = {
+type LayoutContext<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+> = {
   doWhileConditionByBodyEntryId: Map<string, string>;
   forcedHandlesByNodeId: Map<string, FlowNodeHandlePositions>;
   graph: LayoutGraph<TNode, TEdge>;
@@ -81,50 +84,36 @@ type LayoutContext<TNode extends AutoLayoutNode, TEdge extends AutoLayoutEdge> =
   placements: Map<string, CenterPoint>;
 };
 
-type SwitchLayoutMode = "branching" | "returning";
-
 // Change this value to tune the minimum visual gap between any two blocks.
 export const autoLayoutMinimumBlockGap = 72;
 
 // Connected blocks closer than this are snapped onto the same visual axis.
 export const autoLayoutSnapAlignmentDistance = 48;
 
-// Sequences shorter than this stay as a straight line instead of being packed.
-export const autoLayoutLinearPackThreshold = 5;
-
 const layoutSpacing = {
   branchGapX: 330,
-  branchGapY: 185,
   caseBodyGapX: 360,
-  caseNodeGapX: 285,
-  caseRowGapY: 230,
-  compactRowGapX: 285,
-  compactRowGapY: 148,
   defaultOriginX: 360,
   defaultOriginY: 64,
-  diagonalDecisionGapX: 235,
-  diagonalDecisionGapY: 135,
   joinGapY: 145,
-  loopBodyGapX: 390,
   loopExitGapX: 360,
   loopGapY: 175,
   minimumBlockGap: autoLayoutMinimumBlockGap,
-  nodeGapY: 118,
+  nodeGapY: 96,
   orphanGapX: 420,
   orphanGapY: 190,
   snapAlignmentDistance: autoLayoutSnapAlignmentDistance,
   switchExitGapX: 520,
-  switchExitGapY: 190,
 } as const;
 
 const baseNodeSizes: Record<FlowNodeType, NodeSize> = {
-  decision: { width: 210, height: 146 },
+  decision: { width: 208, height: 144 },
   end: { width: 160, height: 48 },
-  functionCall: { width: 230, height: 92 },
-  input: { width: 250, height: 118 },
+  functionCall: { width: 192, height: 123 },
+  input: { width: 176, height: 127 },
   output: { width: 313, height: 135 },
-  process: { width: 210, height: 66 },
-  return: { width: 210, height: 58 },
+  process: { width: 188, height: 61 },
+  return: { width: 203, height: 78 },
   start: { width: 160, height: 48 },
 };
 
@@ -133,13 +122,7 @@ const flowHandleIds = new Set<string>(["in", "out", "yes", "no"]);
 export function applySmartFlowLayout<
   TNode extends AutoLayoutNode,
   TEdge extends AutoLayoutEdge,
->({
-  edges,
-  nodes,
-}: {
-  edges: TEdge[];
-  nodes: TNode[];
-}) {
+>({ edges, nodes }: { edges: TEdge[]; nodes: TNode[] }) {
   if (nodes.length === 0) {
     return {
       edges,
@@ -174,10 +157,10 @@ export function applySmartFlowLayout<
 
   const nodesWithPositions = nodes.map((node) => {
     const center = context.placements.get(node.id) ?? {
-      x: node.position.x + getNodeSize(node).width / 2,
-      y: node.position.y + getNodeSize(node).height / 2,
+      x: node.position.x + getAutoLayoutNodeSize(node).width / 2,
+      y: node.position.y + getAutoLayoutNodeSize(node).height / 2,
     };
-    const size = getNodeSize(node);
+    const size = getAutoLayoutNodeSize(node);
 
     return {
       ...node,
@@ -264,34 +247,6 @@ function layoutSequence<
       continue;
     }
 
-    if (isPackableLinearNode(node)) {
-      const packedRun = getPackableLinearRun(context, currentId, stopIds);
-
-      if (packedRun.length >= autoLayoutLinearPackThreshold) {
-        const packedRunNextId = getLinearSuccessorId(
-          context.graph,
-          packedRun[packedRun.length - 1],
-        );
-        const result = layoutPackedLinearRun(context, {
-          direction: getPackedRunDirection(context, packedRunNextId),
-          nodeIds: packedRun,
-          x: currentX,
-          y: currentY,
-        });
-
-        bounds = mergeBounds(bounds, result.bounds);
-        currentId = packedRunNextId;
-        currentX = getPackedRunContinuationX(context, {
-          fallbackX: currentX,
-          lastNodeId: packedRun[packedRun.length - 1],
-          nextNodeId: currentId,
-          placedX: result.lastX,
-        });
-        currentY = result.nextY;
-        continue;
-      }
-    }
-
     if (node.type === "decision") {
       const controlFlowKind = getDecisionControlFlowKind(node);
       const result =
@@ -327,52 +282,18 @@ function layoutSequence<
 
     bounds = mergeBounds(bounds, nodeBounds);
     currentId = getLinearSuccessorId(context.graph, currentId);
-    currentY += getNodeSize(node).height + layoutSpacing.nodeGapY;
+    const nextNode = currentId
+      ? context.graph.nodeById.get(currentId)
+      : undefined;
+    currentY =
+      nodeBounds.maxY +
+      layoutSpacing.nodeGapY +
+      (nextNode ? getAutoLayoutNodeSize(nextNode).height / 2 : 0);
   }
 
   return {
     bounds,
     nextY: currentY,
-  };
-}
-
-function layoutPackedLinearRun<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  {
-    direction,
-    nodeIds,
-    x,
-    y,
-  }: {
-    direction: -1 | 1;
-    nodeIds: string[];
-    x: number;
-    y: number;
-  },
-) {
-  const rowCount = Math.ceil(nodeIds.length / 3);
-  let bounds = createEmptyBounds();
-  let lastX = x;
-
-  for (let index = 0; index < nodeIds.length; index += 1) {
-    const row = Math.floor(index / 3);
-    const column = index % 3;
-    const isOddRow = row % 2 === 1;
-    const columnOffset = isOddRow ? 2 - column : column;
-    const nodeX = x + direction * columnOffset * layoutSpacing.compactRowGapX;
-    const nodeY = y + row * layoutSpacing.compactRowGapY;
-
-    bounds = mergeBounds(bounds, placeNode(context, nodeIds[index], nodeX, nodeY));
-    lastX = nodeX;
-  }
-
-  return {
-    bounds,
-    lastX,
-    nextY: y + rowCount * layoutSpacing.compactRowGapY + 10,
   };
 }
 
@@ -386,19 +307,9 @@ function layoutIfStructure<
     stopIds,
     x,
     y,
-  }: {
-    node: TNode;
-    stopIds: Set<string>;
-    x: number;
-    y: number;
-  },
+  }: { node: TNode; stopIds: Set<string>; x: number; y: number },
 ): StructureLayoutResult {
-  forceNodeHandles(context, node.id, {
-    in: "top",
-    no: "right",
-    yes: "left",
-  });
-
+  forceNodeHandles(context, node.id, { in: "top", no: "right", yes: "left" });
   let bounds = placeNode(context, node.id, x, y);
   const yesTargetId = getTargetByHandle(context.graph, node.id, "yes");
   const noTargetId = getTargetByHandle(context.graph, node.id, "no");
@@ -407,48 +318,75 @@ function layoutIfStructure<
     blockedIds: new Set([node.id, ...stopIds]),
   });
   const branchStopIds = new Set(stopIds);
+  if (joinId) branchStopIds.add(joinId);
 
-  if (joinId) {
-    branchStopIds.add(joinId);
+  for (const [targetId, direction] of [
+    [yesTargetId, -1],
+    [noTargetId, 1],
+  ] as const) {
+    if (!targetId || targetId === joinId) continue;
+    const target = context.graph.nodeById.get(targetId);
+    if (!target) continue;
+    const placedBefore = new Set(context.placedNodeIds);
+    const result = layoutSequence(context, {
+      startId: targetId,
+      stopIds: branchStopIds,
+      x: x + direction * layoutSpacing.branchGapX,
+      y:
+        boundsForNode(context, node.id).maxY +
+        layoutSpacing.nodeGapY +
+        getAutoLayoutNodeSize(target).height / 2,
+    });
+    const boundary = x + direction * layoutSpacing.minimumBlockGap;
+    const shiftX =
+      direction < 0
+        ? Math.min(0, boundary - result.bounds.maxX)
+        : Math.max(0, boundary - result.bounds.minX);
+    bounds = mergeBounds(
+      bounds,
+      translateNewPlacements(context, placedBefore, shiftX),
+    );
   }
 
-  const branchY = y + layoutSpacing.branchGapY;
-  const yesResult = yesTargetId
-    ? layoutSequence(context, {
-        startId: yesTargetId,
-        stopIds: branchStopIds,
-        x: x - layoutSpacing.branchGapX,
-        y: branchY,
-      })
-    : null;
-  const noResult =
-    noTargetId && noTargetId !== joinId
-      ? layoutSequence(context, {
-          startId: noTargetId,
-          stopIds: branchStopIds,
-          x: x + layoutSpacing.branchGapX,
-          y: branchY,
-        })
-      : null;
-
-  if (yesResult) {
-    bounds = mergeBounds(bounds, yesResult.bounds);
-  }
-
-  if (noResult) {
-    bounds = mergeBounds(bounds, noResult.bounds);
-  }
-
+  const joinNode = joinId ? context.graph.nodeById.get(joinId) : undefined;
   return {
     bounds,
     nextId: joinId,
     nextX: x,
-    nextY: Math.max(
-      y + getNodeSize(node).height + layoutSpacing.joinGapY,
-      yesResult?.nextY ?? branchY,
-      noResult?.nextY ?? branchY,
-    ),
+    nextY:
+      bounds.maxY +
+      layoutSpacing.joinGapY +
+      (joinNode ? getAutoLayoutNodeSize(joinNode).height / 2 : 0),
   };
+}
+
+// Move an entire already laid-out branch together so its internal alignment survives.
+function translateNewPlacements<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>(
+  context: LayoutContext<TNode, TEdge>,
+  previousIds: Set<string>,
+  shiftX: number,
+): LayoutBounds {
+  let bounds = createEmptyBounds();
+  for (const [id, center] of context.placements) {
+    if (previousIds.has(id)) continue;
+    const nextCenter = { x: center.x + shiftX, y: center.y };
+    context.placements.set(id, nextCenter);
+    const node = context.graph.nodeById.get(id);
+    if (node) bounds = mergeBounds(bounds, getNodeBounds(node, nextCenter));
+  }
+  return bounds;
+}
+
+function boundsForNode<
+  TNode extends AutoLayoutNode,
+  TEdge extends AutoLayoutEdge,
+>(context: LayoutContext<TNode, TEdge>, id: string): LayoutBounds {
+  const node = context.graph.nodeById.get(id);
+  const center = context.placements.get(id);
+  return node && center ? getNodeBounds(node, center) : createEmptyBounds();
 }
 
 function layoutLoopStructure<
@@ -461,71 +399,69 @@ function layoutLoopStructure<
     stopIds,
     x,
     y,
-  }: {
-    node: TNode;
-    stopIds: Set<string>;
-    x: number;
-    y: number;
-  },
+  }: { node: TNode; stopIds: Set<string>; x: number; y: number },
 ): StructureLayoutResult {
-  forceNodeHandles(context, node.id, {
-    in: "top",
-    no: "right",
-    yes: "left",
-  });
-
+  forceNodeHandles(context, node.id, { in: "top", no: "right", yes: "bottom" });
   let bounds = placeNode(context, node.id, x, y);
   const yesTargetId = getTargetByHandle(context.graph, node.id, "yes");
   const noTargetId = getTargetByHandle(context.graph, node.id, "no");
   const controlFlow = getDecisionControlFlow(node);
-  const updateNodeId =
-    controlFlow?.kind === "for" ? controlFlow.updateNodeId : undefined;
   const loopUpdateNodeId =
-    updateNodeId ?? inferLoopUpdateNodeId(context.graph, yesTargetId, node.id);
-  const loopStopIds = new Set(stopIds);
+    (controlFlow?.kind === "for" ? controlFlow.updateNodeId : undefined) ??
+    inferLoopUpdateNodeId(context.graph, yesTargetId, node.id);
+  const loopStopIds = new Set([...stopIds, node.id]);
+  if (loopUpdateNodeId) loopStopIds.add(loopUpdateNodeId);
 
-  loopStopIds.add(node.id);
-
-  if (loopUpdateNodeId) {
-    loopStopIds.add(loopUpdateNodeId);
+  const bodyEntry = yesTargetId
+    ? context.graph.nodeById.get(yesTargetId)
+    : undefined;
+  if (bodyEntry && yesTargetId !== loopUpdateNodeId) {
+    const result = layoutSequence(context, {
+      startId: bodyEntry.id,
+      stopIds: loopStopIds,
+      x,
+      y:
+        bounds.maxY +
+        layoutSpacing.nodeGapY +
+        getAutoLayoutNodeSize(bodyEntry).height / 2,
+    });
+    bounds = mergeBounds(bounds, result.bounds);
   }
 
-  const bodyX = x - layoutSpacing.loopBodyGapX;
-  const bodyY = y + 48;
-  const bodyResult =
-    yesTargetId && yesTargetId !== loopUpdateNodeId
-      ? layoutSequence(context, {
-          startId: yesTargetId,
-          stopIds: loopStopIds,
-          x: bodyX,
-          y: bodyY,
-        })
-      : null;
-
-  if (bodyResult) {
-    bounds = mergeBounds(bounds, bodyResult.bounds);
-  }
-
-  if (loopUpdateNodeId && context.graph.nodeById.has(loopUpdateNodeId)) {
-    const updateY =
-      bodyResult && !isBoundsEmpty(bodyResult.bounds)
-        ? Math.max(bodyY - 112, bodyResult.bounds.minY - 82)
-        : y + layoutSpacing.loopGapY;
-
+  const updateNode = loopUpdateNodeId
+    ? context.graph.nodeById.get(loopUpdateNodeId)
+    : undefined;
+  if (updateNode) {
+    forceNodeHandles(context, updateNode.id, { in: "top", out: "left" });
     bounds = mergeBounds(
       bounds,
-      placeNode(context, loopUpdateNodeId, bodyX, updateY),
+      placeNode(
+        context,
+        updateNode.id,
+        x,
+        bounds.maxY +
+          layoutSpacing.nodeGapY +
+          getAutoLayoutNodeSize(updateNode).height / 2,
+      ),
     );
   }
 
+  const exitNode = noTargetId
+    ? context.graph.nodeById.get(noTargetId)
+    : undefined;
   return {
     bounds,
     nextId: noTargetId,
-    nextX: x + layoutSpacing.loopExitGapX,
-    nextY: Math.max(
-      y + layoutSpacing.loopGapY,
-      bodyResult?.nextY ?? y + layoutSpacing.loopGapY,
+    nextX: Math.max(
+      x + layoutSpacing.loopExitGapX,
+      bounds.maxX +
+        layoutSpacing.minimumBlockGap +
+        (exitNode ? getAutoLayoutNodeSize(exitNode).width / 2 : 0),
     ),
+    nextY:
+      bounds.maxY +
+      layoutSpacing.nodeGapY +
+      (exitNode ? getAutoLayoutNodeSize(exitNode).height / 2 : 0),
   };
 }
 
@@ -554,26 +490,31 @@ function layoutDoWhileStructure<
   loopStopIds.add(conditionId);
 
   const bodyResult = layoutSequence(context, {
-        startId: bodyEntryId,
-        stopIds: loopStopIds,
-        x,
-        y,
-        ignoredDoWhileEntryIds: new Set([bodyEntryId]),
-      });
+    startId: bodyEntryId,
+    stopIds: loopStopIds,
+    x,
+    y,
+    ignoredDoWhileEntryIds: new Set([bodyEntryId]),
+  });
   const bodyBounds = bodyResult.bounds;
-  const conditionX = x - layoutSpacing.loopBodyGapX;
+  const conditionX = x;
   const conditionY = isBoundsEmpty(bodyBounds)
     ? y + layoutSpacing.loopGapY
-    : Math.max(y + layoutSpacing.branchGapY, bodyBounds.minY + 120);
+    : bodyBounds.maxY +
+      layoutSpacing.nodeGapY +
+      (conditionNode ? getAutoLayoutNodeSize(conditionNode).height / 2 : 0);
   let bounds = bodyResult.bounds;
 
   if (conditionNode) {
     forceNodeHandles(context, conditionId, {
-      in: "right",
+      in: "top",
       no: "bottom",
       yes: "left",
     });
-    bounds = mergeBounds(bounds, placeNode(context, conditionId, conditionX, conditionY));
+    bounds = mergeBounds(
+      bounds,
+      placeNode(context, conditionId, conditionX, conditionY),
+    );
   }
 
   return {
@@ -582,7 +523,7 @@ function layoutDoWhileStructure<
       ? getTargetByHandle(context.graph, conditionId, "no")
       : undefined,
     nextX: conditionX,
-    nextY: conditionY + layoutSpacing.loopGapY,
+    nextY: bounds.maxY + layoutSpacing.loopGapY,
   };
 }
 
@@ -604,16 +545,6 @@ function layoutSwitchStructure<
   },
 ): StructureLayoutResult {
   const switchInfo = getSwitchInfo(context.graph, node);
-
-  if (switchInfo.mode === "returning") {
-    return layoutReturningSwitch(context, {
-      node,
-      stopIds,
-      switchInfo,
-      x,
-      y,
-    });
-  }
 
   return layoutBranchingSwitch(context, {
     node,
@@ -644,191 +575,137 @@ function layoutBranchingSwitch<
   },
 ): StructureLayoutResult {
   let bounds = createEmptyBounds();
-  const decisionIds = switchInfo.decisionIds.length > 0
+  const decisionIds = switchInfo.decisionIds.length
     ? switchInfo.decisionIds
     : [node.id];
   const bodyStopIds = new Set([...stopIds, ...decisionIds]);
   const joinId = switchInfo.joinId;
-
-  if (joinId) {
-    bodyStopIds.add(joinId);
-  }
+  if (joinId) bodyStopIds.add(joinId);
+  let decisionY = y;
 
   for (const [index, decisionId] of decisionIds.entries()) {
-    const decisionY = y + index * layoutSpacing.caseRowGapY;
-
+    const decision = context.graph.nodeById.get(decisionId);
+    if (!decision) continue;
     forceNodeHandles(context, decisionId, {
       in: "top",
-      no: index === decisionIds.length - 1 ? "right" : "bottom",
+      no: "bottom",
       yes: "right",
     });
-    bounds = mergeBounds(bounds, placeNode(context, decisionId, x, decisionY));
-
+    let rowBounds = placeNode(context, decisionId, x, decisionY);
     const bodyEntryId =
       switchInfo.caseEntryByDecisionId.get(decisionId) ??
       getTargetByHandle(context.graph, decisionId, "yes");
-
-    if (bodyEntryId && bodyEntryId !== joinId) {
-      bounds = mergeBounds(
-        bounds,
-        layoutCaseBody(context, {
-          startId: bodyEntryId,
-          stopIds: bodyStopIds,
-          x: x + layoutSpacing.caseBodyGapX,
-          y: decisionY,
-        }),
-      );
-    }
-  }
-
-  const defaultEntryId = switchInfo.defaultEntryId;
-
-  if (defaultEntryId && defaultEntryId !== joinId) {
-    bounds = mergeBounds(
-      bounds,
-      layoutCaseBody(context, {
-        startId: defaultEntryId,
+    const bodyEntry = bodyEntryId
+      ? context.graph.nodeById.get(bodyEntryId)
+      : undefined;
+    if (bodyEntry && bodyEntryId !== joinId) {
+      const placedBefore = new Set(context.placedNodeIds);
+      const bodyResult = layoutSwitchCaseBody(context, {
+        startId: bodyEntry.id,
         stopIds: bodyStopIds,
         x: x + layoutSpacing.caseBodyGapX,
-        y: y + decisionIds.length * layoutSpacing.caseRowGapY,
-      }),
-    );
+        y: decisionY,
+      });
+      const shiftX = Math.max(
+        0,
+        rowBounds.maxX + layoutSpacing.minimumBlockGap - bodyResult.bounds.minX,
+      );
+      rowBounds = mergeBounds(
+        rowBounds,
+        translateNewPlacements(context, placedBefore, shiftX),
+      );
+    }
+    bounds = mergeBounds(bounds, rowBounds);
+    const nextDecision = context.graph.nodeById.get(decisionIds[index + 1]);
+    decisionY =
+      rowBounds.maxY +
+      layoutSpacing.nodeGapY +
+      (nextDecision ? getAutoLayoutNodeSize(nextDecision).height / 2 : 0);
   }
 
+  const defaultNode = switchInfo.defaultEntryId
+    ? context.graph.nodeById.get(switchInfo.defaultEntryId)
+    : undefined;
+  if (defaultNode && defaultNode.id !== joinId) {
+    const result = layoutSequence(context, {
+      startId: defaultNode.id,
+      stopIds: bodyStopIds,
+      x,
+      y:
+        bounds.maxY +
+        layoutSpacing.nodeGapY +
+        getAutoLayoutNodeSize(defaultNode).height / 2,
+    });
+    bounds = mergeBounds(bounds, result.bounds);
+  }
+
+  const joinNode = joinId ? context.graph.nodeById.get(joinId) : undefined;
   return {
     bounds,
     nextId: joinId,
-    nextX: getSwitchExitX(context, {
-      fallbackX: x + layoutSpacing.switchExitGapX,
-      joinId,
-      switchBounds: bounds,
-    }),
-    nextY: isBoundsEmpty(bounds)
-      ? y + layoutSpacing.switchExitGapY
-      : bounds.maxY + layoutSpacing.switchExitGapY,
+    nextX: joinNode
+      ? Math.max(
+          x + layoutSpacing.switchExitGapX,
+          bounds.maxX +
+            layoutSpacing.minimumBlockGap +
+            getAutoLayoutNodeSize(joinNode).width / 2,
+        )
+      : x,
+    nextY:
+      bounds.maxY +
+      layoutSpacing.joinGapY +
+      (joinNode ? getAutoLayoutNodeSize(joinNode).height / 2 : 0),
   };
 }
 
-function layoutReturningSwitch<
+// Compact, straight case rows match hand-drawn flowcharts; nested decisions use
+// the full recursive layout and reserve their complete subtree instead.
+function layoutSwitchCaseBody<
   TNode extends AutoLayoutNode,
   TEdge extends AutoLayoutEdge,
 >(
   context: LayoutContext<TNode, TEdge>,
-  {
-    node,
-    stopIds,
-    switchInfo,
-    x,
-    y,
-  }: {
-    node: TNode;
-    stopIds: Set<string>;
-    switchInfo: ReturnType<typeof getSwitchInfo<TNode, TEdge>>;
-    x: number;
-    y: number;
-  },
-): StructureLayoutResult {
-  let bounds = createEmptyBounds();
-  const decisionIds = switchInfo.decisionIds.length > 0
-    ? switchInfo.decisionIds
-    : [node.id];
-  const bodyStopIds = new Set([...stopIds, ...decisionIds]);
-
-  for (const [index, decisionId] of decisionIds.entries()) {
-    const decisionX = x + index * layoutSpacing.diagonalDecisionGapX;
-    const decisionY = y + index * layoutSpacing.diagonalDecisionGapY;
-    const bodyEntryId =
-      switchInfo.caseEntryByDecisionId.get(decisionId) ??
-      getTargetByHandle(context.graph, decisionId, "yes");
-
-    forceNodeHandles(context, decisionId, {
-      in: "top",
-      no: "right",
-      yes: "left",
-    });
-    bounds = mergeBounds(bounds, placeNode(context, decisionId, decisionX, decisionY));
-
-    if (bodyEntryId) {
-      bounds = mergeBounds(
-        bounds,
-        layoutSequence(context, {
-          startId: bodyEntryId,
-          stopIds: bodyStopIds,
-          x: decisionX - layoutSpacing.caseNodeGapX,
-          y: decisionY + layoutSpacing.branchGapY,
-        }).bounds,
-      );
-    }
-  }
-
-  if (switchInfo.defaultEntryId) {
-    const defaultIndex = decisionIds.length - 1;
-
-    bounds = mergeBounds(
-      bounds,
-      layoutSequence(context, {
-        startId: switchInfo.defaultEntryId,
-        stopIds: bodyStopIds,
-        x:
-          x +
-          defaultIndex * layoutSpacing.diagonalDecisionGapX +
-          layoutSpacing.caseNodeGapX,
-        y: y + defaultIndex * layoutSpacing.diagonalDecisionGapY + 95,
-      }).bounds,
-    );
-  }
-
-  return {
-    bounds,
-    nextX: x,
-    nextY: isBoundsEmpty(bounds) ? y : bounds.maxY + layoutSpacing.joinGapY,
-  };
-}
-
-function layoutCaseBody<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  {
-    startId,
-    stopIds,
-    x,
-    y,
-  }: {
-    startId: string;
-    stopIds: Set<string>;
-    x: number;
-    y: number;
-  },
-) {
-  let currentId: string | undefined = startId;
-  let currentX = x;
-  let bounds = createEmptyBounds();
-  let guard = 0;
-
+  options: { startId: string; stopIds: Set<string>; x: number; y: number },
+): SequenceLayoutResult {
+  const nodeIds: string[] = [];
+  const seen = new Set<string>();
+  let currentId: string | undefined = options.startId;
   while (
     currentId &&
-    !stopIds.has(currentId) &&
-    !context.placedNodeIds.has(currentId) &&
-    guard < context.graph.nodes.length
+    !options.stopIds.has(currentId) &&
+    !context.placedNodeIds.has(currentId)
   ) {
-    guard += 1;
     const node = context.graph.nodeById.get(currentId);
-
-    if (node?.type === "process" || node?.type === "output") {
-      forceNodeHandles(context, currentId, {
-        in: "left",
-        out: "right",
-      });
+    if (
+      !node ||
+      seen.has(currentId) ||
+      node.type === "decision" ||
+      context.doWhileConditionByBodyEntryId.has(currentId) ||
+      nodeIds.length >= 4
+    ) {
+      return layoutSequence(context, options);
     }
-
-    bounds = mergeBounds(bounds, placeNode(context, currentId, currentX, y));
+    seen.add(currentId);
+    nodeIds.push(currentId);
     currentId = getLinearSuccessorId(context.graph, currentId);
-    currentX += layoutSpacing.caseNodeGapX;
   }
-
-  return bounds;
+  let bounds = createEmptyBounds();
+  let previousNode: TNode | undefined;
+  let centerX = options.x;
+  for (const id of nodeIds) {
+    const node = context.graph.nodeById.get(id)!;
+    if (previousNode)
+      centerX +=
+        getAutoLayoutNodeSize(previousNode).width / 2 +
+        layoutSpacing.minimumBlockGap +
+        getAutoLayoutNodeSize(node).width / 2;
+    const handles: FlowNodeHandlePositions = { in: "left" };
+    if (node.type !== "return" && node.type !== "end") handles.out = "right";
+    forceNodeHandles(context, id, handles);
+    bounds = mergeBounds(bounds, placeNode(context, id, centerX, options.y));
+    previousNode = node;
+  }
+  return { bounds, nextY: bounds.maxY + layoutSpacing.nodeGapY };
 }
 
 function placeUnreachableNodes<
@@ -847,7 +724,7 @@ function placeUnreachableNodes<
     }
 
     placeNode(context, node.id, startX, y);
-    y += getNodeSize(node).height + layoutSpacing.orphanGapY;
+    y += getAutoLayoutNodeSize(node).height + layoutSpacing.orphanGapY;
   }
 }
 
@@ -865,7 +742,11 @@ function resolveMinimumBlockSpacing<
   for (let iteration = 0; iteration < maxIterations; iteration += 1) {
     let changed = false;
 
-    for (let anchorIndex = 0; anchorIndex < placedNodeIds.length; anchorIndex += 1) {
+    for (
+      let anchorIndex = 0;
+      anchorIndex < placedNodeIds.length;
+      anchorIndex += 1
+    ) {
       const anchorId = placedNodeIds[anchorIndex];
       const anchorNode = context.graph.nodeById.get(anchorId);
       const anchorCenter = context.placements.get(anchorId);
@@ -900,11 +781,9 @@ function resolveMinimumBlockSpacing<
 
         context.placements.set(movableId, {
           x:
-            movableCenter.x +
-            (adjustment.axis === "x" ? adjustment.amount : 0),
+            movableCenter.x + (adjustment.axis === "x" ? adjustment.amount : 0),
           y:
-            movableCenter.y +
-            (adjustment.axis === "y" ? adjustment.amount : 0),
+            movableCenter.y + (adjustment.axis === "y" ? adjustment.amount : 0),
         });
         changed = true;
       }
@@ -943,14 +822,28 @@ function snapNearbyConnectedBlocks<
         continue;
       }
 
-      context.placements.set(edge.target, {
-        x:
-          targetCenter.x +
-          (adjustment.axis === "x" ? adjustment.amount : 0),
-        y:
-          targetCenter.y +
-          (adjustment.axis === "y" ? adjustment.amount : 0),
+      const candidate = {
+        x: targetCenter.x + (adjustment.axis === "x" ? adjustment.amount : 0),
+        y: targetCenter.y + (adjustment.axis === "y" ? adjustment.amount : 0),
+      };
+      const targetNode = context.graph.nodeById.get(edge.target);
+      if (!targetNode) continue;
+      const candidateBounds = getNodeBounds(targetNode, candidate);
+      const collides = Array.from(context.placements).some(([id, center]) => {
+        if (id === edge.target) return false;
+        const node = context.graph.nodeById.get(id);
+        if (!node) return false;
+        const otherBounds = getNodeBounds(node, center);
+        const gap = layoutSpacing.minimumBlockGap;
+        return (
+          candidateBounds.minX < otherBounds.maxX + gap &&
+          candidateBounds.maxX + gap > otherBounds.minX &&
+          candidateBounds.minY < otherBounds.maxY + gap &&
+          candidateBounds.maxY + gap > otherBounds.minY
+        );
       });
+      if (collides) continue;
+      context.placements.set(edge.target, candidate);
       changed = true;
     }
 
@@ -1064,13 +957,17 @@ function getPredictedEdgeHandleSides<
     targetCenter.x - sourceCenter.x,
     targetCenter.y - sourceCenter.y,
   );
-  const targetSideFromGeometry = getOppositeSide(sourceSideFromGeometry);
+  const targetSideFromGeometry = getPreferredTargetSide(
+    sourceNode,
+    sourceCenter,
+    targetNode,
+    targetCenter,
+  );
   const sourceSide =
     (sourceHandle
       ? context.forcedHandlesByNodeId.get(sourceNode.id)?.[sourceHandle]
       : undefined) ??
-    (sourceHandle &&
-    shouldUseEdgeAwareSourceHandle(sourceNode, targetNode)
+    (sourceHandle && shouldUseEdgeAwareSourceHandle(sourceNode, targetNode)
       ? sourceSideFromGeometry
       : getDefaultFlowNodeHandlePositions(sourceNode.type)[
           sourceHandle ?? "out"
@@ -1108,14 +1005,12 @@ function getMinimumBlockSpacingAdjustment({
   const gap = layoutSpacing.minimumBlockGap;
   const expandedAnchorBounds = padBounds(anchorBounds, gap / 2);
   const expandedMovableBounds = padBounds(movableBounds, gap / 2);
-  const overlapX = Math.min(
-    expandedAnchorBounds.maxX,
-    expandedMovableBounds.maxX,
-  ) - Math.max(expandedAnchorBounds.minX, expandedMovableBounds.minX);
-  const overlapY = Math.min(
-    expandedAnchorBounds.maxY,
-    expandedMovableBounds.maxY,
-  ) - Math.max(expandedAnchorBounds.minY, expandedMovableBounds.minY);
+  const overlapX =
+    Math.min(expandedAnchorBounds.maxX, expandedMovableBounds.maxX) -
+    Math.max(expandedAnchorBounds.minX, expandedMovableBounds.minX);
+  const overlapY =
+    Math.min(expandedAnchorBounds.maxY, expandedMovableBounds.maxY) -
+    Math.max(expandedAnchorBounds.minY, expandedMovableBounds.minY);
 
   if (overlapX <= 0 || overlapY <= 0) {
     return null;
@@ -1131,14 +1026,7 @@ function getMinimumBlockSpacingAdjustment({
         : overlapX <= overlapY
           ? "x"
           : "y";
-  const direction =
-    axis === "x"
-      ? dx >= 0
-        ? 1
-        : -1
-      : dy >= 0
-        ? 1
-        : -1;
+  const direction = axis === "x" ? (dx >= 0 ? 1 : -1) : dy >= 0 ? 1 : -1;
 
   return {
     amount: direction * (axis === "x" ? overlapX + 1 : overlapY + 1),
@@ -1155,10 +1043,7 @@ function padBounds(bounds: LayoutBounds, padding: number): LayoutBounds {
   };
 }
 
-function placeNode<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
+function placeNode<TNode extends AutoLayoutNode, TEdge extends AutoLayoutEdge>(
   context: LayoutContext<TNode, TEdge>,
   nodeId: string,
   x: number,
@@ -1227,8 +1112,9 @@ function getDiagramEntryNodeId<
 >(graph: LayoutGraph<TNode, TEdge>) {
   return (
     graph.nodes.find((node) => node.type === "start")?.id ??
-    graph.nodes.find((node) => (graph.incomingByTarget.get(node.id) ?? []).length === 0)
-      ?.id ??
+    graph.nodes.find(
+      (node) => (graph.incomingByTarget.get(node.id) ?? []).length === 0,
+    )?.id ??
     graph.nodes[0]?.id
   );
 }
@@ -1248,110 +1134,6 @@ function getDoWhileConditionByBodyEntryId<
   }
 
   return result;
-}
-
-function getPackableLinearRun<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  startId: string,
-  stopIds: Set<string>,
-) {
-  const result: string[] = [];
-  let currentId: string | undefined = startId;
-  let guard = 0;
-
-  while (
-    currentId &&
-    !stopIds.has(currentId) &&
-    !context.placedNodeIds.has(currentId) &&
-    guard < context.graph.nodes.length
-  ) {
-    guard += 1;
-
-    const node = context.graph.nodeById.get(currentId);
-
-    if (!node || !isPackableLinearNode(node)) {
-      break;
-    }
-
-    result.push(currentId);
-    currentId = getLinearSuccessorId(context.graph, currentId);
-  }
-
-  return result;
-}
-
-function isPackableLinearNode(node: AutoLayoutNode) {
-  if (node.type !== "process") {
-    return false;
-  }
-
-  const controlFlow =
-    "instruction" in node.data.config
-      ? node.data.config.controlFlow
-      : undefined;
-
-  return !controlFlow;
-}
-
-function getPackedRunContinuationX<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  {
-    fallbackX,
-    lastNodeId,
-    nextNodeId,
-    placedX,
-  }: {
-    fallbackX: number;
-    lastNodeId: string;
-    nextNodeId?: string;
-    placedX: number;
-  },
-) {
-  const nextNode = nextNodeId ? context.graph.nodeById.get(nextNodeId) : null;
-
-  if (!nextNode) {
-    return placedX;
-  }
-
-  if (context.doWhileConditionByBodyEntryId.has(nextNode.id)) {
-    return placedX;
-  }
-
-  if (nextNode.type === "functionCall") {
-    return placedX;
-  }
-
-  if (
-    nextNode.type === "decision" ||
-    nextNode.type === "output" ||
-    isLoopUpdateNode(context.graph.nodeById.get(lastNodeId))
-  ) {
-    return fallbackX;
-  }
-
-  return placedX;
-}
-
-function getPackedRunDirection<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  nextNodeId: string | undefined,
-): -1 | 1 {
-  const nextNode = nextNodeId ? context.graph.nodeById.get(nextNodeId) : null;
-
-  if (nextNode?.type === "decision" && isWhileDecision(context, nextNode)) {
-    return -1;
-  }
-
-  return 1;
 }
 
 function getLinearSuccessorId<
@@ -1376,12 +1158,9 @@ function getLinearSuccessorId<
 function getTargetByHandle<
   TNode extends AutoLayoutNode,
   TEdge extends AutoLayoutEdge,
->(
-  graph: LayoutGraph<TNode, TEdge>,
-  nodeId: string,
-  sourceHandle: string,
-) {
-  return graph.outgoingBySourceHandle.get(nodeId)?.get(sourceHandle)?.[0]?.target;
+>(graph: LayoutGraph<TNode, TEdge>, nodeId: string, sourceHandle: string) {
+  return graph.outgoingBySourceHandle.get(nodeId)?.get(sourceHandle)?.[0]
+    ?.target;
 }
 
 function isWhileDecision<
@@ -1522,11 +1301,7 @@ function getJoinCandidateScore<
 function collectReachableNodes<
   TNode extends AutoLayoutNode,
   TEdge extends AutoLayoutEdge,
->(
-  graph: LayoutGraph<TNode, TEdge>,
-  startId: string,
-  blockedIds: Set<string>,
-) {
+>(graph: LayoutGraph<TNode, TEdge>, startId: string, blockedIds: Set<string>) {
   const distances = new Map<string, number>();
   const queue: Array<{ distance: number; nodeId: string }> = [
     {
@@ -1559,10 +1334,7 @@ function collectReachableNodes<
   return distances;
 }
 
-function hasPath<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
+function hasPath<TNode extends AutoLayoutNode, TEdge extends AutoLayoutEdge>(
   graph: LayoutGraph<TNode, TEdge>,
   startId: string,
   targetId: string,
@@ -1600,9 +1372,11 @@ function getSwitchInfo<
       : [rootNode.id],
   ).filter((nodeId) => graph.nodeById.has(nodeId));
   const caseEntryByDecisionId = new Map<string, string>();
-  const testCases = switchMetadata?.cases.filter((item) => item.test !== null) ?? [];
-  const defaultEntryId = switchMetadata?.cases.find((item) => item.test === null)
-    ?.entryId;
+  const testCases =
+    switchMetadata?.cases.filter((item) => item.test !== null) ?? [];
+  const defaultEntryId = switchMetadata?.cases.find(
+    (item) => item.test === null,
+  )?.entryId;
 
   for (const [index, decisionId] of decisionIds.entries()) {
     const caseEntryId =
@@ -1615,63 +1389,21 @@ function getSwitchInfo<
 
   const exitSourceIds = switchMetadata?.exitSources ?? [];
   const exitTargets = exitSourceIds
-    .map((source) =>
-      graph.outgoingBySourceHandle
-        .get(source.sourceId)
-        ?.get(source.sourceHandle)?.[0]?.target,
+    .map(
+      (source) =>
+        graph.outgoingBySourceHandle
+          .get(source.sourceId)
+          ?.get(source.sourceHandle)?.[0]?.target,
     )
     .filter((targetId): targetId is string => Boolean(targetId));
   const joinId = getCommonTarget(exitTargets);
-  const mode: SwitchLayoutMode = isReturningSwitch(graph, {
-    caseEntryByDecisionId,
-    defaultEntryId,
-    decisionIds,
-    joinId,
-  })
-    ? "returning"
-    : "branching";
 
   return {
     caseEntryByDecisionId,
     decisionIds,
     defaultEntryId,
     joinId,
-    mode,
   };
-}
-
-function isReturningSwitch<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  graph: LayoutGraph<TNode, TEdge>,
-  {
-    caseEntryByDecisionId,
-    defaultEntryId,
-    decisionIds,
-    joinId,
-  }: {
-    caseEntryByDecisionId: Map<string, string>;
-    defaultEntryId?: string;
-    decisionIds: string[];
-    joinId?: string;
-  },
-) {
-  if (joinId) {
-    return false;
-  }
-
-  const entryIds = [
-    ...decisionIds
-      .map((decisionId) => caseEntryByDecisionId.get(decisionId))
-      .filter((entryId): entryId is string => Boolean(entryId)),
-    defaultEntryId,
-  ].filter((entryId): entryId is string => Boolean(entryId));
-
-  return (
-    entryIds.length > 0 &&
-    entryIds.every((entryId) => graph.nodeById.get(entryId)?.type === "return")
-  );
 }
 
 function getCommonTarget(targetIds: string[]) {
@@ -1684,34 +1416,6 @@ function getCommonTarget(targetIds: string[]) {
   return targetIds.every((targetId) => targetId === firstTargetId)
     ? firstTargetId
     : undefined;
-}
-
-function getSwitchExitX<
-  TNode extends AutoLayoutNode,
-  TEdge extends AutoLayoutEdge,
->(
-  context: LayoutContext<TNode, TEdge>,
-  {
-    fallbackX,
-    joinId,
-    switchBounds,
-  }: {
-    fallbackX: number;
-    joinId?: string;
-    switchBounds: LayoutBounds;
-  },
-) {
-  if (!joinId) {
-    return fallbackX;
-  }
-
-  const joinNode = context.graph.nodeById.get(joinId);
-
-  if (joinNode?.type === "end") {
-    return Math.max(fallbackX, switchBounds.maxX + layoutSpacing.caseNodeGapX);
-  }
-
-  return fallbackX;
 }
 
 function getHandlePositionsByNodeId<TNode extends AutoLayoutNode>({
@@ -1746,17 +1450,15 @@ function getHandlePositionsByNodeId<TNode extends AutoLayoutNode>({
     }
 
     const sourceHandle = getFlowHandleId(edge.sourceHandle ?? "out");
-    const targetHandle = getFlowHandleId(edge.targetHandle ?? "in");
     const sourceSide = getDominantSide(
       targetCenter.x - sourceCenter.x,
       targetCenter.y - sourceCenter.y,
     );
-    const targetSide = getOppositeSide(sourceSide);
 
     if (
       sourceHandle &&
-      !forcedHandlesByNodeId.get(sourceNode.id)?.[sourceHandle]
-      && shouldUseEdgeAwareSourceHandle(sourceNode, targetNode)
+      !forcedHandlesByNodeId.get(sourceNode.id)?.[sourceHandle] &&
+      shouldUseEdgeAwareSourceHandle(sourceNode, targetNode)
     ) {
       setNodeHandlePosition(
         handlePositionsByNodeId,
@@ -1765,18 +1467,39 @@ function getHandlePositionsByNodeId<TNode extends AutoLayoutNode>({
         sourceSide,
       );
     }
+  }
 
-    if (
-      targetHandle &&
-      !forcedHandlesByNodeId.get(targetNode.id)?.[targetHandle] &&
-      shouldUseEdgeAwareTargetHandle(targetNode, targetSide)
-    ) {
-      setNodeHandlePosition(
-        handlePositionsByNodeId,
-        targetNode.id,
-        targetHandle,
-        targetSide,
-      );
+  for (const node of nodes) {
+    const incoming = edges.filter((edge) => edge.target === node.id);
+    const byHandle = new Map<string, AutoLayoutEdge[]>();
+    for (const edge of incoming) {
+      const handle = edge.targetHandle ?? "in";
+      const group = byHandle.get(handle) ?? [];
+      group.push(edge);
+      byHandle.set(handle, group);
+    }
+    for (const [handle, group] of byHandle) {
+      const handleId = getFlowHandleId(handle);
+      if (!handleId || forcedHandlesByNodeId.get(node.id)?.[handleId]) continue;
+      // Joins and loop entries have one physical input, so its side must not
+      // depend on which edge happens to be last in the parser's array.
+      let side: FlowHandlePosition = "top";
+      if (group.length === 1) {
+        const sourceNode = nodeById.get(group[0].source);
+        const sourceCenter = getNodeCenter(sourceNode, placements);
+        const targetCenter = getNodeCenter(node, placements);
+        if (sourceNode && sourceCenter && targetCenter) {
+          side = getPreferredTargetSide(
+            sourceNode,
+            sourceCenter,
+            node,
+            targetCenter,
+          );
+        }
+      }
+      if (shouldUseEdgeAwareTargetHandle(node, side)) {
+        setNodeHandlePosition(handlePositionsByNodeId, node.id, handleId, side);
+      }
     }
   }
 
@@ -1890,6 +1613,24 @@ function shouldUseEdgeAwareTargetHandle(
   return true;
 }
 
+function getPreferredTargetSide(
+  sourceNode: AutoLayoutNode,
+  sourceCenter: CenterPoint,
+  targetNode: AutoLayoutNode,
+  targetCenter: CenterPoint,
+): FlowHandlePosition {
+  const sourceBounds = getNodeBounds(sourceNode, sourceCenter);
+  const targetBounds = getNodeBounds(targetNode, targetCenter);
+  // A branch can be far to the left/right while still flowing downwards.
+  // Keep its destination's top port whenever the complete source is above it;
+  // genuinely horizontal rows and explicitly forced ports remain lateral.
+  if (sourceBounds.maxY <= targetBounds.minY) return "top";
+  return getDominantSide(
+    sourceCenter.x - targetCenter.x,
+    sourceCenter.y - targetCenter.y,
+  );
+}
+
 function shouldUseEdgeAwareSourceHandle(
   sourceNode: AutoLayoutNode,
   targetNode: AutoLayoutNode,
@@ -1941,18 +1682,6 @@ function getDominantSide(dx: number, dy: number): FlowHandlePosition {
   return dy >= 0 ? "bottom" : "top";
 }
 
-function getOppositeSide(position: FlowHandlePosition): FlowHandlePosition {
-  if (position === "top") {
-    return "bottom";
-  }
-
-  if (position === "bottom") {
-    return "top";
-  }
-
-  return position === "left" ? "right" : "left";
-}
-
 function getNodeCenter(
   node: AutoLayoutNode | undefined,
   placements: Map<string, CenterPoint>,
@@ -1967,7 +1696,7 @@ function getNodeCenter(
     return placedCenter;
   }
 
-  const size = getNodeSize(node);
+  const size = getAutoLayoutNodeSize(node);
 
   return {
     x: node.position.x + size.width / 2,
@@ -1975,8 +1704,11 @@ function getNodeCenter(
   };
 }
 
-function getNodeBounds(node: AutoLayoutNode, center: CenterPoint): LayoutBounds {
-  const size = getNodeSize(node);
+function getNodeBounds(
+  node: AutoLayoutNode,
+  center: CenterPoint,
+): LayoutBounds {
+  const size = getAutoLayoutNodeSize(node);
 
   return {
     maxX: center.x + size.width / 2,
@@ -2003,49 +1735,43 @@ function getPlacedBounds<
   return bounds;
 }
 
-function getNodeSize(node: AutoLayoutNode): NodeSize {
-  const measuredWidth = node.measured?.width ?? node.width;
-  const measuredHeight = node.measured?.height ?? node.height;
-
-  if (measuredWidth && measuredHeight) {
-    return {
-      height: measuredHeight,
-      width: measuredWidth,
-    };
-  }
-
-  const baseSize = baseNodeSizes[node.type];
-  const labelLength = node.data.label.length;
-
+// The importer runs before React Flow measures DOM nodes. Match the intrinsic
+// form dimensions, then prefer live measurements whenever they are available.
+export function getAutoLayoutNodeSize(node: AutoLayoutNode): NodeSize {
+  const base = baseNodeSizes[node.type];
+  let estimatedHeight = base.height;
   if (node.type === "process") {
-    return {
-      ...baseSize,
-      width: clamp(190, 340, 150 + labelLength * 5.6),
-    };
+    const instruction =
+      "instruction" in node.data.config
+        ? node.data.config.instruction
+        : node.data.label;
+    // Monospace textarea is ~19 characters wide, wraps at word boundaries, and
+    // grows by a 20px line height. Include padding/border below the textarea.
+    const rows = instruction.split(/\r\n|\r|\n/).reduce((total, line) => {
+      let count = 1;
+      let used = 0;
+      for (const token of line.match(/\S+\s*/g) ?? []) {
+        const length = token.trimEnd().length;
+        if (used > 0 && used + length > 19) {
+          count += 1;
+          used = 0;
+        }
+        const wholeLines = Math.max(0, Math.ceil(length / 19) - 1);
+        count += wholeLines;
+        used =
+          (wholeLines > 0 ? 0 : used) +
+          length -
+          wholeLines * 19 +
+          (token.length > length ? 1 : 0);
+      }
+      return total + count;
+    }, 0);
+    estimatedHeight = 41 + Math.max(1, rows) * 20;
   }
-
-  if (node.type === "output") {
-    return {
-      ...baseSize,
-      width: clamp(baseSize.width, 390, 170 + labelLength * 4.8),
-    };
-  }
-
-  if (node.type === "functionCall") {
-    return {
-      ...baseSize,
-      width: clamp(210, 310, 170 + labelLength * 4),
-    };
-  }
-
-  if (node.type === "decision") {
-    return {
-      ...baseSize,
-      width: clamp(200, 260, 165 + labelLength * 3.8),
-    };
-  }
-
-  return baseSize;
+  return {
+    width: node.measured?.width ?? node.width ?? base.width,
+    height: node.measured?.height ?? node.height ?? estimatedHeight,
+  };
 }
 
 function getDecisionControlFlow(node: AutoLayoutNode) {
@@ -2056,14 +1782,6 @@ function getDecisionControlFlow(node: AutoLayoutNode) {
 
 function getDecisionControlFlowKind(node: AutoLayoutNode) {
   return getDecisionControlFlow(node)?.kind;
-}
-
-function isLoopUpdateNode(node: AutoLayoutNode | undefined) {
-  return (
-    node?.type === "process" &&
-    "instruction" in node.data.config &&
-    node.data.config.controlFlow?.kind === "forUpdate"
-  );
 }
 
 function uniqueIds(values: string[]) {
@@ -2103,10 +1821,6 @@ function mergeBounds(left: LayoutBounds, right: LayoutBounds): LayoutBounds {
     minX: Math.min(left.minX, right.minX),
     minY: Math.min(left.minY, right.minY),
   };
-}
-
-function clamp(minValue: number, maxValue: number, value: number) {
-  return Math.min(maxValue, Math.max(minValue, value));
 }
 
 function roundLayoutValue(value: number) {
