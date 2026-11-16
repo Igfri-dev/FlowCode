@@ -9,6 +9,7 @@ import {
   runFlowProgramTests,
 } from "@/lib/flow-test-runner";
 import type { FlowProgram } from "@/types/flow";
+import { getTechniqueLabel } from "@/lib/flow-technique-validation";
 import { FlowTestResultDetails } from "./FlowTestResultDetails";
 
 type TestRequest = {
@@ -36,6 +37,9 @@ export function FlowExerciseTestPanel({
   const [request, setRequest] = useState<TestRequest | null>(null);
   const [progress, setProgress] = useState<TestProgress | null>(null);
   const testCases = selectedExercise?.testCases ?? [];
+  const requiredTechniques = [
+    ...new Set(testCases.flatMap((testCase) => testCase.requirements ?? [])),
+  ];
   const signature = JSON.stringify({
     exerciseId: selectedExercise?.id,
     testCases,
@@ -116,8 +120,8 @@ export function FlowExerciseTestPanel({
           </h2>
           <p className="mt-1 max-w-md text-xs leading-relaxed text-slate-500">
             {es
-              ? "Comprueba los casos del ejercicio. Tu trabajo se entrega solo cuando eliges Entregar."
-              : "Check the exercise cases. Your work is submitted only when you choose Submit."}
+              ? "Comprueba las salidas y las técnicas requeridas. Tu trabajo se entrega solo cuando eliges Entregar."
+              : "Check the outputs and required techniques. Your work is submitted only when you choose Submit."}
           </p>
         </div>
         <button
@@ -135,6 +139,29 @@ export function FlowExerciseTestPanel({
               : "Test solution"}
         </button>
       </div>
+      {requiredTechniques.length ? (
+        <div className="mt-3 text-xs text-slate-600">
+          <p className="font-semibold">
+            {es ? "Técnicas evaluadas" : "Techniques assessed"}
+          </p>
+          <p className="mt-1">
+            {requiredTechniques
+              .map((technique) => getTechniqueLabel(technique, language))
+              .join(" · ")}
+          </p>
+          <p className="mt-1 text-slate-500">
+            {es
+              ? "Deben participar en la solución; no basta con añadir bloques sin utilizarlos."
+              : "They must contribute to the solution; adding unused blocks is not enough."}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-slate-500">
+          {es
+            ? "Estos casos sólo evalúan las salidas; no tienen requisitos de técnicas configurados."
+            : "These cases only assess outputs; no technique requirements are configured."}
+        </p>
+      )}
       <div aria-live="polite" className="mt-3 text-xs text-slate-500">
         {visibleProgress ? (
           <p>

@@ -6,11 +6,19 @@ import {
   type FlowExecutionState,
 } from "@/features/flow/execution";
 import type { FlowProgram } from "@/types/flow";
+import {
+  evaluateFlowTechniques,
+  exerciseTechniques,
+  type ExerciseTechnique,
+  type TechniqueCheck,
+  type TechniqueExecutionStep,
+} from "@/lib/flow-technique-validation";
 
 export type ExerciseTestCase = {
   name?: string;
   inputs?: ExecutionValue[];
   expectedOutputs: string[];
+  requirements?: ExerciseTechnique[];
 };
 
 export type ExerciseTestRunCaseResult = {
@@ -19,6 +27,8 @@ export type ExerciseTestRunCaseResult = {
   expectedOutputs: string[];
   actualOutputs: string[];
   message: string;
+  outputsPassed?: boolean;
+  techniqueResults?: TechniqueCheck[];
 };
 
 export type ExerciseTestRunResult = {
@@ -50,8 +60,27 @@ export function parseExerciseTestCases(value: string | null) {
         ? item.inputs.map(normalizeExecutionValue)
         : [],
       expectedOutputs: item.expectedOutputs.map((output) => String(output)),
+      ...(item.requirements !== undefined
+        ? { requirements: parseRequirements(item.requirements, index) }
+        : {}),
     };
   });
+}
+
+function parseRequirements(value: unknown, index: number): ExerciseTechnique[] {
+  if (
+    !Array.isArray(value) ||
+    value.some(
+      (item) =>
+        typeof item !== "string" ||
+        !exerciseTechniques.includes(item as ExerciseTechnique),
+    )
+  ) {
+    throw new Error(
+      `Test case ${index + 1} has invalid technique requirements. Allowed: ${exerciseTechniques.join(", ")}.`,
+    );
+  }
+  return [...new Set(value)] as ExerciseTechnique[];
 }
 
 export function runFlowProgramTests({
@@ -101,8 +130,11 @@ function runSingleTestCase({
     maxSteps,
   };
   const inputs = [...(testCase.inputs ?? [])];
+  const trace: TechniqueExecutionStep[] = [];
+  const requirements = testCase.requirements ?? [];
 
   while (state.status !== "finished" && state.status !== "error") {
+    const before = state;
     state = stepFlowExecution({
       activeDiagramId: "main",
       program,
@@ -116,6 +148,7 @@ function runSingleTestCase({
           expectedOutputs: testCase.expectedOutputs,
           message: "Missing input value for this test case.",
           name,
+          requirements,
         });
       }
 
@@ -131,25 +164,50 @@ function runSingleTestCase({
         expectedOutputs: testCase.expectedOutputs,
         message: "Tests can only run the main diagram automatically.",
         name,
+        requirements,
       });
+    }
+
+    if (requirements.length > 0 && state.stepCount > before.stepCount) {
+      const executed = state.history.at(-1);
+      if (executed) {
+        trace.push({
+          diagramId: before.currentDiagramId,
+          nodeId: executed.nodeId,
+          variablesBefore: before.variables,
+          variablesAfter: state.variables,
+        });
+      }
     }
   }
 
   const actualOutputs = state.outputs.map((output) => output.content);
+  const outputsPassed = areOutputsEqual(
+    actualOutputs,
+    testCase.expectedOutputs,
+  );
+  const techniqueEvaluation = evaluateFlowTechniques({
+    program,
+    trace,
+    requirements,
+  });
   const passed =
-    state.status === "finished" &&
-    areOutputsEqual(actualOutputs, testCase.expectedOutputs);
+    state.status === "finished" && outputsPassed && techniqueEvaluation.passed;
 
   return {
     name,
     passed,
     actualOutputs,
     expectedOutputs: testCase.expectedOutputs,
+    outputsPassed,
+    techniqueResults: techniqueEvaluation.checks,
     message: passed
       ? "Passed"
       : state.status === "error"
         ? state.message
-        : "Outputs do not match the expected outputs.",
+        : !outputsPassed
+          ? "Outputs do not match the expected outputs."
+          : "Outputs match, but required techniques were not demonstrated.",
   };
 }
 
@@ -158,11 +216,13 @@ function createFailedCase({
   expectedOutputs,
   message,
   name,
+  requirements = [],
 }: {
   actualOutputs: string[];
   expectedOutputs: string[];
   message: string;
   name: string;
+  requirements?: ExerciseTechnique[];
 }): ExerciseTestRunCaseResult {
   return {
     name,
@@ -170,6 +230,11 @@ function createFailedCase({
     actualOutputs,
     expectedOutputs,
     message,
+    outputsPassed: areOutputsEqual(actualOutputs, expectedOutputs),
+    techniqueResults: requirements.map((technique) => ({
+      technique,
+      passed: false,
+    })),
   };
 }
 

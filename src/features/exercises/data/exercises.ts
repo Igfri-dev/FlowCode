@@ -1,5 +1,6 @@
 import type { Exercise } from "@/features/exercises/types";
 import type { ExerciseTestCase } from "@/lib/flow-test-runner";
+import type { ExerciseTechnique } from "@/lib/flow-technique-validation";
 import {
   translations,
   type Language,
@@ -104,20 +105,21 @@ const englishTags: Record<string, string> = {
   return: "return",
 };
 
-const localizedStarterCode: Partial<Record<Language, Record<string, string>>> = {
-  en: {
-    "count-1-to-5": `let i = 1;
+const localizedStarterCode: Partial<Record<Language, Record<string, string>>> =
+  {
+    en: {
+      "count-1-to-5": `let i = 1;
 while (i <= 5) {
   console.log(i);
   i++;
 }`,
-    "even-number": `let number = 8;
+      "even-number": `let number = 8;
 if (number % 2 === 0) {
   console.log("The number is even");
 } else {
   console.log("The number is odd");
 }`,
-    "sum-1-to-n": `let n = 5;
+      "sum-1-to-n": `let n = 5;
 let sum = 0;
 let i = 1;
 while (i <= n) {
@@ -125,7 +127,7 @@ while (i <= n) {
   i++;
 }
 console.log("The sum is " + sum);`,
-    "positive-negative-zero": `async function leerEntrada(mensaje, tipo = "text") {
+      "positive-negative-zero": `async function leerEntrada(mensaje, tipo = "text") {
   const valor = prompt(mensaje);
   if (tipo === "number") return Number(valor);
   if (tipo === "boolean") return valor === "true" || valor === "yes";
@@ -146,11 +148,11 @@ async function main() {
 }
 
 main();`,
-    "multiplication-table": `let number = 7;
+      "multiplication-table": `let number = 7;
 for (let i = 1; i <= 10; i++) {
   console.log(\`\${number} x \${i} = \${number * i}\`);
 }`,
-    "operation-menu": `let operation = "multiply";
+      "operation-menu": `let operation = "multiply";
 let a = 12;
 let b = 4;
 
@@ -170,7 +172,7 @@ switch (operation) {
   default:
     console.log("Invalid operation");
 }`,
-    "access-attempts": `let attempt = 1;
+      "access-attempts": `let attempt = 1;
 let password = "1234";
 let enteredPassword = "0000";
 let access = false;
@@ -189,7 +191,7 @@ do {
 if (!access) {
   console.log("Account locked");
 }`,
-    "normalize-user-profile": `let user = {
+      "normalize-user-profile": `let user = {
   name: "  Ana ",
   profile: {
     level: "admin",
@@ -199,7 +201,7 @@ if (!access) {
 let cleanName = user.name.trim();
 let level = user.profile?.level ?? "guest";
 console.log("User " + cleanName + " - " + level.toUpperCase());`,
-    "shipping-quote": `function calculateShipping(kilos, zone) {
+      "shipping-quote": `function calculateShipping(kilos, zone) {
   let base = Math.ceil(kilos) * 1200;
 
   switch (zone) {
@@ -225,7 +227,7 @@ let shipping = calculateShipping(order.kilos, order.zone);
 let discount = order.subtotal * order.coupon;
 let total = order.subtotal + shipping - discount;
 console.log("Total: " + Math.round(total));`,
-    "prime-number-function": `function isPrime(number) {
+      "prime-number-function": `function isPrime(number) {
   if (number < 2) {
     return false;
   }
@@ -247,7 +249,7 @@ if (prime) {
 } else {
   console.log(number + " is not prime");
 }`,
-    "grade-report": `function calculateAverage(grades) {
+      "grade-report": `function calculateAverage(grades) {
   let sum = 0;
 
   for (let i = 0; i < grades.length; i++) {
@@ -283,7 +285,7 @@ switch (category) {
   default:
     console.log("Average " + average + ": support plan");
 }`,
-    "atm-with-validations": `function validateWithdrawal(balance, amount) {
+      "atm-with-validations": `function validateWithdrawal(balance, amount) {
   if (amount <= 0) {
     return "invalid amount";
   }
@@ -317,8 +319,8 @@ switch (status) {
   default:
     console.log("Invalid amount");
 }`,
-  },
-};
+    },
+  };
 
 const localizedTestCases: Partial<
   Record<Language, Record<string, ExerciseTestCase[]>>
@@ -397,8 +399,7 @@ const exercises = [
     description:
       "Practica una secuencia simple con una variable contador y un ciclo.",
     difficulty: "facil",
-    objective:
-      "Crea un flujo que muestre los numeros del 1 al 5, uno por uno.",
+    objective: "Crea un flujo que muestre los numeros del 1 al 5, uno por uno.",
     starterCode: `let i = 1;
 while (i <= 5) {
   console.log(i);
@@ -415,8 +416,7 @@ while (i <= 5) {
   {
     id: "even-number",
     title: "Verificar si un numero es par",
-    description:
-      "Usa una decision para elegir entre dos salidas posibles.",
+    description: "Usa una decision para elegir entre dos salidas posibles.",
     difficulty: "facil",
     objective:
       "Pide o define un numero y muestra si es par o impar usando modulo.",
@@ -437,8 +437,7 @@ if (numero % 2 === 0) {
   {
     id: "sum-1-to-n",
     title: "Sumar numeros de 1 a N",
-    description:
-      "Combina acumuladores, ciclos y una condicion de repeticion.",
+    description: "Combina acumuladores, ciclos y una condicion de repeticion.",
     difficulty: "media",
     objective:
       "Calcula la suma de todos los numeros desde 1 hasta N y muestra el resultado.",
@@ -461,11 +460,9 @@ console.log("La suma es " + suma);`,
   {
     id: "positive-negative-zero",
     title: "Positivo, negativo o cero",
-    description:
-      "Clasifica un numero usando decisiones encadenadas.",
+    description: "Clasifica un numero usando decisiones encadenadas.",
     difficulty: "media",
-    objective:
-      "Pide un numero y muestra si es positivo, negativo o cero.",
+    objective: "Pide un numero y muestra si es positivo, negativo o cero.",
     starterCode: `async function leerEntrada(mensaje, tipo = "text") {
   const valor = prompt(mensaje);
   if (tipo === "number") return Number(valor);
@@ -509,11 +506,9 @@ main();`,
   {
     id: "multiplication-table",
     title: "Tabla de multiplicar",
-    description:
-      "Practica un ciclo for y salida con texto dinamico.",
+    description: "Practica un ciclo for y salida con texto dinamico.",
     difficulty: "facil",
-    objective:
-      "Muestra la tabla de multiplicar de un numero desde 1 hasta 10.",
+    objective: "Muestra la tabla de multiplicar de un numero desde 1 hasta 10.",
     starterCode: `let numero = 7;
 for (let i = 1; i <= 10; i++) {
   console.log(\`\${numero} x \${i} = \${numero * i}\`);
@@ -540,8 +535,7 @@ for (let i = 1; i <= 10; i++) {
   {
     id: "operation-menu",
     title: "Menu de operaciones",
-    description:
-      "Usa switch para seleccionar una operacion matematica.",
+    description: "Usa switch para seleccionar una operacion matematica.",
     difficulty: "media",
     objective:
       "Segun el texto de operacion, calcula suma, resta, multiplicacion o division.",
@@ -576,8 +570,7 @@ switch (operacion) {
   {
     id: "access-attempts",
     title: "Intentos de acceso",
-    description:
-      "Modela una validacion que se ejecuta al menos una vez.",
+    description: "Modela una validacion que se ejecuta al menos una vez.",
     difficulty: "media",
     objective:
       "Simula hasta tres intentos de clave y detente cuando el acceso sea correcto.",
@@ -615,8 +608,7 @@ if (!acceso) {
   {
     id: "normalize-user-profile",
     title: "Normalizar perfil de usuario",
-    description:
-      "Combina objetos, metodos seguros de texto y acceso opcional.",
+    description: "Combina objetos, metodos seguros de texto y acceso opcional.",
     difficulty: "media",
     objective:
       "Limpia el nombre de un usuario y muestra su nivel en mayusculas.",
@@ -641,11 +633,9 @@ console.log("Usuario " + nombreLimpio + " - " + nivel.toUpperCase());`,
   {
     id: "shipping-quote",
     title: "Cotizacion de envio",
-    description:
-      "Calcula un total usando una funcion auxiliar, switch y Math.",
+    description: "Calcula un total usando una funcion auxiliar, switch y Math.",
     difficulty: "media",
-    objective:
-      "Calcula envio, descuento y total final para un pedido.",
+    objective: "Calcula envio, descuento y total final para un pedido.",
     starterCode: `function calcularEnvio(kilos, zona) {
   let base = Math.ceil(kilos) * 1200;
 
@@ -822,6 +812,27 @@ switch (estado) {
   },
 ] satisfies Exercise[];
 
+const builtinTechniqueRequirements: Record<string, ExerciseTechnique[]> = {
+  "count-1-to-5": ["loop"],
+  "even-number": ["decision", "modulo"],
+  "sum-1-to-n": ["loop", "accumulator"],
+  "positive-negative-zero": ["input", "decision"],
+  "multiplication-table": ["loop"],
+  "operation-menu": ["switch"],
+  "access-attempts": ["loop", "decision"],
+  "normalize-user-profile": ["object", "stringMethods", "optionalChaining"],
+  "shipping-quote": ["function", "switch", "math"],
+  "prime-number-function": ["function", "loop", "modulo", "decision"],
+  "grade-report": ["function", "loop", "array", "switch"],
+  "atm-with-validations": ["function", "decision", "modulo", "switch"],
+};
+
+export function getBuiltinTechniqueRequirements(
+  exerciseId: string,
+): ExerciseTechnique[] {
+  return [...(builtinTechniqueRequirements[exerciseId] ?? [])];
+}
+
 export function getExercises(language: Language = "es"): Exercise[] {
   const textSet = translations[language];
 
@@ -840,8 +851,12 @@ export function getExercises(language: Language = "es"): Exercise[] {
       objective: textSet[textKeys.objective],
       starterCode:
         localizedStarterCode[language]?.[exercise.id] ?? exercise.starterCode,
-      testCases:
-        localizedTestCases[language]?.[exercise.id] ?? exercise.testCases,
+      testCases: (
+        localizedTestCases[language]?.[exercise.id] ?? exercise.testCases
+      )?.map((testCase) => ({
+        ...testCase,
+        requirements: getBuiltinTechniqueRequirements(exercise.id),
+      })),
       tags:
         language === "en"
           ? exercise.tags?.map((tag) => englishTags[tag] ?? tag)

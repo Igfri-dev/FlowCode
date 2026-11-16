@@ -3,6 +3,7 @@ import { queryRows } from "@/lib/db";
 import { ensureRuntimeSchema } from "@/lib/schema";
 import type { Exercise } from "@/features/exercises/types";
 import { parseExerciseTestCases } from "@/lib/flow-test-runner";
+import { resolveExerciseTestCases } from "@/lib/exercise-test-policy";
 
 type ExerciseRow = RowDataPacket & {
   id: number;
@@ -45,7 +46,10 @@ export async function listDatabaseExercises(
     objective: row.objective,
     difficulty: row.difficulty,
     starterCode: row.starter_code ?? undefined,
-    testCases: parseStoredTestCases(row.test_cases),
+    testCases: resolveExerciseTestCases({
+      sourceId: row.source_key,
+      storedTestCases: parseStoredTestCases(row.test_cases),
+    }),
     submissionDeadline: row.submission_deadline,
     tags: parseTags(row.tags),
   }));

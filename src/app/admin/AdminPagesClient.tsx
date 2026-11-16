@@ -43,6 +43,7 @@ import type {
   AdminUserGroup,
 } from "@/lib/admin-data";
 import type { FlowEditorEdge, FlowEditorNode } from "@/types/flow";
+import { exerciseTechniques, getTechniqueLabel } from "@/lib/flow-technique-validation";
 import { AdminIcon } from "./AdminIcon";
 
 type AdminChromeProps = {
@@ -123,7 +124,10 @@ const copy = {
     objective: "Objetivo",
     starterCode:
       "JavaScript inicial opcional. Se guardará, pero no se mostrará como solución en el importador.",
-    testCases: 'Tests en JSON. Ejemplo: [{"name":"caso 1","inputs":[5],"expectedOutputs":["10"]}]',
+    testCases: 'Tests en JSON. Ejemplo: [{"name":"caso 1","inputs":[5],"expectedOutputs":["10"],"requirements":["loop"]}]',
+    techniqueHelpTitle: "Configurar las técnicas evaluadas",
+    techniqueHelp: 'Añade "requirements" a cada caso para indicar qué técnicas deben contribuir al resultado. No basta con colocar bloques sin usarlos. Usa [] para evaluar sólo las salidas. Si lo omites al editar un ejercicio del catálogo, conserva sus requisitos originales.',
+    techniqueOptions: "Técnicas disponibles",
     submissionDeadline: "Fecha límite de entrega",
     submissionDeadlineHelp:
       "Opcional. Después de esta fecha los alumnos no pueden entregar ni editar.",
@@ -237,7 +241,10 @@ const copy = {
     objective: "Objective",
     starterCode:
       "Optional starter JavaScript. It will be saved but not shown as the solution in the import panel.",
-    testCases: 'JSON tests. Example: [{"name":"case 1","inputs":[5],"expectedOutputs":["10"]}]',
+    testCases: 'JSON tests. Example: [{"name":"case 1","inputs":[5],"expectedOutputs":["10"],"requirements":["loop"]}]',
+    techniqueHelpTitle: "Configure assessed techniques",
+    techniqueHelp: 'Add "requirements" to each case to specify techniques that must contribute to the result. Adding unused blocks is not enough. Use [] to assess only outputs. If omitted when editing a catalog exercise, its original requirements are retained.',
+    techniqueOptions: "Available techniques",
     submissionDeadline: "Submission deadline",
     submissionDeadlineHelp: "Optional. After this time, students cannot submit or edit their work.",
     noDeadline: "No deadline",
@@ -1817,6 +1824,7 @@ function ExerciseForm({
   text: AdminCopy;
   user: SessionUser;
 }) {
+  const { language } = useI18n();
   return (
     <form
       action={action}
@@ -1911,6 +1919,20 @@ function ExerciseForm({
           required
         />
       </label>
+      <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+        <summary className="cursor-pointer font-semibold text-slate-800">{text.techniqueHelpTitle}</summary>
+        <p className="mt-2 leading-5">{text.techniqueHelp}</p>
+        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-white p-3 font-mono text-[11px]">{JSON.stringify([{ name: language === "es" ? "Cuenta con un ciclo" : "Count using a loop", expectedOutputs: ["1", "2", "3"], requirements: ["loop"] }], null, 2)}</pre>
+        <p className="mt-3 font-semibold">{text.techniqueOptions}</p>
+        <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+          {exerciseTechniques.map((technique) => (
+            <div key={technique} className="flex items-baseline gap-2">
+              <dt className="font-mono text-[11px] text-slate-800">{technique}</dt>
+              <dd>{getTechniqueLabel(technique, language)}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
       <label className="grid gap-1.5 text-xs font-semibold text-slate-600">
         {text.submissionDeadline}
         <input

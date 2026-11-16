@@ -1,3 +1,4 @@
+import { getTechniqueLabel } from "@/lib/flow-technique-validation";
 import type { Language } from "@/features/i18n/translations";
 import type {
   ExerciseTestCase,
@@ -34,8 +35,53 @@ export function FlowTestResultDetails({
           </summary>
           {!testCase.passed ? (
             <p className="mt-2 whitespace-pre-wrap text-red-900">
-              {localizeTestMessage(testCase.message, language)}
+              {testCase.message ===
+              "Outputs match, but required techniques were not demonstrated."
+                ? es
+                  ? "Las salidas coinciden, pero faltan técnicas requeridas en la solución."
+                  : "Outputs match, but the solution is missing required techniques."
+                : localizeTestMessage(testCase.message, language)}
             </p>
+          ) : null}
+          {testCase.outputsPassed !== undefined ? (
+            <p
+              className={`mt-2 text-xs font-medium ${testCase.outputsPassed ? "text-emerald-800" : "text-red-900"}`}
+            >
+              {es ? "Salidas" : "Outputs"}:{" "}
+              {testCase.outputsPassed
+                ? es
+                  ? "coinciden"
+                  : "match"
+                : es
+                  ? "no coinciden o la ejecución no terminó correctamente"
+                  : "mismatch or execution did not finish successfully"}
+            </p>
+          ) : null}
+          {testCase.techniqueResults?.length ? (
+            <div className="mt-3">
+              <p className="font-medium text-neutral-700">
+                {es ? "Técnicas requeridas" : "Required techniques"}
+              </p>
+              <ul className="mt-1 space-y-1 text-xs">
+                {testCase.techniqueResults.map((result) => (
+                  <li
+                    key={result.technique}
+                    className={
+                      result.passed ? "text-emerald-800" : "text-red-900"
+                    }
+                  >
+                    {getTechniqueLabel(result.technique, language)} ·{" "}
+                    {result.passed
+                      ? es
+                        ? "Comprobada"
+                        : "Verified"
+                      : es
+                        ? "No se comprobó su uso en el resultado"
+                        : "Use in the result was not verified"}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           {testCases?.[index] ? (
             <div className="mt-3">

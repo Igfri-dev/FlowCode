@@ -1,10 +1,9 @@
 import type { RowDataPacket } from "mysql2/promise";
-import { getExercises } from "@/features/exercises/data/exercises";
 import { getPool } from "@/lib/db";
+import { resolveExerciseTestCases } from "@/lib/exercise-test-policy";
 import {
   parseExerciseTestCases,
   runFlowProgramTests,
-  type ExerciseTestCase,
 } from "@/lib/flow-test-runner";
 import type { Language } from "@/features/i18n/translations";
 import type { FlowProgram } from "@/types/flow";
@@ -28,7 +27,6 @@ export async function getSubmissionTestResult({
   program: FlowProgram;
 }) {
   let sourceId = exerciseKey;
-  let testCases: ExerciseTestCase[] = [];
   let row: ExerciseTestRow | undefined;
 
   if (exerciseId && Number.isFinite(exerciseId)) {
@@ -53,14 +51,14 @@ export async function getSubmissionTestResult({
     row = rows[0];
   }
 
-  sourceId = row?.source_key ?? sourceId;
-  testCases = parseStoredTestCases(row?.test_cases ?? null);
-
-  if (testCases.length === 0 && sourceId) {
-    testCases =
-      getExercises(language).find((exercise) => exercise.id === sourceId)
-        ?.testCases ?? [];
-  }
+  // A database exercise's source is authoritative. A custom exercise with a
+  // null source_key must not inherit the client-supplied exerciseKey.
+  sourceId = row ? row.source_key : sourceId;
+  const testCases = resolveExerciseTestCases({
+    sourceId,
+    storedTestCases: parseStoredTestCases(row?.test_cases ?? null),
+    language,
+  });
 
   if (testCases.length === 0) {
     return null;

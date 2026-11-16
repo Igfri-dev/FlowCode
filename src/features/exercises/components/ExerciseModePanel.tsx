@@ -1,3 +1,4 @@
+import { getTechniqueLabel } from "@/lib/flow-technique-validation";
 import type { Exercise, ExerciseDifficulty } from "@/features/exercises/types";
 import { useI18n } from "@/features/i18n/I18nProvider";
 
@@ -15,6 +16,13 @@ export function ExerciseModePanel({
   showExerciseSelector = true,
 }: ExerciseModePanelProps) {
   const { language, t } = useI18n();
+  const requiredTechniques = [
+    ...new Set(
+      selectedExercise?.testCases?.flatMap(
+        (testCase) => testCase.requirements ?? [],
+      ) ?? [],
+    ),
+  ];
   const localizedDifficultyLabels: Record<ExerciseDifficulty, string> = {
     facil: t("difficulty.facil"),
     media: t("difficulty.media"),
@@ -152,6 +160,27 @@ export function ExerciseModePanel({
                   ? selectedExercise.submissionDeadline.replace("T", " ")
                   : t("exercise.noDeadline")}
               </p>
+              {requiredTechniques.length ? (
+                <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 text-xs text-emerald-950">
+                  <p className="font-semibold">
+                    {language === "es"
+                      ? "Técnicas requeridas"
+                      : "Required techniques"}
+                  </p>
+                  <p className="mt-1">
+                    {requiredTechniques
+                      .map((technique) =>
+                        getTechniqueLabel(technique, language),
+                      )
+                      .join(" · ")}
+                  </p>
+                  <p className="mt-1 text-emerald-800">
+                    {language === "es"
+                      ? "La prueba comprueba que se utilicen en la solución, además de obtener las salidas esperadas."
+                      : "Tests check their use in the solution as well as the expected outputs."}
+                  </p>
+                </div>
+              ) : null}
               {selectedExercise.testCases &&
               selectedExercise.testCases.length > 0 ? (
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
