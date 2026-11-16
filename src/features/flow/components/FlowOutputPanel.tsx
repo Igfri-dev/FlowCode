@@ -36,7 +36,7 @@ export function FlowOutputPanel({
           {t("flow.outputsEmpty")}
         </p>
       ) : (
-        <ol className="mt-3 max-h-80 space-y-3 overflow-y-auto rounded-xl bg-slate-950 p-3 text-sm">
+        <ol className="fullscreen-panel-content mt-3 max-h-80 space-y-3 overflow-y-auto rounded-xl bg-slate-950 p-3 text-sm">
           {outputs.map((output) => (
             <li key={output.id} className="border-l border-slate-700 pl-3">
               <span className="text-[10px] font-medium text-slate-400">

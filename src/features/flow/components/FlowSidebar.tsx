@@ -110,7 +110,7 @@ export function FlowSidebar({
       </div>
 
       <div
-        className={`mt-4 ${isHorizontal ? "flex max-w-[calc(100vw-5rem)] gap-2 overflow-x-auto pb-1" : symbolsOnly ? "grid grid-cols-2 gap-2" : "grid gap-1.5"}`}
+        className={`mt-4 ${symbolsOnly ? "flex flex-wrap gap-2" : isHorizontal ? "flex max-w-[calc(100vw-5rem)] gap-2 overflow-x-auto pb-1" : "grid gap-1.5"}`}
       >
         {blockActions.map((action) => {
           const actionLabel = t(action.labelKey);
@@ -123,14 +123,14 @@ export function FlowSidebar({
               aria-label={actionLabel}
               title={actionLabel}
               onClick={() => onAddNode(action.type)}
-              className={`group relative flex shrink-0 items-center rounded-xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${symbolsOnly ? "min-h-20 justify-center border-slate-200/80 bg-slate-50/50 p-3 hover:border-teal-300 hover:bg-teal-50/60" : "gap-3 border-transparent bg-white px-2 py-1.5 hover:border-slate-200 hover:bg-slate-50"} ${isHorizontal ? (symbolsOnly ? "min-w-20" : "min-w-40") : ""}`}
+              className={`group relative flex shrink-0 items-center rounded-xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${symbolsOnly ? "w-[58px] justify-center border-slate-200/80 bg-slate-50/50 px-2 py-1.5 hover:border-teal-300 hover:bg-teal-50/60" : "gap-3 border-transparent bg-white px-2 py-1.5 hover:border-slate-200 hover:bg-slate-50"} ${isHorizontal && !symbolsOnly ? "min-w-40" : ""}`}
             >
               <span
-                className={`flex shrink-0 items-center justify-center ${action.colorClassName} ${symbolsOnly ? "h-12 w-16" : "h-9 w-10 rounded-lg bg-slate-50 group-hover:bg-white"}`}
+                className={`flex shrink-0 items-center justify-center ${action.colorClassName} ${symbolsOnly ? "h-9 w-10" : "h-9 w-10 rounded-lg bg-slate-50 group-hover:bg-white"}`}
               >
                 <FlowBlockSymbol
                   type={action.type}
-                  className={symbolsOnly ? "h-12 w-16" : "h-8 w-10"}
+                  className="h-8 w-10"
                 />
               </span>
               {!symbolsOnly ? (

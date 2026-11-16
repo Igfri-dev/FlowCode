@@ -48,7 +48,7 @@ export function FlowCodePanel({
         </div>
       ) : null}
 
-      <pre className="mt-4 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-emerald-200">
+      <pre className="fullscreen-panel-content mt-4 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-emerald-200">
         <code>{codeToShow}</code>
       </pre>
     </section>

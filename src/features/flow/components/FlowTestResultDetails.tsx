@@ -83,7 +83,7 @@ function OutputValues({
   return (
     <div className="min-w-0">
       <p className="font-medium text-neutral-700">{label}</p>
-      <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-xs text-neutral-900">
+      <pre className="fullscreen-panel-content mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded bg-white p-2 text-xs text-neutral-900">
         {values.length
           ? values.map((value) => JSON.stringify(value)).join("\n")
           : language === "es"

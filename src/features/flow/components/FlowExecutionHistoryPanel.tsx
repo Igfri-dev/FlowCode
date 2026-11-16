@@ -49,7 +49,7 @@ export function FlowExecutionHistoryPanel({
           {t("flow.historyEmpty")}
         </p>
       ) : (
-        <ol className="mt-3 max-h-110 space-y-2 overflow-y-auto pr-1 text-sm">
+        <ol className="fullscreen-panel-content mt-3 max-h-110 space-y-2 overflow-y-auto pr-1 text-sm">
           {latestFirstHistory.map((item, index) => (
             <li
               key={item.id}
