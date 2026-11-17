@@ -37,7 +37,8 @@ async function main() {
     });
     try {
       // Existing hosting databases do not require CREATE DATABASE permission.
-      await connection.changeUser({ database });
+      // USE keeps authentication intact, including after an unknown-database error.
+      await connection.query("USE ??", [database]);
     } catch (error) {
       if (
         !(
@@ -53,7 +54,7 @@ async function main() {
         "CREATE DATABASE IF NOT EXISTS ?? CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
         [database],
       );
-      await connection.changeUser({ database });
+      await connection.query("USE ??", [database]);
     }
 
     await connection.query(schema);

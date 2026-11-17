@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import logoImage from "../logo.png";
+import logoImage from "../../../public/brand/flowcode-logo-v4-long-arrow.png";
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage({
@@ -20,20 +20,18 @@ export default async function LoginPage({
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-6 text-slate-950 sm:py-12">
       <section className="grid w-full max-w-[1080px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_20px_80px_-32px_rgba(15,23,42,0.22)] lg:grid-cols-[minmax(0,1fr)_450px]">
         <div className="relative flex flex-col justify-between overflow-hidden bg-slate-950 p-6 text-white sm:p-8 lg:min-h-[640px] lg:p-10">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-start gap-3">
             <Image
               src={logoImage}
-              alt=""
-              aria-hidden="true"
-              className="h-10 w-14 shrink-0 rounded-lg object-contain"
+              alt="FlowCode"
+              className="h-auto w-40 max-w-full object-contain sm:w-48 lg:w-56"
+              sizes="(min-width: 1024px) 224px, (min-width: 640px) 192px, 160px"
+              unoptimized
               preload
             />
-            <div>
-              <p className="text-xl font-bold tracking-tight">FlowCode</p>
-              <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-                Editor visual de algoritmos
-              </p>
-            </div>
+            <p className="text-xs font-medium tracking-wide text-slate-400 sm:text-sm">
+              Editor visual de algoritmos
+            </p>
           </div>
 
           <div className="mt-8 hidden max-w-xl lg:block">

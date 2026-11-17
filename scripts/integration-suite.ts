@@ -89,7 +89,7 @@ async function main() {
     assert.equal(existingDatabases.length, 0, "The integration database must not already exist");
     created = true;
     assert.match(await runSetup({ ...env, FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD: "" }, 1), /Set FLOWCODE_BOOTSTRAP/);
-    await connection.changeUser({ database });
+    await connection.query("USE ??", [database]);
     assert.match(await runSetup({ ...env, FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD: "short1" }, 1), /at least 8 characters/);
     const [emptyUsers] = await connection.query<RowDataPacket[]>("SELECT id FROM users");
     assert.equal(emptyUsers.length, 0, "Invalid setup must not create an administrator");
