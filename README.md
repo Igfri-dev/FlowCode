@@ -25,9 +25,15 @@ Use Node.js 22 (the version used by CI), npm, Git, and a running MySQL server.
    `EMAIL_QUEUE_SECRET` of at least 32 random characters. If `.env.local`
    already exists, update it with the settings you need.
 
-3. Import [the database schema](docs/database/flowcode-mysql.sql) into your
-   local MySQL server. The script creates and selects the `flowcode` database;
-   keep `MYSQL_DATABASE` consistent with the database you use.
+3. Initialize the database and the first administrator:
+
+   ```bash
+   npm run db:setup
+   ```
+
+   This creates `MYSQL_DATABASE` if needed, installs the tables, applies runtime
+   migrations, and creates the administrator configured in `.env.local` when
+   there are no users. See [Database installation](#database-installation).
 
 4. Start the development server:
 
@@ -36,7 +42,8 @@ Use Node.js 22 (the version used by CI), npm, Git, and a running MySQL server.
    ```
 
 5. Open [http://localhost:3000](http://localhost:3000) and sign in using the
-   bootstrap administrator credentials configured in `.env.local`. To process
+   bootstrap administrator credentials configured in `.env.local`. You must
+   change the temporary password before accessing the application. To process
    queued verification and password-reset emails, run this in another terminal:
 
    ```bash
@@ -372,6 +379,7 @@ Available scripts:
 npm run dev      # start the local Next.js development server
 npm run build    # create a production build
 npm run start    # start the production server after building
+npm run db:setup # create/update the database and bootstrap the first admin
 npm run email:worker # continuously deliver queued email
 npm run lint     # run Biome
 npm test         # run the FlowCode test suite
@@ -386,6 +394,46 @@ The MySQL user needs permission to create and drop databases. Stop any existing
 development server first because Next.js uses one development lock per project.
 Set `FLOWCODE_INTEGRATION_SERVER=production` to test an existing `npm run build`
 with `next start`; CI uses this mode on both `main` and `FlowCodeEDU`.
+
+### Database installation
+
+1. Install dependencies with `npm ci` and start MySQL.
+2. Copy `.env.example` to `.env.local`. Configure `MYSQL_HOST`, `MYSQL_PORT`,
+   `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`. These are the database
+   connection credentials, separate from the FlowCode administrator account.
+3. Set `FLOWCODE_BOOTSTRAP_ADMIN_USERNAME` (for example, `admin`) and
+   `FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD` to a temporary password with at least
+   8 characters and a number. There is no default administrator password.
+4. Run `npm run db:setup` before starting the app. It creates the configured
+   database if it does not exist, installs the schema from
+   [flowcode-mysql.sql](docs/database/flowcode-mysql.sql), applies runtime
+   migrations, and creates the first administrator with a hashed password.
+5. Start with `npm run dev`, or `npm run build` followed by `npm start` for
+   production. Sign in at `/login` with the configured administrator credentials.
+   FlowCode redirects you to `/change-password` and blocks access to protected
+   pages until you enter the current password and confirm a different password
+   meeting the same policy. After saving, you enter the administration panel.
+6. Remove `FLOWCODE_BOOTSTRAP_ADMIN_USERNAME` and
+   `FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD` from `.env.local` or the hosting
+   environment after setup. Future sign-ins use the new password stored in the
+   database; environment values do not reset it.
+
+The MySQL user needs permission to create tables, alter tables, read and write
+data, and create indexes and foreign keys. If the database does not exist, it
+also needs `CREATE DATABASE`. On hosting services that manage databases, create
+the database in the hosting panel first and set its exact name in
+`MYSQL_DATABASE`; setup can use an existing database without permission to
+create databases.
+
+You can rerun `npm run db:setup` to complete an interrupted installation or
+apply runtime schema updates. It preserves existing data and never resets
+passwords, promotes users, or creates another administrator when any users
+already exist. If installing manually through phpMyAdmin, you can import the
+SQL schema first (its database name is `flowcode`), then run `npm run db:setup`
+to apply runtime updates and create the first administrator. For compatibility,
+the first login also creates that administrator if the schema is installed,
+there are no users, and both bootstrap variables are set; the same mandatory
+password change applies.
 
 ### Database, email, and bulk users
 
@@ -720,6 +768,7 @@ Scripts disponibles:
 npm run dev      # inicia el servidor local de desarrollo de Next.js
 npm run build    # crea una build de producción
 npm run start    # inicia el servidor de producción después de compilar
+npm run db:setup # crea/actualiza la base y el primer administrador
 npm run email:worker # envía y reintenta los correos pendientes
 npm run lint     # ejecuta Biome
 npm test         # ejecuta la suite de tests de FlowCode
@@ -729,6 +778,47 @@ La build de producción usa Webpack para permitir el fallback WASM de SWC en
 Hostinger, cuyo entorno no puede cargar el compilador nativo de Next.js.
 `next.config.mjs` se carga directamente en Node.js y evita transpilar la
 configuración con SWC. El desarrollo local sigue usando Turbopack.
+
+### Instalación de la base de datos
+
+1. Instala las dependencias con `npm ci` e inicia MySQL.
+2. Copia `.env.example` como `.env.local`. Configura `MYSQL_HOST`, `MYSQL_PORT`,
+   `MYSQL_USER`, `MYSQL_PASSWORD` y `MYSQL_DATABASE`. Son las credenciales de
+   conexión a MySQL, distintas de la cuenta administradora de FlowCode.
+3. Define `FLOWCODE_BOOTSTRAP_ADMIN_USERNAME` (por ejemplo, `admin`) y
+   `FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD` con una contraseña temporal de al menos
+   8 caracteres y un número. No hay una contraseña predeterminada del admin.
+4. Ejecuta `npm run db:setup` antes de iniciar la aplicación. El comando crea
+   la base configurada si no existe, instala las tablas de
+   [flowcode-mysql.sql](docs/database/flowcode-mysql.sql), aplica las migraciones
+   de ejecución y crea el primer administrador con la contraseña almacenada
+   mediante hash.
+5. Inicia con `npm run dev` o, en producción, con `npm run build` y luego
+   `npm start`. Accede a `/login` con las credenciales del administrador.
+   FlowCode te dirige a `/change-password` y bloquea el acceso a las páginas
+   protegidas hasta ingresar la contraseña actual y confirmar una nueva,
+   diferente y que cumpla la misma política. Al guardarla, entras al panel de
+   administración.
+6. Elimina `FLOWCODE_BOOTSTRAP_ADMIN_USERNAME` y
+   `FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD` de `.env.local` o del entorno del hosting
+   después de la instalación. Los siguientes accesos usan la contraseña nueva
+   guardada en la base; las variables de entorno no la restablecen.
+
+El usuario de MySQL necesita permisos para crear y modificar tablas, leer y
+escribir datos, y crear índices y claves foráneas. Si la base todavía no
+existe, también necesita `CREATE DATABASE`. Si tu hosting administra las bases,
+créala primero desde su panel e indica su nombre exacto en `MYSQL_DATABASE`;
+el instalador puede usar una base existente sin permiso para crear bases.
+
+Puedes repetir `npm run db:setup` para completar una instalación interrumpida
+o aplicar actualizaciones del esquema. Conserva los datos existentes y nunca
+restablece contraseñas, cambia roles ni crea otro administrador si ya hay
+usuarios. Para instalar manualmente con phpMyAdmin, puedes importar primero
+el SQL (que usa el nombre de base `flowcode`) y después ejecutar
+`npm run db:setup` para aplicar las actualizaciones y crear el administrador.
+Por compatibilidad, el primer inicio de sesión también crea ese administrador
+si el esquema ya está instalado, no hay usuarios y ambas variables iniciales
+están definidas; también exige cambiar la contraseña.
 
 ### Base de datos, correo y usuarios masivos
 

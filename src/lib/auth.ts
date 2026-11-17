@@ -2,8 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { RowDataPacket } from "mysql2/promise";
-import { getPool, queryOne, queryRows } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { ensureBootstrapAdmin } from "@/lib/bootstrap-admin";
+import { getPool, queryOne } from "@/lib/db";
+import { verifyPassword } from "@/lib/password";
 import { ensureRuntimeSchema } from "@/lib/schema";
 
 const sessionCookieName = "flowcode_session";
@@ -229,31 +230,4 @@ export async function destroyAllUserSessions(userId: number) {
   await getPool().execute("DELETE FROM user_sessions WHERE user_id = :userId", {
     userId,
   });
-}
-
-async function ensureBootstrapAdmin() {
-  const username = process.env.FLOWCODE_BOOTSTRAP_ADMIN_USERNAME;
-  const password = process.env.FLOWCODE_BOOTSTRAP_ADMIN_PASSWORD;
-
-  if (!username || !password) {
-    return;
-  }
-
-  const existingUsers = await queryRows<RowDataPacket & { count: number }>(
-    "SELECT COUNT(*) AS count FROM users",
-  );
-
-  if ((existingUsers[0]?.count ?? 0) > 0) {
-    return;
-  }
-
-  await getPool().execute(
-    `INSERT INTO users (username, password_hash, full_name, role)
-     VALUES (:username, :passwordHash, :fullName, 'admin')`,
-    {
-      username,
-      passwordHash: await hashPassword(password),
-      fullName: "Administrator",
-    },
-  );
 }

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "db:setup": "tsx scripts/setup-database.ts",
     "email:worker": "tsx scripts/email-worker.ts",
     "layout:preview": "tsx scripts/flow-layout-preview.ts",
     "test:exercise-scope": "tsx scripts/integration-exercise-scope.ts",
